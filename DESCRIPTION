@@ -1,0 +1,47 @@
+Package: IntLIM
+Type: Package
+Title: Ensemble Prediction for IntLIM
+Version: 0.1.0
+Authors@R: c(
+ person("Tara", "Eicher", email="tara.eicher@nih.gov", role=("aut", "cre"))
+Maintainer: The package maintainer <ewy.mathe@nih.gov>
+Description: This workflow takes normalized gene expression and metabolite levels, 
+  meta-information on genes, metabolites, and samples to identify gene:metabolite pairs 
+  that are significantly associated with an outcome (e.g. tumors).
+License: GPL-2
+Depends: R (>= 3.2.0)
+Imports:
+	ComplexHeatmap,
+	dendextend,
+	dplyr,
+	ggdendro,
+	ggnetwork,
+	ggplot2,
+	gplots,
+	graphics,
+	igraph,
+	IntLIM,
+	RColorBrewer,
+    reshape2,
+	rlang,
+    stats,
+	testthat,
+	tidyr,
+	utils
+Suggests:
+    knitr
+Encoding: UTF-8
+LazyData: TRUE
+NeedsCompilation: no
+Collate: 
+    '05_BuildCoRegulationGraph.R'
+    '06_RunPairwisePrediction.R'
+    '07_LearnGraphPredictionModel.R'
+    'IntLimResults_extendedfunctions.R'
+    'MultiDataSet_extendedfunctions.R'
+    'clusteringfunctions.R'
+    'gradientfunctions.R'
+    'learningfunctions.R'
+    'plottingfunctions.R'
+VignetteBuilder: knitr
+RoxygenNote: 7.1.1
