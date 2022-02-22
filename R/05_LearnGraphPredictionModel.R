@@ -11,28 +11,17 @@
 #' predictions for each edge.
 #' @param coregulationGraph An igraph object containing the coregulation graph.
 #' @param stype.class The class of the outcome ("numeric" or "categorical")
+#' @param stype The phenotype or outcome of interest
 #' @param edgeTypeList List containing one or more of the following to include
 #' in the line graph:
 #' - "shared.outcome.analyte"
 #' - "shared.independent.analyte"
 #' - "analyte.chain"
-#' @param outlierFactorOfMax Any prediction whose absolute value is greater
-#' than this factor * the absolute value of the maximum prediction in the training
-#' data will have its prediction reset to the mean prediction of its neighbors.
-#' This step prevents outlier predictions from influencing the result. If NULL, 
-#' (default) no outlier filtering is applied.
-#' @param percentileCutoff Percentile cutoff for predictions. If this value is greater
-#' than 0 and it meets the outlierFactorOfMax cutoff, it will be treated as an outlier.
 #' @param verbose Whether to print the number of predictions replaced in each sample.
 #' TRUE or FALSE. Default is FALSE.
-#' @param percentOutlierCutoff The outlier value will be replaced by the mean value
-#' of its neighbors if at least this percent (0-1) of the neighbors are not also
-#' outliers.
 #' @export
 FormatInput <- function(predictionGraphs, coregulationGraph,
-                   inputData, stype.class, edgeTypeList,
-                   outlierFactorOfMax = NA, percentileCutoff = 0,
-                   verbose = FALSE, percentOutlierCutoff = NA){
+                        inputData, stype.class, edgeTypeList, stype, verbose = FALSE){
   
   # Extract edge-wise predictions.
   predictions_by_node <- lapply(names(predictionGraphs), function(sampName){
@@ -57,7 +46,7 @@ FormatInput <- function(predictionGraphs, coregulationGraph,
                        edgeTypeList = edgeTypeList)
   predictions_flattened <- predictions_flattened[,colnames(A)]
   predictions_flattened_orig <- predictions_flattened
-
+  
   # Add self-loops.
   A_tilde <- as.matrix(A)
   diag(A_tilde) <- 1
@@ -83,121 +72,18 @@ FormatInput <- function(predictionGraphs, coregulationGraph,
   A_hat <- A_hat1 * D_tilde_neg_half2
   
   # Obtain the predictions.
-  Y <- inputData$p
+  Y <- inputData@sampleMetaData[,stype]
   if(stype.class == "factor"){
     Y <- as.numeric(Y)-1
   }
   names(Y) <- names(predictions_by_node)
   
-  # Replace outlier predictions with the mean prediction for all neighbors.
-  outliers <- list()
-  if(!is.na(outlierFactorOfMax)){
-    diff <- list()
-    for(i in 1:nrow(predictions_flattened)){
-      # Find outliers.
-      percentile <- stats::quantile(abs(predictions_flattened[i,]), percentileCutoff)
-      which_predictions_outlier <- intersect(which(abs(predictions_flattened[i,]) >
-                                           outlierFactorOfMax * max(abs(Y))),
-                                           which(abs(predictions_flattened[i,]) >
-                                                   percentile))
-      outliers[[i]] <- colnames(predictions_flattened)[which_predictions_outlier]
-      names(outliers)[i] <- rownames(predictions_flattened)[i]
-      if(verbose == TRUE){
-        print(paste(length(which_predictions_outlier), "outliers in sample",
-                    rownames(predictions_flattened)[i]))
-      }
-
-      # Replace with mean of neighboring predictions.
-      diff_local <- unlist(lapply(which_predictions_outlier,function(j){
-          neighbors <- which(A[,j] == 1)
-          non_outlier_neighbors <- setdiff(neighbors, which_predictions_outlier)
-          
-          # Only replace if none of the neighbors are outliers.
-          d <- NA
-          if((length(non_outlier_neighbors) / length(neighbors)) >= percentOutlierCutoff){
-            d <- abs(predictions_flattened[i,j]-
-                                   mean(predictions_flattened[i,non_outlier_neighbors]))
-          }
-          return(d)
-        }))
-      predictions_flattened[i,which_predictions_outlier] <-
-        unlist(lapply(which_predictions_outlier,function(j){
-          neighbors <- which(A[,j] == 1)
-          non_outlier_neighbors <- setdiff(neighbors, which_predictions_outlier)
-          
-          # Only replace if none of the neighbors are outliers.
-          if((length(non_outlier_neighbors) / length(neighbors)) >= percentOutlierCutoff){
-            prediction <- mean(predictions_flattened[i,non_outlier_neighbors])
-          }else{
-            prediction <- predictions_flattened[i,j]
-          }
-          return(prediction)
-        }))
-      diff <- c(diff, diff_local)
-    }
-  }
-  
-  #plot(unlist(predictions_flattened_orig), unlist(predictions_flattened),
-  #     xlab = "Original Predictions", ylab = "Modified Predictions")
-  
   # Create a ModelInput object and return it.
   newModelInput <- methods::new("ModelInput", A.hat=A_hat, node.wise.prediction=t(predictions_flattened),
                                 true.phenotypes=Y, outcome.type=stype.class, 
                                 coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
-                                line.graph=as.matrix(A), modified.outliers=outliers)
+                                line.graph=as.matrix(A), modified.outliers=list())
   return(newModelInput)
-}
-
-#' 
-#' A wrapper for the formatInput class.
-#' @param inputData List of MultiDataSet objects (output of CreateCrossValFolds()) 
-#' with gene expression,
-#' metabolite abundances, and associated meta-data
-#' @param predictionGraphs A list of igraph objects, each of which includes
-#' predictions for each edge.
-#' @param coregulationGraph An igraph object containing the coregulation graph.
-#' @param stype.class The class of the outcome ("numeric" or "categorical")
-#' @param edgeTypeList List containing one or more of the following to include
-#' in the line graph:
-#' - "shared.outcome.analyte"
-#' - "shared.independent.analyte"
-#' - "analyte.chain"
-#' @param testing A boolean indicating whether the testing data is to be used
-#' (as opposed to the training data). Default is FALSE.
-#' @param outlierFactorOfMax Any prediction whose absolute value is greater
-#' than this factor * the absolute value of the maximum prediction in the training
-#' data will have its prediction reset to the mean prediction of its neighbors.
-#' This step prevents outlier predictions from influencing the result. If NULL, 
-#' (default) no outlier filtering is applied.
-#' @param percentileCutoff Percentile cutoff for predictions. If this value is greater
-#' than 0 and it meets the outlierFactorOfMax cutoff, it will be treated as an outlier.
-#' @param verbose Whether to print the number of predictions replaced in each sample.
-#' TRUE or FALSE. Default is FALSE.
-#' @param percentOutlierCutoff The outlier value will be replaced by the mean value
-#' of its neighbors if at least this percent (0-1) of the neighbors are not also
-#' outliers.
-#' @export
-FormatInputAllFolds <- function(predictionGraphs, coregulationGraph,
-                                inputData, stype.class, edgeTypeList,
-                                testing = FALSE, outlierFactorOfMax = NA,
-                                percentileCutoff = 0,
-                                verbose = FALSE, percentOutlierCutoff = NA){
-  # Apply to all folds.
-  return(lapply(1:length(predictionGraphs), function(i){
-    # Select whether input data is training or testing.
-    input <- inputData[[i]]$training
-    if(testing == TRUE){
-      input <- inputData[[i]]$testing
-    }
-    return(FormatInput(predictionGraphs=predictionGraphs[[i]], 
-                       coregulationGraph=coregulationGraph[[i]], 
-                       inputData = input, stype.class = stype.class, 
-                       edgeTypeList = edgeTypeList, 
-                       outlierFactorOfMax = outlierFactorOfMax,
-                       percentileCutoff = percentileCutoff,
-                       verbose = verbose,
-                       percentOutlierCutoff = percentOutlierCutoff))
-  }))
 }
 
 #' Create the graph pooling filter, given the adjacency matrix of the input graph.

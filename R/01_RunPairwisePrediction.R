@@ -12,113 +12,121 @@
 #' or numeric outcome.
 #' @param covar The clinical covariates to include in the model. These should be the same
 #' covariates that were included when running the IntLIM linear models.
+#' @param independentVarType The independent variable type (1 or 2)
+#' @param outcomeType The outcome type (1 or 2)
 #' @export
-RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NULL){
+RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NULL,
+                                  independentVarType = 2, outcomeType = 1){
   
-	# Extract data needed for model.
-	covariates <- inputData$covar_matrix
-	independent.vars <- NULL
-	dependent.vars <- NULL
-	independent.vars <- as.data.frame(inputData$analyteType1)
-	dependent.vars <- as.data.frame(inputData$analyteType2)
-
-	# Extract coefficients.
-	which_start <- which(colnames(inputResults) == "rsquared")[1]
-	if(is.na(which_start)){
-	  which_start <- which(colnames(inputResults) == "FDRadjPval")[1]
-	}
-	which_start <- which_start + 1
-	coefficients <- inputResults[,c(1:2)]
-	if(which_start <= (ncol(inputResults))){
-	  coefficients <- inputResults[,c(1:2, which_start:(ncol(inputResults)))]
-	}
-	coefficients$Analyte1 <- as.character(coefficients$Analyte1)
-	coefficients$Analyte2 <- as.character(coefficients$Analyte2)
-	which_interact <- which(grepl(":", colnames(coefficients)) == TRUE)
-
-	# Construct matrix of coefficients.
-	intercept <- matrix(coefficients[,"(Intercept)"], 
-						nrow=length(coefficients[,"(Intercept)"]), 
-						ncol=ncol(independent.vars))
-	ind_var <- matrix(coefficients$a, 
-					  nrow=length(coefficients$a), 
-					  ncol=ncol(independent.vars))
-	interact_var <- matrix(coefficients[,which_interact], 
-						   nrow=length(coefficients[,which_interact]), 
-						   ncol=ncol(independent.vars))
-	phen_var <- matrix(coefficients$type, nrow=length(coefficients$type), 
-					   ncol=ncol(independent.vars))
-
-	# Compute the numerator of the prediction for each subject 
-	# (sans covariate terms)
-	ind_term <- independent.vars[coefficients$Analyte1,] * ind_var
-	dep_term <- dependent.vars[coefficients$Analyte2,]
-	pred_phenotype <- dep_term - (intercept + ind_term)
-
-	# If there are covariates, include the covariate terms in the prediction
-	# by subtracting them.
-	covariates <- inputData$covar_matrix
-	if(!is.null(covar)) {
-	  all_cov_terms<- lapply(covar, function(cov_name){
-		coef_cov_name <- colnames(coefficients)[grepl(cov_name, colnames(coefficients))]
-		cov_cov_name <- colnames(covariates)[grepl(cov_name, colnames(covariates))]
-		this_covariate_term <- NULL
-		
-		# If the term is numeric, simply multiply.
-		if(is.numeric(covariates[,cov_cov_name])){
-		  this_coefficient_mat <- matrix(coefficients[,coef_cov_name], 
-										 nrow=length(coefficients[,coef_cov_name]), 
-										 ncol=dim(covariates)[1])
-		  this_covariate_mat <- t(matrix(covariates[,cov_cov_name], 
-										 ncol=length(coefficients[,coef_cov_name]), 
-										 nrow=dim(covariates)[1]))
-		  this_covariate_term <- this_coefficient_mat * this_covariate_mat
-		}
-		else if(length(coef_cov_name) == 1){
-		  second_part_of_name <- strsplit(coef_cov_name, cov_name)[[1]][2]
-		  this_covariate_term <- multiplyCovariate(coefficients, covariates, coef_cov_name, 
-												   cov_cov_name, second_part_of_name)
-		}
-		# Add together the multiples of the one-hot-encoded terms.
-		else{
-		  these_covariate_terms <-lapply(1:length(coef_cov_name), function(i){
-			second_part_of_name <- strsplit(coef_cov_name[i], cov_name)[[1]][2]
-			cova <- covariates
-			for(j in 1:dim(cova)[2]){
-			  cova[,j] <- as.character(cova[,j])
-			}
-			cova[multi.which(cova != second_part_of_name)] <- "Other"
-			current_covariate_term <- multiplyCovariate(coefficients, cova, coef_cov_name[i], 
-														cov_cov_name, second_part_of_name)
-			return(current_covariate_term)
-		  })
-		  this_covariate_term <- Reduce('+', these_covariate_terms)
-		}
-		return(this_covariate_term)
-	  })
-	  
-	  # Include the covariates in the numerator prediction.
-	  final_covariate_val <- Reduce('+', all_cov_terms)
-	  pred_phenotype <- pred_phenotype - final_covariate_val
-	}
-
-	# Calculate the denominator and divide.
-	div_term <- independent.vars[coefficients$Analyte1,] * interact_var
-	div_term <- div_term + phen_var
-	pred_phenotype <- pred_phenotype / div_term 
-
-	# For discrete phenotypes only, round the value.
-	if(!is.numeric(inputData$p)){
-	  pred_phenotype[multi.which(pred_phenotype >= 1)] <- 1
-	  pred_phenotype[multi.which(pred_phenotype <= 0)] <- 0
-	  pred_phenotype <- round(pred_phenotype,digits=0)
-	}
-	pred_phenotype = as.data.frame(pred_phenotype)
-
-	# Add analyte information for each prediction.
-	pred_phenotype$to <- coefficients$Analyte2
-	pred_phenotype$from <- coefficients$Analyte1
-	return(pred_phenotype)
+  # Extract data needed for model.
+  covariates <- inputData@sampleMetaData
+  independent.vars <- NULL
+  dependent.vars <- NULL
+  independent.vars <- as.data.frame(inputData@analyteType1)
+  if(independentVarType == 2){
+    independent.vars <- as.data.frame(inputData@analyteType2)
+  }
+  dependent.vars <- as.data.frame(inputData@analyteType1)
+  if(outcomeType == 2){
+    dependent.vars <- as.data.frame(inputData@analyteType2)
+  }
+  
+  # Extract coefficients.
+  which_start <- which(colnames(inputResults) == "rsquared")[1]
+  if(is.na(which_start)){
+    which_start <- which(colnames(inputResults) == "FDRadjPval")[1]
+  }
+  which_start <- which_start + 1
+  coefficients <- inputResults[,c(1:2)]
+  if(which_start <= (ncol(inputResults))){
+    coefficients <- inputResults[,c(1:2, which_start:(ncol(inputResults)))]
+  }
+  coefficients$Analyte1 <- as.character(coefficients$Analyte1)
+  coefficients$Analyte2 <- as.character(coefficients$Analyte2)
+  which_interact <- which(grepl(":", colnames(coefficients)) == TRUE)
+  
+  # Construct matrix of coefficients.
+  intercept <- matrix(coefficients[,"(Intercept)"], 
+                      nrow=length(coefficients[,"(Intercept)"]), 
+                      ncol=ncol(independent.vars))
+  ind_var <- matrix(coefficients$a, 
+                    nrow=length(coefficients$a), 
+                    ncol=ncol(independent.vars))
+  interact_var <- matrix(coefficients[,which_interact], 
+                         nrow=length(coefficients[,which_interact]), 
+                         ncol=ncol(independent.vars))
+  phen_var <- matrix(coefficients$type, nrow=length(coefficients$type), 
+                     ncol=ncol(independent.vars))
+  
+  # Compute the numerator of the prediction for each subject 
+  # (sans covariate terms)
+  ind_term <- independent.vars[coefficients$Analyte1,] * ind_var
+  dep_term <- dependent.vars[coefficients$Analyte2,]
+  pred_phenotype <- dep_term - (intercept + ind_term)
+  
+  # If there are covariates, include the covariate terms in the prediction
+  # by subtracting them.
+  if(!is.null(covar)) {
+    all_cov_terms<- lapply(covar, function(cov_name){
+      coef_cov_name <- colnames(coefficients)[grepl(cov_name, colnames(coefficients))]
+      cov_cov_name <- colnames(covariates)[grepl(cov_name, colnames(covariates))]
+      this_covariate_term <- NULL
+      
+      # If the term is numeric, simply multiply.
+      if(is.numeric(covariates[,cov_cov_name])){
+        this_coefficient_mat <- matrix(coefficients[,coef_cov_name], 
+                                       nrow=length(coefficients[,coef_cov_name]), 
+                                       ncol=dim(covariates)[1])
+        this_covariate_mat <- t(matrix(covariates[,cov_cov_name], 
+                                       ncol=length(coefficients[,coef_cov_name]), 
+                                       nrow=dim(covariates)[1]))
+        this_covariate_term <- this_coefficient_mat * this_covariate_mat
+      }
+      else if(length(coef_cov_name) == 1){
+        second_part_of_name <- strsplit(coef_cov_name, cov_name)[[1]][2]
+        this_covariate_term <- multiplyCovariate(coefficients, covariates, coef_cov_name, 
+                                                 cov_cov_name, second_part_of_name)
+      }
+      # Add together the multiples of the one-hot-encoded terms.
+      else{
+        these_covariate_terms <-lapply(1:length(coef_cov_name), function(i){
+          second_part_of_name <- strsplit(coef_cov_name[i], cov_name)[[1]][2]
+          cova <- covariates
+          for(j in 1:dim(cova)[2]){
+            cova[,j] <- as.character(cova[,j])
+          }
+          cova[multi.which(cova != second_part_of_name)] <- "Other"
+          current_covariate_term <- multiplyCovariate(coefficients, cova, coef_cov_name[i], 
+                                                      cov_cov_name, second_part_of_name)
+          return(current_covariate_term)
+        })
+        this_covariate_term <- Reduce('+', these_covariate_terms)
+      }
+      return(this_covariate_term)
+    })
+    
+    # Include the covariates in the numerator prediction.
+    final_covariate_val <- Reduce('+', all_cov_terms)
+    pred_phenotype <- pred_phenotype - final_covariate_val
+  }
+  
+  # Calculate the denominator and divide.
+  div_term <- independent.vars[coefficients$Analyte1,] * interact_var
+  div_term <- div_term + phen_var
+  pred_phenotype <- pred_phenotype / div_term 
+  
+  # For discrete phenotypes only, round the value.
+  if(!is.numeric(inputData@sampleMetaData[,stype])){
+    pred_phenotype[multi.which(pred_phenotype >= 1)] <- 1
+    pred_phenotype[multi.which(pred_phenotype <= 0)] <- 0
+    pred_phenotype <- round(pred_phenotype,digits=0)
+  }
+  pred_phenotype = as.data.frame(pred_phenotype)
+  
+  # Add analyte information for each prediction.
+  pred_phenotype$to <- coefficients$Analyte2
+  pred_phenotype$from <- coefficients$Analyte1
+  return(pred_phenotype)
 }
 
 #' Multiply a covariate with its learned coefficients. This is straightforward for
