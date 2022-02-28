@@ -107,16 +107,16 @@ DoPrediction <- function(modelResults, iteration, pooling, convolution){
     if(modelResults@weights.after.pooling == TRUE){
       S_all <- modelResults@pooling.filter@individual.filters
       if(modelResults@current.iteration == 1){
-        S_all <- CreateFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
-                              X = X)
+        #S_all <- CreateFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
+        #                      X = X)
         modelResults@pooling.filter@individual.filters <- S_all
       }
       Y.pred <- unlist(lapply(1:length(S_all), function(i){
         return(sum(t(Y.pred[,i]) %*% S_all[[i]] * Theta.old[,i]))
       }))
     }else{
-      S_all <- AdjustFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
-                            X = X, Theta = Theta.old)
+      #S_all <- AdjustFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
+      #                      X = X, Theta = Theta.old)
       modelResults@pooling.filter@individual.filters <- S_all
       Y.pred <- unlist(lapply(1:length(S_all), function(i){
         return(sum(t(Y.pred[,i] * Theta.old[,i]) %*% S_all[[i]]))
@@ -184,90 +184,4 @@ DoSingleTrainingIteration <- function(modelResults, iteration, pooling, convolut
   
   # Modify the model results and return.
   return(modelResults)
-}
-
-#' Adjust the pooling filter (necessary for median, min, or max pooling).
-#' @param poolingFilter The original pooling filter for the model, contained
-#' within the modelResults object.
-#' @param A.hat The normalized Laplacian for convolution.
-#' @param X The input predictions.
-AdjustFilter <- function(poolingFilter, A.hat, X){
-  S <- poolingFilter@filter
-  S_all <- lapply(1:dim(X)[2], function(i){
-    return(S)
-  })
-  
-  # For mean filters, divide each column by the count of features and
-  # replicate for each sample.
-  if(poolingFilter@filter.type == "mean"){
-    S_all <- lapply(1:dim(X)[2], function(i){
-      return(S / colSums(S))
-    })
-    # For min, max, or median filters, select the feature meeting the criteria
-    # for each sample and return.
-  }else if(poolingFilter@filter.type == "median"){
-    S_all <- lapply(1:dim(X)[2], function(i){
-      to_mult <- t(A.hat %*% X[,i])
-      S.copy <- matrix(0, nrow = dim(S)[1], ncol = dim(S)[2])
-      for(i in 1:dim(S)[2]){
-        to_mult_filt <- to_mult[which(S[,i]!=0)]
-        
-        # Get median.
-        if (length(to_mult_filt) %% 2 != 0) {
-          sel_samp <- which(S[,i]!=0)[which(to_mult_filt == stats::median(to_mult_filt))[1]]
-        } else if (length(to_mult_filt) %% 2 == 0) {
-          a = sort(to_mult_filt)[c(length(to_mult_filt)/2, length(to_mult_filt)/2+1)]
-          sel_samp <- which(S[,i]!=0)[c(which(to_mult_filt == a[1]), 
-                                        which(to_mult_filt == a[2]))]
-          sel_samp <- sel_samp[1]
-        }
-        S.copy[sel_samp, i] <- 1
-      }
-      return(S.copy)
-    })
-  }else if(poolingFilter@filter.type == "min"){
-    S_all <- lapply(1:dim(X)[2], function(i){
-      to_mult <- t(A.hat %*% X[,i])
-      S.copy <- matrix(0, nrow = dim(S)[1], ncol = dim(S)[2])
-      for(i in 1:dim(S)[2]){
-        to_mult_filt <- to_mult[which(S[,i]!=0)]
-        
-        # Get min
-        if (length(to_mult_filt) %% 2 != 0) {
-          sel_samp <- which(S[,i]!=0)[which(to_mult_filt == base::min(to_mult_filt))[1]]
-        } else if (length(to_mult_filt) %% 2 == 0) {
-          a = sort(to_mult_filt)[c(length(to_mult_filt)/2, length(to_mult_filt)/2+1)]
-          sel_samp <- which(S[,i]!=0)[c(which(to_mult_filt == a[1]), 
-                                        which(to_mult_filt == a[2]))]
-          sel_samp <- sel_samp[1]
-        }
-        S.copy[sel_samp, i] <- 1
-      }
-      return(S.copy)
-    })
-  }else if(poolingFilter@filter.type == "max"){
-    S_all <- lapply(1:dim(X)[2], function(i){
-      to_mult <- t(A.hat %*% X[,i])
-      S.copy <- matrix(0, nrow = dim(S)[1], ncol = dim(S)[2])
-      for(i in 1:dim(S)[2]){
-        to_mult_filt <- to_mult[which(S[,i]!=0)]
-        
-        # Get max
-        if (length(to_mult_filt) %% 2 != 0) {
-          sel_samp <- which(S[,i]!=0)[which(to_mult_filt == base::max(to_mult_filt))[1]]
-        } else if (length(to_mult_filt) %% 2 == 0) {
-          a = sort(to_mult_filt)[c(length(to_mult_filt)/2, length(to_mult_filt)/2+1)]
-          sel_samp <- which(S[,i]!=0)[c(which(to_mult_filt == a[1]), 
-                                        which(to_mult_filt == a[2]))]
-          sel_samp <- sel_samp[1]
-        }
-        S.copy[sel_samp, i] <- 1
-      }
-      return(S.copy)
-    })
-  }else{
-    stop(paste("Pooling type", poolingFilter@filter.type, "is not defined when weights
-         are applied after pooling."))
-  }
-  return(S_all)
 }

@@ -10,7 +10,6 @@ PlotLineGraph(
   stype,
   saveInDir = NULL,
   truncateTo = 2,
-  titleStart = NULL,
   weights = NULL,
   analytes = NULL,
   includeLabels = TRUE,

@@ -20,6 +20,7 @@ Imports:
 	igraph,
 	MASS,
 	methods,
+	reshape2,
 	stats
 Suggests:
     knitr
@@ -31,9 +32,9 @@ Collate:
     '02_BuildCoRegulationGraph.R'
     '03_ComputeMetaFeatures.R'
     '04_AssignToPools.R'
+    'clusteringfunctions.R'
     '05_LearnGraphPredictionModel.R'
     'AllClasses.R'
-    'clusteringfunctions.R'
     'gradientfunctions.R'
     'learningfunctions.R'
     'plottingfunctions.R'

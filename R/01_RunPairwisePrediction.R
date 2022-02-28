@@ -198,3 +198,24 @@ ProjectPredictionsOntoGraph <- function(predictions, coRegulationGraph){
   names(new_graphs)<-colnames(predictions)[1:(length(colnames(predictions))-2)]
   return(new_graphs)
 }
+
+#' A which for multidimensional arrays.
+#' Mark van der Loo 16.09.2011
+#' 
+#' @name multi.which
+#' @param A Boolean function defined over a matrix
+#' @return vector with numeric cutoffs
+multi.which <- function(A){
+  if ( is.vector(A) ) return(which(A))
+  d <- dim(A)
+  T.mat <- which(A) - 1
+  nd <- length(d)
+  t( sapply(T.mat, function(t){
+    I <- integer(nd)
+    I[1] <- t %% d[1]
+    sapply(2:nd, function(j){
+      I[j] <<- (t %/% prod(d[1:(j-1)])) %% d[j]
+    })
+    I
+  }) + 1 )
+}

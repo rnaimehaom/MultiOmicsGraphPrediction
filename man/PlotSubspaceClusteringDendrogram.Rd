@@ -5,14 +5,10 @@
 \title{Plots a dendrogram of the optimal subspace clustering.}
 \usage{
 PlotSubspaceClusteringDendrogram(optimalClustering)
-
-PlotSubspaceClusteringDendrogram(optimalClustering)
 }
 \arguments{
 \item{optimalClustering}{The output of FindOptimalSubspaceClustering.}
 }
 \description{
 Plots a dendrogram of the optimal subspace clustering.
-
-Plots a heatmap of the optimal subspace clustering.
 }

@@ -86,6 +86,7 @@ FormatInput <- function(predictionGraphs, coregulationGraph,
 }
 
 #' Create the graph pooling filter, given the adjacency matrix of the input graph.
+#' @include clusteringfunctions.R
 #' @param modelInputs An object of type "ModelInputs".
 #' @param poolType One of "mean", "median", "max", or "min".
 #' @export
@@ -95,7 +96,7 @@ CreatePoolingFilter <- function(modelInputs, poolType){
   convolved <- modelInputs@A.hat %*% modelInputs@node.wise.prediction
   
   # Perform hierarchical clustering.
-  hier <- IntLIM::doHierarchicalClustering(modelInputs)
+  hier <- doHierarchicalClustering(modelInputs)
   
   # Find the number of cuts to consider.
   heightRange <- c(min(hier$height), max(hier$height))
@@ -119,13 +120,13 @@ CreatePoolingFilter <- function(modelInputs, poolType){
         varReturn <- 0
         if(length(currentClust) > 1){
           cutVar <- unlist(lapply(1:ncol(convolved), function(j){
-            return(var(convolved[currentClust,j]))
+            return(stats::var(convolved[currentClust,j]))
           }))
           varReturn <- max(cutVar)
         }
         return(varReturn)
       })
-      mostlyBest <- quantile(unlist(cutMaxVar), 0.90)
+      mostlyBest <- stats::quantile(unlist(cutMaxVar), 0.90)
       if(is.null(bestVar) || mostlyBest < bestVar){
         bestVar <- mostlyBest
         bestHeight <- c
@@ -279,9 +280,9 @@ RunLeastSquaresOptimization <- function(modelResults){
   Y.pred <- X
   
   # Find Median Pools.
-  S_all <- AdjustFilter(poolingFilter = modelResults@pooling.filter,
-                        A.hat = A.hat, 
-                        X = X)
+  S_all <- lapply(1:dim(X)[2], function(i){
+    return(S)
+  })
   
   # Convolve and pool.
   Y.pred.list <- lapply(1:dim(X)[2], function(i){
@@ -322,10 +323,10 @@ PredictFromLeastSquares <- function(modelInput, trainingModelResults, leastSquar
   Y.pred.test <- modelInput@node.wise.prediction
   A.hat = trainingModelResults@model.input@A.hat
   
-  # Adjust filter.
-  S_all <- AdjustFilter(poolingFilter = trainingModelResults@pooling.filter, 
-                        A.hat = A.hat,
-                        X = Y.pred.test)
+  # Adjust filter. Need to fill this in.
+  S_all <- lapply(1:dim(X)[2], function(i){
+    return(NULL)
+  })
   
   # Convolve and pool.
   Y.pred.list.test <- lapply(1:dim(Y.pred.test)[2], function(i){
@@ -533,16 +534,15 @@ PredictTesting <- function(modelResults, pooling, convolution, testInput){
     if(modelResults@weights.after.pooling == TRUE){
       S_all <- modelResults@pooling.filter@individual.filters
       if(modelResults@current.iteration == 1){
-        S_all <- CreateFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
-                              X = X)
+        # Need to fill this in.
+        S_all <- NULL#CreateFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
+                              #X = X)
         modelResults@pooling.filter@individual.filters <- S_all
       }
       Y.pred <- unlist(lapply(1:length(S_all), function(i){
         return(sum(t(Y.pred[,i]) %*% S_all[[i]] * Theta.old[,i]))
       }))
     }else{
-      S_all <- AdjustFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
-                            X = X, Theta = Theta.old)
       modelResults@pooling.filter@individual.filters <- S_all
       Y.pred <- unlist(lapply(1:length(S_all), function(i){
         return(sum(t(Y.pred[,i] * Theta.old[,i]) %*% S_all[[i]]))

@@ -17,7 +17,7 @@ FindDistributionalOutliers <- function(predictions,
     pred <- predictions[samp,]
     
     # Find quantiles.
-    quantiles <- quantile(pred, c(lowerPercentileLimit, upperPercentileLimit))
+    quantiles <- stats::quantile(pred, c(lowerPercentileLimit, upperPercentileLimit))
     which_quantile <- intersect(which(pred > quantiles[1]),
                                 which(pred < quantiles[2]))
     mask <- rep(0, length(pred))
@@ -109,8 +109,7 @@ ComputePathwayImportance <- function(predictions, analytehaspathway, analyteName
                                      outliers){
   
   # Obtain names of predictors.
-  predNames <- GetPredictorRaMPNames(predictions, analyteNamesOut,
-                                     analyteNamesInd)
+  predNames <- GetPredictorRaMPNames(predictions, analyteNamesOut)
   
   # Measure importance for each predictor.
   importance <- unlist(lapply(1:nrow(predNames), function(pair_i){
@@ -166,7 +165,7 @@ FindOptimalSubspaceClustering <- function(type1Similarity, type2Similarity,
                                           eigStep = 10, alphaMin = 0,
                                           alphaMax = 1, alphaStep = 0.1){
   # Check input parameters.
-  if(eigStepBy > dim(type1Similarity)){
+  if(eigStep > dim(type1Similarity)){
     stop("Must set eigStep to a value lower than the number of samples!")
   }
   else if(alphaMin < 0 || alphaMin > 1 || alphaMax < 0 || alphaMax > 1 ){
@@ -225,12 +224,8 @@ FindOptimalSubspaceClustering <- function(type1Similarity, type2Similarity,
 #' found using ComputeCosineSimilarity.
 #' @param type2Similarity A cosine similarity matrix for the second data type,
 #' found using ComputeCosineSimilarity.
-#' @param eigStep The number of eigenvectors to step by during the evaluation.
-#' Note that this must be less than the number of samples. Default = 10.
-#' @param alphaMin The lowest value of alpha to investigate. Default = 0.
-#' @param alphaMax The highest value of alpha to investigate. Default = 1.
-#' @param alphaStep The value of alpha to step by during the evalutation.
-#' Default = 0.1.
+#' @param eigenCount The number of eigenvectors to use.
+#' @param alpha The value of alpha to use.
 #' @return A named list including the data projected onto the merged subspace,
 #' the optimal number of eigenvectors, the optimal alpha value, the clustering
 #' coefficient, and the dendrogram.
@@ -325,7 +320,7 @@ ComputeLocalPredImportance <- function(predictions, true, outliers, k,
     
     err <- abs(trueVals - pred_local)
     medErr <- unlist(lapply(1:ncol(err), function(c){
-      return(median(err[,c]))
+      return(stats::median(err[,c]))
     }))
     importance <- 1 / medErr
     
@@ -366,7 +361,7 @@ ComputeGlobalPredImportance <- function(predictions, true, outliers){
     
     err <- abs(trueVals - pred)
     medErr <- unlist(lapply(1:ncol(err), function(c){
-      return(median(err[,c]))
+      return(stats::median(err[,c]))
     }))
     importance <- 1 / medErr
     

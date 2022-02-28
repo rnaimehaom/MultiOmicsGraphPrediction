@@ -35,8 +35,6 @@ BuildCoRegulationGraph <- function(inputResults, vertexSize=15){
 #' analytes have a positive or negative co-regulation, and the shape of the analytes.
 #' @param inputResults A list of data frames. Each object must include
 #'  model and processing results (output of ProcessResults()).
-#' @param independentVarType The independent variable type ("gene" or "metabolite")
-#' @param outcome The outcome type ("gene" or "metabolite")
 BuildGraphDataFrame <- function(inputResults){
   
   graph_data_frame <- NULL
@@ -138,9 +136,7 @@ BuildCoRegulationGraphAllFolds <- function(inputResults, vertexSize=15,
   print(length(inputResults))
   print(length(inputResults[[1]]))
   graphs <- lapply(1:length(inputResults), function(i){
-    return(BuildCoRegulationGraph(inputResults = inputResults[[i]], 
-                                  independentVarType = independentVarType,
-                                  outcome = outcome))
+    return(BuildCoRegulationGraph(inputResults = inputResults[[i]]))
   })
   
   # Assign names.

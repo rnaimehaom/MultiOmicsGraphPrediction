@@ -132,7 +132,8 @@ findHierarchicalClusteringVariance <- function(modelInputs){
   }
 }
 
-# Find the lowest variance parent of any of the current clusters.
+#' Find the lowest variance parent of any of the current clusters.
+#' @name getLowestVarianceParent
 #' @param modelInputs An object of the modelInputs class.
 #' @param clusters A list of clusters, where each cluster is a set of nodes.
 #' @param merges The merge slot of hierarchical clustering results as performed using
@@ -207,7 +208,8 @@ getLowestVarianceParent <- function(clusters, modelInputs, merges, labels,
                         allVariances=allVariances)
 }
 
-# Compute the variance within a cluster.
+#' Compute the variance within a cluster.
+#' @name computeVariance
 #' @param modelInputs An object of the modelInputs class.
 #' @param cluster A set of nodes.
 #' @param clusterName The name assigned to a set of nodes.

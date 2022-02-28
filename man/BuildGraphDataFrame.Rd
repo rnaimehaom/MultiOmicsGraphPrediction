@@ -11,10 +11,6 @@ BuildGraphDataFrame(inputResults)
 \arguments{
 \item{inputResults}{A list of data frames. Each object must include
 model and processing results (output of ProcessResults()).}
-
-\item{independentVarType}{The independent variable type ("gene" or "metabolite")}
-
-\item{outcome}{The outcome type ("gene" or "metabolite")}
 }
 \description{
 Construct a data frame that includes all information needed to build an igraph

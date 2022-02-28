@@ -19,6 +19,8 @@ PlotPredictionDendrogram(
 \item{hierarchicalClustering}{The output of the doHierarchicalClustering
 function.}
 
+\item{sampleIndex}{Index of sample.}
+
 \item{predictionLimits}{A vector of the upper and lower limits to plot.
 Predictions falling outside of this range will be modified to fall within
 this range. This is only for the purposes of plotting, so that outlier

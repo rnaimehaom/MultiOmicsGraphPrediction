@@ -30,7 +30,7 @@ SaveGraphPredictionPlots <- function(graphWithPredictions, inputData, stype, dir
     
     # Set up the layout and margins.
     graphics::layout(t(1:2),widths=c(5.5,1.5))
-    par(mar=c(0,0,2,3))
+    graphics::par(mar=c(0,0,2,3))
     
     # Plot the graph.
     plot(g, layout = igraph::layout.fruchterman.reingold, vertex.label = NA)
@@ -70,7 +70,7 @@ PlotGraphWeights <- function(graph, results){
   
   # Set up the layout and margins.
   graphics::layout(t(1:2),widths=c(5.5,1.5))
-  par(mar=c(0,0,2,3))
+  graphics::par(mar=c(0,0,2,3))
   
   # Match the weights to graph edges.
   g <- igraph::as_data_frame(graph)
@@ -301,7 +301,7 @@ PlotGraphPredictions <- function(graph, inputData, saveInDir = NULL,
       }))
     }
 
-    par(mfrow=c(1,2))
+    graphics::par(mfrow=c(1,2))
     plot(g, main = title,
          vertex.label = graph_labels, vertex.frame.color = "black", vertex.size = vertexSize,
          edge.arrow.size = 0.5)
@@ -339,8 +339,7 @@ PlotGraphPredictionsAllFolds <- function(graphs, inputDataFolds,
     }
     PlotGraphPredictions(graph=graphs[[i]], inputDataFolds[[i]]$training,
                          saveInDir=saveInDir_tmp,
-                         vertices=vertices, truncateTo=truncateTo,
-                         titleStart = paste0("fold",i))
+                         vertices=vertices, truncateTo=truncateTo)
   }
 }
 
@@ -364,7 +363,7 @@ PlotGraphPredictionsAllFolds <- function(graphs, inputDataFolds,
 #' @param vertexSize Vertex size to use in display.
 #' @export
 PlotLineGraph <- function(modelInput, stype, saveInDir = NULL,
-                          truncateTo = 2, titleStart = NULL, weights = NULL,
+                          truncateTo = 2, weights = NULL,
                           analytes = NULL, includeLabels = TRUE, cutoffs = NULL,
                           vertexSize = 10){
   # Extract graph and predictions.
@@ -400,8 +399,8 @@ PlotLineGraph <- function(modelInput, stype, saveInDir = NULL,
       final_graph <- igraph::induced_subgraph(final_graph, vertices_with_analytes)
       wt <- node.wise.prediction[names(igraph::V(final_graph)),j]
     }
-    wt[which(wt<(-1))]<-cutoffs[1]
-    wt[which(wt>1)]<-cutoffs[2]
+    wt[which(wt<cutoffs[1])]<-cutoffs[1]
+    wt[which(wt>cutoffs[2])]<-cutoffs[2]
     
     # Set up node colors.
     bin_count <- 100
@@ -419,13 +418,6 @@ PlotLineGraph <- function(modelInput, stype, saveInDir = NULL,
         return(grDevices::adjustcolor(color[c], alpha.f = opacity[c]))
       }))
     }
-    
-    # Prevent a single value from mapping to multiple colors (not sure why this happens).
-    # for(val in unique(node.wise.prediction[,j])){
-    #   which_val <- which(node.wise.prediction[,j] == val)
-    #   colors_for_val <- color[which_val]
-    #   color[which_val] <- colors_for_val[1]
-    # }
     igraph::V(final_graph)$color <- color
     
     # Set up variables for plotting.
@@ -434,9 +426,6 @@ PlotLineGraph <- function(modelInput, stype, saveInDir = NULL,
                    sep = "\n")
     minPred <- min(unname(wt))
     maxPred <- max(unname(wt))
-    #minColor <- unique(node_df$color[which(wt == minPred)])
-    #maxColor <- unique(node_df$color[which(wt == maxPred)])
-    #updatedPal <- grDevices::colorRampPalette(c(minColor, maxColor), bias = 1, interpolate = "linear")(bin_count)
     ticks <- seq(minPred, maxPred, len=11)
     scale <- (length(pal)-1)/(maxPred-minPred)
     colorBarTitle <- "Prediction"
@@ -446,13 +435,17 @@ PlotLineGraph <- function(modelInput, stype, saveInDir = NULL,
     if(includeLabels == TRUE){
       graph_labels <- unlist(lapply(igraph::V(final_graph)$name, function(v){
         pieces <- strsplit(v, "__")[[1]]
-        sub_from <- substr(pieces[1], 1, truncateTo)
-        sub_to <- substr(pieces[2], 1, truncateTo)
+        sub_from <- pieces[1]
+        sub_to <- pieces[2]
+        if(!is.null(truncateTo)){
+          sub_from <- substr(pieces[1], 1, truncateTo)
+          sub_to <- substr(pieces[2], 1, truncateTo)
+        }
         return(paste(sub_from, sub_to, sep = "_"))
       }))
     }
     
-    par(mfrow=c(1,2))
+    graphics::par(mfrow=c(1,2))
     plot(final_graph, main = title, vertex.label = graph_labels, vertex.size = vertexSize)
     plot(c(0,10), c(minPred,maxPred), type='n', bty='n', xaxt='n', xlab='', yaxt='n', ylab='')
     title(colorBarTitle, adj = 0, cex.main = 0.75)
@@ -506,6 +499,7 @@ PlotLineGraphAllFolds <- function(modelInputs, stype, saveInDir = NULL, analytes
 #' @param modelInput A ModelInput object.
 #' @param hierarchicalClustering The output of the doHierarchicalClustering
 #' function.
+#' @param sampleIndex Index of sample.
 #' @param predictionLimits A vector of the upper and lower limits to plot.
 #' Predictions falling outside of this range will be modified to fall within
 #' this range. This is only for the purposes of plotting, so that outlier
@@ -513,11 +507,12 @@ PlotLineGraphAllFolds <- function(modelInputs, stype, saveInDir = NULL, analytes
 #' @export
 PlotPredictionDendrogram <- function(modelInput, hierarchicalClustering, sampleIndex, 
                                      predictionLimits){
+  utils::globalVariables(c("yend", "label", "x", "y", "xend", "y.x", "pred"))
   
   # Process dendrogram.
   dendrogram_ends <- list()
   dendrogram_segments <- list()
-  dend <- as.dendrogram(hierarchicalClustering)
+  dend <- stats::as.dendrogram(hierarchicalClustering)
   dendrogram_data <- ggdendro::dendro_data(dend)
   dendrogram_segments <- dendrogram_data$segments
   dendrogram_ends <- dplyr::filter(dendrogram_segments, yend == 0)
@@ -535,9 +530,9 @@ PlotPredictionDendrogram <- function(modelInput, hierarchicalClustering, sampleI
   # Make the plot.
   ggplot2::ggplot() + 
     ggplot2::geom_segment(data = dendrogram_segments, 
-                          ggplot2::aes(x=x, y=y, xend=xend, yend=yend)) +
+                          ggplot2::aes_(x=x, y=y, xend=xend, yend=yend)) +
     ggplot2::geom_segment(data = all_wt, 
-                          ggplot2::aes(x=x, y=y.x, xend=xend, yend=yend, color=pred)) +
+                          ggplot2::aes_(x=x, y=y.x, xend=xend, yend=yend, color=pred)) +
     ggplot2::scale_color_gradient(low = "#AAFF00", high = "#023020")+
     ggplot2::scale_y_reverse() +
     ggplot2::coord_flip() +
@@ -552,9 +547,9 @@ PlotPredictionDendrogram <- function(modelInput, hierarchicalClustering, sampleI
                    axis.ticks.x=ggplot2::element_blank(),
                    axis.ticks.y=ggplot2::element_blank()) +
     ggplot2::labs(color='Prediction') +
-    ggplot2::ggtitle(paste(colnames(input@node.wise.prediction)[sampleIndex], "-", 
+    ggplot2::ggtitle(paste(colnames(modelInput@node.wise.prediction)[sampleIndex], "-", 
                   "True Phenotype is",
-                  formatC(input@true.phenotypes[sampleIndex], digits = 2)))
+                  formatC(modelInput@true.phenotypes[sampleIndex], digits = 2)))
 }
 
 #' Plots a dendrogram of the optimal subspace clustering.
@@ -565,10 +560,11 @@ PlotSubspaceClusteringDendrogram <- function(optimalClustering){
 }
 
 #' Plots a heatmap of the optimal subspace clustering.
+#' @include 03_ComputeMetaFeatures.R
 #' @param optimalClustering The output of FindOptimalSubspaceClustering.
 #' @export
-PlotSubspaceClusteringDendrogram <- function(optimalClustering){
-  heatmap(get_sim(optimalClustering$L_mod), 
-          Rowv = as.dendrogram(optimalClustering$dendrogram), 
-          Colv = as.dendrogram(optimalClustering$dendrogram))
+PlotSubspaceClusteringHeatmap <- function(optimalClustering){
+  stats::heatmap(ComputeCosineSimilarity(optimalClustering$L_mod), 
+          Rowv = stats::as.dendrogram(optimalClustering$dendrogram), 
+          Colv = stats::as.dendrogram(optimalClustering$dendrogram))
 }

@@ -15,15 +15,9 @@ found using ComputeCosineSimilarity.}
 \item{type2Similarity}{A cosine similarity matrix for the second data type,
 found using ComputeCosineSimilarity.}
 
-\item{eigStep}{The number of eigenvectors to step by during the evaluation.
-Note that this must be less than the number of samples. Default = 10.}
+\item{eigenCount}{The number of eigenvectors to use.}
 
-\item{alphaMin}{The lowest value of alpha to investigate. Default = 0.}
-
-\item{alphaMax}{The highest value of alpha to investigate. Default = 1.}
-
-\item{alphaStep}{The value of alpha to step by during the evalutation.
-Default = 0.1.}
+\item{alpha}{The value of alpha to use.}
 }
 \value{
 A named list including the data projected onto the merged subspace,
