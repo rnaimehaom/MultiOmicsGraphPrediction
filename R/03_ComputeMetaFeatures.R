@@ -45,7 +45,7 @@ ComputePDFImportance <- function(predictions, outliers){
     non_outliers <- which(outliers[[samp]] == 0)
     
     # Compute importance based on density.
-    d <- density(pred[non_outliers])
+    d <- stats::density(pred[non_outliers])
     importance[non_outliers] <- unlist(lapply(pred[non_outliers], function(pred){
       return(d$y[which.min(abs(d$x - pred))])
     }))
@@ -198,10 +198,10 @@ FindOptimalSubspaceClustering <- function(type1Similarity, type2Similarity,
         sim <- ComputeCosineSimilarity(L_mod_i)
         dist <- max(sim) - sim
         rownames(dist) <- rownames(sim)
-        d <- as.dist(dist)
-        dend <- hclust(d)
+        d <- stats::as.dist(dist)
+        dend <- stats::hclust(d)
         coph_i <- stats::cophenetic(dend)
-        coph_cor_i <- cor(coph_i, d)
+        coph_cor_i <- stats::cor(coph_i, d)
         
         # If cophenetic correlation is higher than previous, save.
         if(is.null(coph_cor) || coph_cor_i > coph_cor){

@@ -1,44 +1,38 @@
-Package: IntLIM
+Package: MultiOmicsGraphPrediction
 Type: Package
-Title: Ensemble Prediction for IntLIM
+Title: Network-Based Ensemble Prediction from IntLIM Predictors
 Version: 0.1.0
 Authors@R: c(
- person("Tara", "Eicher", email="tara.eicher@nih.gov", role=("aut", "cre"))
+ person("Tara", "Eicher", email="tara.eicher@nih.gov", role=c("aut", "cre")))
 Maintainer: The package maintainer <ewy.mathe@nih.gov>
-Description: This workflow takes normalized gene expression and metabolite levels, 
-  meta-information on genes, metabolites, and samples to identify gene:metabolite pairs 
-  that are significantly associated with an outcome (e.g. tumors).
+Description: This workflow repurposes IntLIM models for prediction of a
+  phenotype / outcome and combines individual models into an ensemble using
+  graph topology and prediction similarity.
 License: GPL-2
 Depends: R (>= 3.2.0)
 Imports:
-	ComplexHeatmap,
-	dendextend,
 	dplyr,
 	ggdendro,
-	ggnetwork,
 	ggplot2,
-	gplots,
+	glmnet,
 	graphics,
+	grDevices,
 	igraph,
-	IntLIM,
-	RColorBrewer,
-    reshape2,
-	rlang,
-    stats,
-	testthat,
-	tidyr,
-	utils
+	MASS,
+	methods,
+	stats
 Suggests:
     knitr
 Encoding: UTF-8
 LazyData: TRUE
 NeedsCompilation: no
 Collate: 
-    '05_BuildCoRegulationGraph.R'
-    '06_RunPairwisePrediction.R'
-    '07_LearnGraphPredictionModel.R'
-    'IntLimResults_extendedfunctions.R'
-    'MultiDataSet_extendedfunctions.R'
+    '01_RunPairwisePrediction.R'
+    '02_BuildCoRegulationGraph.R'
+    '03_ComputeMetaFeatures.R'
+    '04_AssignToPools.R'
+    '05_LearnGraphPredictionModel.R'
+    'AllClasses.R'
     'clusteringfunctions.R'
     'gradientfunctions.R'
     'learningfunctions.R'

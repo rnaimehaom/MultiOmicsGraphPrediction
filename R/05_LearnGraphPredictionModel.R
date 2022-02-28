@@ -4,7 +4,6 @@
 #' each node corresponds to a pair of analytes.
 #' 2. A prediction value for each node of the line graph, for each sample X.
 #' 3. The true prediction values Y for each sample X.
-#' @include internalfunctions.R
 #' @param inputData MultiDataSet object (output of ReadData()) with gene expression,
 #' metabolite abundances, and associated meta-data
 #' @param predictionGraphs A list of igraph objects, each of which includes
