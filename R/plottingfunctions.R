@@ -556,3 +556,19 @@ PlotPredictionDendrogram <- function(modelInput, hierarchicalClustering, sampleI
                   "True Phenotype is",
                   formatC(input@true.phenotypes[sampleIndex], digits = 2)))
 }
+
+#' Plots a dendrogram of the optimal subspace clustering.
+#' @param optimalClustering The output of FindOptimalSubspaceClustering.
+#' @export
+PlotSubspaceClusteringDendrogram <- function(optimalClustering){
+  plot(optimalClustering$dendrogram)
+}
+
+#' Plots a heatmap of the optimal subspace clustering.
+#' @param optimalClustering The output of FindOptimalSubspaceClustering.
+#' @export
+PlotSubspaceClusteringDendrogram <- function(optimalClustering){
+  heatmap(get_sim(optimalClustering$L_mod), 
+          Rowv = as.dendrogram(optimalClustering$dendrogram), 
+          Colv = as.dendrogram(optimalClustering$dendrogram))
+}
