@@ -4,7 +4,13 @@
 \alias{PlotSubspaceClusteringDendrogram}
 \title{Plots a dendrogram of the optimal subspace clustering.}
 \usage{
-PlotSubspaceClusteringDendrogram(optimalClustering)
+PlotSubspaceClusteringDendrogram(
+  inputData,
+  eigStep = 10,
+  alphaMin = 0,
+  alphaMax = 1,
+  alphaStep = 0.1
+)
 }
 \arguments{
 \item{optimalClustering}{The output of FindOptimalSubspaceClustering.}

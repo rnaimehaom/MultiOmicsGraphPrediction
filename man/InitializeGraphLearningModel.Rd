@@ -6,41 +6,39 @@
 \usage{
 InitializeGraphLearningModel(
   modelInputs,
-  poolingFilter,
+  importance,
   iterations = 1000,
   convergenceCutoff = 0.001,
+  modelType = "importance",
   stype.class = "numeric",
   learningRate = 0.2,
-  activationType = "softmax",
-  weightsAfterPooling = FALSE,
-  gradientType = "stochastic",
-  optimizationType = "adam"
+  activationType = "none",
+  optimizationType = "SGD"
 )
 }
 \arguments{
 \item{modelInputs}{An object of the ModelInput class.}
 
-\item{poolingFilter}{A matrix that pools convolution results.}
+\item{importance}{Calculated importance metrics.}
 
 \item{iterations}{Maximum number of iterations. Default is 1,000.}
 
 \item{convergenceCutoff}{Cutoff for convergence. Default is 0.001.}
+
+\item{modelType}{The type of model the user wishes to learn. Users may
+select from the following:
+- "importance": A linear combination of predictors, where each predictor's
+  weight is learned as a function of importance metrics.}
 
 \item{stype.class}{One of either "character" or "numeric". Default is "numeric".}
 
 \item{learningRate}{Learning rate to use during training. Default is 0.2}
 
 \item{activationType}{Activation function. May be "softmax", "sigmoid", 
-or "tanh". Default is "softmax". Irrelevant if stype.class is numeric.}
+"tanh", or "none". Default is "none", meaning stype.class is numeric.}
 
-\item{weightsAfterPooling}{Whether to include the weights after the pooling.
-Default is FALSE.}
-
-\item{gradientType}{One of either "stochastic" or "batch". Default is
-"stochastic".}
-
-\item{optimizationType}{Type of optimization. May be "gradient", "momentum",
-"adagrad", or "adam". Default is "adam".}
+\item{optimizationType}{Type of optimization. May be "SGD", "momentum",
+"adagrad", or "adam". Default is "SGD".}
 }
 \description{
 Find edges that share nodes and add them to a data frame.

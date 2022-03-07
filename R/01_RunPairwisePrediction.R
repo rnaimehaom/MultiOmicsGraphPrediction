@@ -124,9 +124,9 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
   pred_phenotype = as.data.frame(pred_phenotype)
   
   # Add analyte information for each prediction.
-  pred_phenotype$to <- coefficients$Analyte2
-  pred_phenotype$from <- coefficients$Analyte1
-  return(pred_phenotype)
+  rownames(pred_phenotype) <- paste(coefficients$Analyte1, coefficients$Analyte2,
+                                    sep = "__")
+  return(t(pred_phenotype))
 }
 
 #' Multiply a covariate with its learned coefficients. This is straightforward for
@@ -171,20 +171,20 @@ ProjectPredictionsOntoGraph <- function(predictions, coRegulationGraph){
   pal <- grDevices::colorRampPalette(c("limegreen", "purple"))
 
   # Modify n copies of graph, where n is the number of subjects.
-  new_graphs <- lapply(1:(dim(predictions)[2]-2), function(i){
+  new_graphs <- lapply(1:dim(predictions)[1], function(i){
 
     # Modify graph weight.
     subject_graph <- data.frame(edges)
-    subject_graph$weight <- predictions[,i]
+    subject_graph$weight <- predictions[i,]
     
     # Modify color.
     bin_count <- 100
-    preds <- predictions[,i][which(!is.na(predictions[,i]))]
+    preds <- predictions[i,][which(!is.na(predictions[i,]))]
     intervals <- seq(range(preds)[1], range(preds)[2], 
                      by = (range(preds)[2] - range(preds)[1])
                      / (bin_count - 1))
-    subject_color_scale <- rep(NA, length(predictions[,i]))
-    subject_color_scale[which(!is.na(predictions[,i]))] <- 
+    subject_color_scale <- rep(NA, length(predictions[i,]))
+    subject_color_scale[which(!is.na(predictions[i,]))] <- 
       findInterval(preds, intervals)
     subject_graph$color <- pal(bin_count + 1)[subject_color_scale]
 
@@ -195,7 +195,7 @@ ProjectPredictionsOntoGraph <- function(predictions, coRegulationGraph){
     final_graph = igraph::graph_from_data_frame(subject_graph, vertices = node_df)
     return(final_graph)
   })
-  names(new_graphs)<-colnames(predictions)[1:(length(colnames(predictions))-2)]
+  names(new_graphs)<-rownames(predictions)
   return(new_graphs)
 }
 

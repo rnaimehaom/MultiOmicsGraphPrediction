@@ -1,0 +1,128 @@
+
+---
+title: "Ensemble Toy Demo"
+author: "Tara Eicher"
+date: "2/22/2022"
+output: rmarkdown::html_document
+vignette: >
+  %\VignetteIndexEntry{IntLIM:  Integration through Linear Modeling}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+# Set up.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+result_dir <- "~\\Ensemble_toy_vignette_results"
+dir.create(result_dir)
+```
+
+# Install the packages.
+```{r eval = FALSE}
+if(!require("devtools")){
+  install.packages("devtools")
+}
+library("devtools")
+install_github("ncats/MultiOmicsGraphPrediction")
+library(MultiOmicsGraphPrediction)
+```
+
+# Import Toy data files.
+```{r}
+dir <- system.file("extdata", package="MultiOmicsGraphPrediction", mustWork=TRUE)
+csvfile <- file.path(dir, "toyinput.csv")
+inputData <- IntLIM::ReadData(csvfile)
+```
+
+# Run IntLIM
+```{r}
+myres <- IntLIM::RunIntLim(inputData = inputData,stype="age",
+                                 save.covar.pvals = TRUE, 
+                                 outcome = 1, 
+                                 independent.var.type = 2, 
+                                 continuous = TRUE)
+```
+
+# Filter Results
+```{r}
+myres.sig <- IntLIM::ProcessResults(inputResults = myres, inputData = inputData, 
+                                       pvalcutoff = 0.20)
+IntLIM::OutputResults(inputResults=myres.sig,filename=paste(result_dir,
+                                                                    "toyDataResults.csv"
+                                                                    , sep = "/"))
+```
+
+# Create Co-Regulation Graph
+In a co-regulation graph, nodes are analytes (genes and metabolites) and edges indicate
+a significant phenotype-dependent association between the analytes.
+```{r}
+# Build graph.
+coreg <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.sig)
+PlotCoRegulationGraph(coreg, "Toy Data Graph", saveInFile = NULL, vertices = NULL,truncateTo = 4)
+```
+
+# Run Pairwise Prediction.
+```{r}
+# Run pairwise prediction.
+pred <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.sig, 
+                                                         inputData = inputData,
+                                                         stype = "age")
+```
+
+## Project Predictions
+```{r plot graph}
+# Project graph.
+projectedGraph <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg,
+                                                                         predictions = pred)
+PlotGraphPredictions(projectedGraph, inputData, saveInDir = NULL, 
+                                 vertices = NULL, truncateTo = 4, includeLabels = TRUE,
+                                 cutoffs = NULL, vertexSize = 10)
+```
+
+## Create Model Input
+```{r model input}
+# Create input.
+modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+                                                     coregulationGraph = coreg,
+                   inputData = inputData, stype.class = "numeric", stype = "age",
+                   edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"))
+saveRDS(modelInput,file=paste(result_dir, paste0("modelInput.RDS"), sep = "\\"))
+PlotPredictionDendrogram(modelInput, hierarchicalClustering, sampleIndex, 
+                                     predictionLimits)
+MultiOmicsGraphPrediction::PlotLineGraph(modelInput = modelInput, stype = "age", cutoffs = c(0,100))
+```
+
+## Compute Importance Metrics.
+```{r importance}
+MultiOmicsGraphPrediction::PlotSubspaceClusteringDendrogram(inputData = inputData, eigStep = 1)
+MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputData, eigStep = 1)
+importance <- MultiOmicsGraphPrediction::GetAllImportanceMetrics(predictions = pred, 
+                                                                 modelInput = modelInput,
+                                      inputData = inputData, metricList = c("pdf", 
+                                                                            "localerr", 
+                                                                            "globalerr"),
+                                      k = 2, eigStep = 1)
+```
+
+## Find Optimal Combination of Importance Metrics Alone.
+```{r combine importance}
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInputs = modelInput,
+                                                                        importance = importance)
+importanceOnlyModel <- MultiOmicsGraphPrediction::OptimizeImportanceCombo(importance = importance, 
+                                               modelResults = modelResults)
+```
+
+## Segment Into Pools.
+```{r do pooling}
+pools <- DoPooling(modelInputs = modelInput, method = "kmeans", layers = 1, poolCount = 6)
+```
+
+## Learn Optimal Combination of Pools.
+```{r combine importance}
+importanceOnlyModel <- OptimizeModel(importance, modelData, pools)
+```
+
+## Plot Graph Weights
+```{r plot graph}
+# PlotGraphWeights <- function(graph, results)
+# PlotGraphWeightsHeatmap <- function(inputResults, inputData)
+```

@@ -3,18 +3,12 @@
 #' a learning rate, the weights are adjusted according to the gradient.
 #' @param modelResults An object of the ModelResults class.
 #' @param iteration The current iteration.
-#' @param convolution Whether or not to perform convolution
-#' @param pooling Whether or not to perform pooling
-#' @param ridgeRegressionWeight The hyperparameter weight assigned
-#' to the ridge regression parameter (often referred to as lambda in the
-#' literature)
-#' @param varianceWeight The hyperparameter weight assigned to the difference
-#' in variances between Y and the predicted value of Y.
-BackpropagateSingleLayer <- function(modelResults, iteration, convolution, pooling,
-                                     ridgeRegressionWeight, varianceWeight){
+#' @param importance Importance metrics for each predictor and sample.
+#' @param Y.pred The predicted phenotype value.
+BackpropagateImportanceOnly <- function(modelResults, iteration, importance, Y.pred){
   # Calculate gradient.
-  gradient <- computeGradientSingleLayer(modelResults, convolution, pooling,
-                                         ridgeRegressionWeight, varianceWeight)
+  print(paste(Y.pred, modelResults@model.input@true.phenotypes))
+  gradient <- computeGradientImportanceOnly(modelResults, importance, Y.pred)
   
   # Update gradient.
   modelResults@current.gradient <- as.matrix(gradient)
@@ -24,10 +18,10 @@ BackpropagateSingleLayer <- function(modelResults, iteration, convolution, pooli
   
   # Set current weights, previous weights, and gradient.
   # Reference for the optimization algorithms: https://arxiv.org/abs/1609.04747
-  modelResults@previous.weights <- modelResults@current.weights
-  if(modelResults@optimization.type == "BGD"){
+  modelResults@previous.importance.weights <- modelResults@current.importance.weights
+  if(modelResults@optimization.type == "SGD"){
     # Batch Gradient Descent
-    modelResults@current.weights <- modelResults@previous.weights - 
+    modelResults@current.importance.weights <- modelResults@previous.importance.weights - 
       modelResults@learning.rate * modelResults@current.gradient
   }else if(modelResults@optimization.type == "momentum"){
     # Momentum
@@ -37,7 +31,7 @@ BackpropagateSingleLayer <- function(modelResults, iteration, convolution, pooli
     if(modelResults@current.iteration == 1){
       update.vec <- modelResults@learning.rate * modelResults@current.gradient
     }
-    modelResults@current.weights <- modelResults@previous.weights - update.vec
+    modelResults@current.importance.weights <- modelResults@previous.importance.weights - update.vec
     modelResults@previous.update.vector <- update.vec
   }else if(modelResults@optimization.type == "adagrad"){
     # Adagrad
@@ -47,7 +41,7 @@ BackpropagateSingleLayer <- function(modelResults, iteration, convolution, pooli
     if(modelResults@current.iteration == 1){
       update.vec <- modelResults@learning.rate * modelResults@current.gradient
     }
-    modelResults@current.weights <- modelResults@previous.weights - update.vec
+    modelResults@current.importance.weights <- modelResults@previous.importance.weights - update.vec
     modelResults@sum.square.gradients <- modelResults@sum.square.gradients +
       (modelResults@current.gradient^2)
   }else if(modelResults@optimization.type == "adam"){
@@ -62,19 +56,19 @@ BackpropagateSingleLayer <- function(modelResults, iteration, convolution, pooli
     m.hat <- m / (1 - (beta1)^modelResults@current.iteration)
     v.hat <- v / (1 - (beta2)^modelResults@current.iteration)
     update.vec <- (modelResults@learning.rate * m.hat) / (sqrt(v.hat)+epsilon)
-    modelResults@current.weights <- modelResults@previous.weights - update.vec
+    modelResults@current.importance.weights <- modelResults@previous.importance.weights - update.vec
     modelResults@previous.momentum <- m
     modelResults@previous.update.vector <- v
   }else if(modelResults@optimization.type == "newton"){
     # Calculate Hessian and update weights.
     hessian <- computeHessianSingleLayer(modelResults, convolution, pooling)
     update <- MASS::ginv(hessian) %*% modelResults@current.gradient
-    modelResults@current.weights <- modelResults@previous.weights - 
+    modelResults@current.importance.weights <- modelResults@previous.importance.weights - 
       (modelResults@learning.rate * update)
   }
   modelResults@iteration.tracking[iteration+1,
                                   which(grepl("Weight", 
-                                              colnames(modelResults@iteration.tracking)))] <- modelResults@current.weights
+                                              colnames(modelResults@iteration.tracking)))] <- modelResults@current.importance.weights
   
   # Return.
   return(modelResults)
@@ -89,7 +83,7 @@ computeHessianSingleLayer <- function(modelResults, convolution, pooling){
   # Components for derivative.
   A.hat <- modelResults@model.input@A.hat
   X <- modelResults@model.input@node.wise.prediction
-  Theta.old <- matrix(rep(modelResults@current.weights, dim(X)[2]), ncol = dim(X)[2])
+  Theta.old <- matrix(rep(modelResults@current.importance.weights, dim(X)[2]), ncol = dim(X)[2])
   Y <- modelResults@model.input@true.phenotypes
   
   # Convolve X.
@@ -141,130 +135,67 @@ computeHessianSingleLayer <- function(modelResults, convolution, pooling){
 
 #' Compute the gradient for a single layer neural network.
 #' @param modelResults An object of the ModelResults class.
-#' @param convolution Whether or not to perform convolution
-#' @param pooling Whether or not to perform pooling
-#' @param ridgeRegressionWeight The hyperparameter weight assigned
-#' to the ridge regression parameter (often referred to as lambda in the
-#' literature)
-#' @param varianceWeight The hyperparameter weight assigned to the difference
-#' in variances between Y and the predicted value of Y.
-computeGradientSingleLayer <- function(modelResults, convolution, pooling,
-                                       ridgeRegressionWeight, varianceWeight){
+#' @param importance Importance metrics for each predictor and sample.
+#' @param Y.pred The predicted phenotype value.
+computeGradientImportanceOnly <- function(modelResults, importance, Y.pred){
   # Components for derivative.
-  A.hat <- modelResults@model.input@A.hat
   X <- modelResults@model.input@node.wise.prediction
-  Theta.old <- matrix(rep(modelResults@current.weights, dim(X)[2]), ncol = dim(X)[2])
   Y <- modelResults@model.input@true.phenotypes
+  M <- importance
+  
+  # Compute the derivative for each sample.
+  importanceWeightDeriv <- unlist(lapply(1:ncol(M),function(theta){
+    
+    # Compute the derivative for each sample. Remove the 2, which is a constant.
+    derivErrByPred <- (Y - Y.pred) * Y.pred
+    thetaSpecificPred <- sum(modelResults@current.importance.weights[theta] * 
+                               M[theta] * Y.pred)
+    derivPredByAct <- DerivativeOfActivation(modelResults@activation.type,
+                                             thetaSpecificPred)
+    derivActByTheta <- sum(M[theta] * Y.pred)
+    
+    # Return gradient.
+    print(paste(derivErrByPred, derivPredByAct, derivActByTheta))
+    return(derivErrByPred * derivPredByAct * derivActByTheta)
+  }))
 
-  # Convolve X.
-  conv <- lapply(1:dim(X)[2], function(i){
-    ret_val <- X[,i]
-    if(convolution == TRUE){
-      ret_val <- A.hat %*% X[,i]
-    }
-    return(ret_val)
-  })
+  # Return the derivative.
+  return(importanceWeightDeriv)
+}
 
-  # Compute filter.
-  S <- modelResults@pooling.filter@filter
-  S_all <- modelResults@pooling.filter@individual.filters
-  Y.pred <- rep(0, dim(S)[2])
-  if(pooling == TRUE){
-    if(modelResults@weights.after.pooling == TRUE){
-      Y.pred <- unlist(lapply(1:length(S_all), function(i){
-        return(sum(t(conv[[i]]) %*% S_all[[i]] * Theta.old[,i]))
-      }))
-    }else{
-      Y.pred <- unlist(lapply(1:length(S_all), function(i){
-        return(sum(t(conv[[i]] * Theta.old[,i]) %*% S_all[[i]]))
-      }))
-    }
-  }else{
-    Y.pred <- unlist(lapply(1:length(conv), function(i){
-      return(sum(t(conv[[i]] * Theta.old[,i])))
-    }))
-  }
-
+#' Compute the derivative of the error by the predictor.
+#' @param importance The importance values.
+#' @param activationType The name of the activation function.
+#' @param pred The predicted value of a single sample for a single parameter
+#' of interest.
+DerivativeOfActivation <- function(activationType, pred){
   # Compute activation function.
-  activation <- as.matrix(Y.pred)
-  d.act.d.pred <- as.matrix(rep(1, length(Y.pred)))
+  activation <- as.matrix(pred)
+  d.act.d.pred <- as.matrix(rep(1, length(pred)))
   if(modelResults@model.input@outcome.type == "categorical"){
     if(modelResults@activation.type == "softmax"){
-      activation <- SoftmaxWithCorrection(Y.pred)
+      activation <- SoftmaxWithCorrection(pred)
       # Set maximum and minimum values to prevent infinite and infinitecimal values.
-      exp.Y.pred <- exp(Y.pred)
-      exp.Y.pred[which(exp.Y.pred > 10000000)] <- 100000000
-      exp.Y.pred[which(exp.Y.pred < 0.00000001)] <- 0.000000001
-      d.act.d.pred <- (exp.Y.pred * (exp.Y.pred - sum(exp.Y.pred)))/(sum(exp.Y.pred)^2)
+      exp.pred <- exp(pred)
+      exp.pred[which(exp.pred > 10000000)] <- 100000000
+      exp.pred[which(exp.pred < 0.00000001)] <- 0.000000001
+      d.act.d.pred <- (exp.pred * (exp.pred - sum(exp.pred)))/(sum(exp.pred)^2)
     }else if(modelResults@activation.type == "tanh"){
-      activation <- TanhWithCorrection(Y.pred)
-      d.act.d.pred <- 2 * (1 - (tanh(2*(Y.pred-1.5)))^2)
+      activation <- TanhWithCorrection(pred)
+      d.act.d.pred <- 2 * (1 - (tanh(2*(pred-1.5)))^2)
     }else if(modelResults@activation.type == "sigmoid"){
-      activation <- SigmoidWithCorrection(Y.pred)
-      exp.Y.pred <- exp(1-Y.pred)
-      exp.Y.pred[which(exp.Y.pred > 10000000)] <- 100000000
-      exp.Y.pred[which(exp.Y.pred < 0.00000001)] <- 0.000000001
-      d.act.d.pred <- -1 * exp.Y.pred/((1+exp.Y.pred)^2)
-    }else{
+      activation <- SigmoidWithCorrection(pred)
+      exp.pred <- exp(1-pred)
+      exp.pred[which(exp.pred > 10000000)] <- 100000000
+      exp.pred[which(exp.pred < 0.00000001)] <- 0.000000001
+      d.act.d.pred <- -1 * exp.pred/((1+exp.pred)^2)
+    }else if(modelResults@activation.type != "none"){
       stop(paste("Invalid activation type", modelResults@activation.type))
     }
   }
-
-  # Compute components of gradient based on activation function.
-  diff <- Y - activation
-
-  # Partial derivative of the loss (gradient). This is obtained via the chain
-  # rule. 
-  # dLoss/dTheta = -dLoss/dSumDiff * dSumDiff/dTheta 
-  # = -Sum(dSquaredDiff/dDiff * dAct/dPred * dPred/dTheta) 
-  d.pred.d.theta.list <- lapply(1:length(conv), function(i){
-    return(conv[[i]])
-  })
-  if(pooling == TRUE){
-    d.pred.d.theta.list <- lapply(1:length(S_all), function(i){
-      S.flat <- rowSums(S_all[[i]])
-      ret_val <- conv[[i]] * S.flat
-      if(modelResults@weights.after.pooling == TRUE){
-        ret_val <- t(conv[[i]]) %*% S_all[[i]]
-      }
-      return(ret_val)
-    })
-  }
-  if(modelResults@weights.after.pooling == TRUE && pooling == TRUE){
-    d.pred.d.theta <- do.call(rbind, d.pred.d.theta.list)
-    const.terms <- t(matrix(rep(2 * diff * d.act.d.pred, dim(S)[2]), ncol = dim(S)[2]))
-  }else{
-    d.pred.d.theta <- do.call(cbind, d.pred.d.theta.list)
-    const.terms <- t(matrix(rep(2 * diff * d.act.d.pred, dim(X)[1]), ncol = dim(X)[1]))
-  }
-  d.loss.d.theta.to.sum <- d.pred.d.theta * const.terms
-  d.loss.d.theta <- -1 * rowSums(d.loss.d.theta.to.sum)
-  gradient <- d.loss.d.theta
-
-  # Add regularization term (ridge regression).
-  ridge <- 2 * ridgeRegressionWeight * Theta.old[,1]
   
-  # Add variance minimization term.
-  # Note that we want to minimize (Var(Y)-Var(Y.pred))^2. The first derivative
-  # is: 2(Var(Y)-Var(Y.pred))*(-d(Var(Y.pred*X))) = 
-  # 2(Var(Y)-Var(Y.pred))*(-Mean(2(Y.pred-Mean(Y.pred))*(Y.pred.i-Mean(Y.pred.i))))
-  # = 2(Var(Y)-Var(Y.pred))*(Mean(2(Mean(Y.pred.i)-Y.pred.i)*(X.i-Mean(X.i))))
-  # Note that this term is only defined for batch training, not stochastic, as
-  # we cannot compute a variance on a single training sample.
-  variance.diff <- 2 * stats::var(Y) - stats::var(Y.pred)
-  d.std.dev.Y.pred.list <- lapply(1:length(Y), function(i){
-    Y.pred.stdev <- 2 * (mean(Y.pred) - Y.pred[i])
-    Y.pred.stdev.vec <- rep(Y.pred.stdev, dim(d.pred.d.theta)[1])
-    weightless.pred.stdev <- (d.pred.d.theta[,i] - rowMeans(d.pred.d.theta))/2
-    return(Y.pred.stdev * weightless.pred.stdev)
-  })
-  d.std.dev.y.pred <- do.call(rbind, d.std.dev.Y.pred.list)
-  mean.std.dev.Y.pred <- colMeans(d.std.dev.y.pred)
-  variance <- varianceWeight * variance.diff * mean.std.dev.Y.pred
-
-  # Return gradient.
-  gradient <- gradient + ridge + variance
-  return(gradient)
+  # Return
+  return(d.act.d.pred)
 }
 
 #' Apply the Softmax function to a numeric vector input. Note that we expect inputs

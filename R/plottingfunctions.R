@@ -555,16 +555,38 @@ PlotPredictionDendrogram <- function(modelInput, hierarchicalClustering, sampleI
 #' Plots a dendrogram of the optimal subspace clustering.
 #' @param optimalClustering The output of FindOptimalSubspaceClustering.
 #' @export
-PlotSubspaceClusteringDendrogram <- function(optimalClustering){
-  plot(optimalClustering$dendrogram)
+PlotSubspaceClusteringDendrogram <- function(inputData,
+                                             eigStep = 10, alphaMin = 0,
+                                             alphaMax = 1, alphaStep = 0.1){
+    
+  # Find the optimal projection for best cluster separability.
+  type1sim <- ComputeCosineSimilarity(t(inputData@analyteType1))
+  type2sim <- ComputeCosineSimilarity(t(inputData@analyteType2))
+  opt <- FindOptimalSubspaceClustering(type1Similarity = type1sim, 
+                                       type2Similarity = type2sim,
+                                       eigStep = eigStep, alphaMin = alphaMin,
+                                       alphaMax = alphaMax, alphaStep = alphaStep)
+  # Plot the dendrogram.
+  plot(opt$dendrogram)
 }
 
 #' Plots a heatmap of the optimal subspace clustering.
 #' @include 03_ComputeMetaFeatures.R
 #' @param optimalClustering The output of FindOptimalSubspaceClustering.
 #' @export
-PlotSubspaceClusteringHeatmap <- function(optimalClustering){
-  stats::heatmap(ComputeCosineSimilarity(optimalClustering$L_mod), 
-          Rowv = stats::as.dendrogram(optimalClustering$dendrogram), 
-          Colv = stats::as.dendrogram(optimalClustering$dendrogram))
+PlotSubspaceClusteringHeatmap <- function(inputData,
+                                          eigStep = 10, alphaMin = 0,
+                                          alphaMax = 1, alphaStep = 0.1){
+  # Find the optimal projection for best cluster separability.
+  type1sim <- ComputeCosineSimilarity(t(inputData@analyteType1))
+  type2sim <- ComputeCosineSimilarity(t(inputData@analyteType2))
+  opt <- FindOptimalSubspaceClustering(type1Similarity = type1sim, 
+                                       type2Similarity = type2sim,
+                                       eigStep = eigStep, alphaMin = alphaMin,
+                                       alphaMax = alphaMax, alphaStep = alphaStep)
+  
+  # Plot the heatmap.
+  stats::heatmap(ComputeCosineSimilarity(opt$L_mod), 
+          Rowv = stats::as.dendrogram(opt$dendrogram), 
+          Colv = stats::as.dendrogram(opt$dendrogram))
 }

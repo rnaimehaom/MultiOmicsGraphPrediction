@@ -51,7 +51,7 @@ methods::setClass(
 #' @slot convergence.cutoff Cutoff for convergence.
 #' @slot learning.rate Learning rate used during training.
 #' @slot activation.type Character value. Must be "sigmoid", "tanh", or "softmax".
-#' @slot current.weights Weights used in the current iteration.
+#' @slot current.importance.weights Importance weights used in the current iteration.
 #' @slot previous.weights Weights used in the previous iteration.
 #' @slot current.gradient Gradient calculated for this iteration.
 #' @slot weights.after.pooling Whether to include the weights after the pooling
@@ -73,12 +73,11 @@ methods::setClass(
                  convergence.cutoff="numeric",
                  learning.rate="numeric",
                  activation.type="character",
-                 previous.weights="matrix",
-                 current.weights="matrix",
+                 previous.importance.weights="matrix",
+                 current.importance.weights="matrix",
                  current.gradient="matrix",
                  previous.update.vector="matrix",
                  current.iteration="numeric",
-                 weights.after.pooling="logical",
                  outcome.prediction="numeric",
                  optimization.type="character",
                  sum.square.gradients="matrix",

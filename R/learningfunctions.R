@@ -1,3 +1,90 @@
+#' 
+#' Format the input for graph-based learning. This input consists of:
+#' 1. The Laplacian of a line graph built from the co-regulation graphs, where 
+#' each node corresponds to a pair of analytes.
+#' 2. A prediction value for each node of the line graph, for each sample X.
+#' 3. The true prediction values Y for each sample X.
+#' @param inputData MultiDataSet object (output of ReadData()) with gene expression,
+#' metabolite abundances, and associated meta-data
+#' @param predictionGraphs A list of igraph objects, each of which includes
+#' predictions for each edge.
+#' @param coregulationGraph An igraph object containing the coregulation graph.
+#' @param stype.class The class of the outcome ("numeric" or "categorical")
+#' @param stype The phenotype or outcome of interest
+#' @param edgeTypeList List containing one or more of the following to include
+#' in the line graph:
+#' - "shared.outcome.analyte"
+#' - "shared.independent.analyte"
+#' - "analyte.chain"
+#' @param verbose Whether to print the number of predictions replaced in each sample.
+#' TRUE or FALSE. Default is FALSE.
+#' @export
+FormatInput <- function(predictionGraphs, coregulationGraph,
+                        inputData, stype.class, edgeTypeList, stype, verbose = FALSE){
+  
+  # Extract edge-wise predictions.
+  predictions_by_node <- lapply(names(predictionGraphs), function(sampName){
+    df_predictions <- igraph::as_data_frame(predictionGraphs[[sampName]])
+    node_names <- paste(make.names(df_predictions$to), make.names(df_predictions$from),
+                        sep = "__")
+    df_predictions_new <- data.frame(Node = node_names, Weight = df_predictions$weight)
+    return(df_predictions_new)
+  })
+  names(predictions_by_node) <- names(predictionGraphs)
+  predicted_weights_only <- lapply(predictions_by_node, function(pred){
+    return(pred$Weight)
+  })
+  predictions_flattened <- t(data.frame(predicted_weights_only))
+  colnames(predictions_flattened) <- predictions_by_node[[1]]$Node
+  
+  # Convert co-regulation graph into a line graph. Return the adjacency matrix.
+  # If edges were not connected by nodes in the original graph, they may be
+  # removed from the line graph. Remove these from the predictions_by_node df.
+  A <- CreateLineGraph(predictionsByEdge = predictions_by_node[[1]],
+                       graphWithPredictions = predictionGraphs[[1]],
+                       edgeTypeList = edgeTypeList)
+  predictions_flattened <- predictions_flattened[,colnames(A)]
+  predictions_flattened_orig <- predictions_flattened
+  
+  # Add self-loops.
+  A_tilde <- as.matrix(A)
+  diag(A_tilde) <- 1
+  
+  # Extract the diagonal (in degree) and raise to the negative half power.
+  diags1 <- colSums(A_tilde)
+  diags_neg_half <- 1 / sqrt(diags1)
+  D_tilde_neg_half1 <- t(matrix(rep(diags_neg_half,length(diags_neg_half)),
+                                nrow = length(diags_neg_half)))
+  A_hat1 <- D_tilde_neg_half1 * A_tilde
+  rm(D_tilde_neg_half1)
+  
+  # Extract the diagonal (out degree) and raise to the negative half power.
+  diags2 <- rowSums(A_tilde)
+  rm(A_tilde)
+  diags_neg_half <- 1 / sqrt(diags2)
+  D_tilde_neg_half2 <- t(matrix(rep(diags_neg_half,length(diags_neg_half)),
+                                nrow = length(diags_neg_half)))
+  
+  # Obtain the final matrix. Note that we modify the matrix multiplication
+  # problem to obtain an elementwise multiplication problem
+  # because it speeds up computation.
+  A_hat <- A_hat1 * D_tilde_neg_half2
+  
+  # Obtain the predictions.
+  Y <- inputData@sampleMetaData[,stype]
+  if(stype.class == "factor"){
+    Y <- as.numeric(Y)-1
+  }
+  names(Y) <- names(predictions_by_node)
+  
+  # Create a ModelInput object and return it.
+  newModelInput <- methods::new("ModelInput", A.hat=A_hat, node.wise.prediction=t(predictions_flattened),
+                                true.phenotypes=Y, outcome.type=stype.class, 
+                                coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
+                                line.graph=as.matrix(A), modified.outliers=list())
+  return(newModelInput)
+}
+
 #' Create a line graph given the original, unweighted graph. In a line graph,
 #' edges are nodes, and edges connected by a node are edges.
 #' @param predictionsByEdge Prediction levels corresponding to each edge.
@@ -86,47 +173,22 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
 #' Predict Y given current weights.
 #' @param modelResults An object of the ModelResults class.
 #' @param iteration The current iteration.
-#' @param pooling Whether or not to pool the weights.
-#' @param convolution Whether or not to perform convolution.
-DoPrediction <- function(modelResults, iteration, pooling, convolution){
-  # Propagate forward.
-  A.hat <- modelResults@model.input@A.hat
-  X <- modelResults@model.input@node.wise.prediction
-  Theta.old <- matrix(rep(modelResults@current.weights, dim(X)[2]), ncol = dim(X)[2])
-  Y.pred <- X
-  # If convolution is to be performed, perform convolution.
-  if(convolution == TRUE){
-    Y.pred.list <- lapply(1:dim(X)[2], function(i){
-      return(A.hat %*% X[,i])
-    })
-    Y.pred <- do.call(cbind, Y.pred.list)
-  }
-  # If pooling is to be performed, multiply by pool either after or before weights
-  # are learned, respectively.
-  if(pooling == TRUE){
-    if(modelResults@weights.after.pooling == TRUE){
-      S_all <- modelResults@pooling.filter@individual.filters
-      if(modelResults@current.iteration == 1){
-        #S_all <- CreateFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
-        #                      X = X)
-        modelResults@pooling.filter@individual.filters <- S_all
-      }
-      Y.pred <- unlist(lapply(1:length(S_all), function(i){
-        return(sum(t(Y.pred[,i]) %*% S_all[[i]] * Theta.old[,i]))
-      }))
-    }else{
-      #S_all <- AdjustFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
-      #                      X = X, Theta = Theta.old)
-      modelResults@pooling.filter@individual.filters <- S_all
-      Y.pred <- unlist(lapply(1:length(S_all), function(i){
-        return(sum(t(Y.pred[,i] * Theta.old[,i]) %*% S_all[[i]]))
-      }))
-    }
-  }else{
-    Y.pred <- unlist(lapply(1:(dim(Theta.old)[2]), function(i){
-      return(sum(t(Y.pred[,i] * Theta.old[,i])))
-    }))
-  }
+#' @param importance Importance metrics for each predictor and sample.
+DoPredictionImportanceOnly <- function(modelResults, iteration, importance){
+  
+  # Extract thetas, predictors, and meta-features.
+  X <- matrix(rep(modelResults@model.input@node.wise.prediction, ncol(importance)),
+              ncol = ncol(importance))
+  M <- importance
+  Theta.old <- matrix(rep(modelResults@current.importance.weights, nrow(X)), 
+                      nrow = nrow(X))
+  
+  # Compute the total contribution of the predictor.
+  individual.importance <- Theta.old * M * X
+
+  # Sum together each predictor.
+  Y.pred.term <- colSums(individual.importance)
+  Y.pred <- sum(Y.pred.term)
   
   # Use activation function if output is of a character type. Note that all character
   # types are converted into factors, and since only binary factors are accepted by
@@ -140,8 +202,6 @@ DoPrediction <- function(modelResults, iteration, pooling, convolution){
     }else{
       Y.pred <- round(SigmoidWithCorrection(Y.pred))
     }
-  }else{
-    Y.pred <- Y.pred / dim(Theta.old)[1]
   }
   
   # Return the prediction.
@@ -152,34 +212,25 @@ DoPrediction <- function(modelResults, iteration, pooling, convolution){
 #' class and storing the results in the ModelResults class.T
 #' @param modelResults An object of the ModelResults class.
 #' @param iteration The current iteration.
-#' @param pooling Whether or not to pool the weights.
-#' @param convolution Whether or not to perform convolution.
-#' @param ridgeRegressionWeight The hyperparameter weight assigned
-#' to the ridge regression parameter (often referred to as lambda in the
-#' literature)
-#' @param varianceWeight The hyperparameter weight assigned to the difference
-#' in variances between Y and the predicted value of Y.
-DoSingleTrainingIteration <- function(modelResults, iteration, pooling, convolution,
-                                      ridgeRegressionWeight, varianceWeight){
+#' @param importance Importance metrics for each predictor and sample.
+DoSingleTrainingIterationImportanceOnly <- function(modelResults, iteration,
+                                                    importance){
   # Predict Y.
-  A.hat <- modelResults@model.input@A.hat
-  X <- modelResults@model.input@node.wise.prediction
-  Theta.old <- matrix(rep(modelResults@current.weights, dim(X)[2]), ncol = dim(X)[2])
-  Y.pred <- DoPrediction(modelResults, iteration, pooling, convolution)
+  Y.pred <- DoPredictionImportanceOnly(modelResults, iteration, importance)
   modelResults@outcome.prediction <- Y.pred
   
   # Backpropagate and calculate the error.
-  Theta.new <- Theta.old
   error <- modelResults@iteration.tracking$Error[iteration-1]
-  modelResults <- BackpropagateSingleLayer(modelResults, iteration, convolution,
-                                           pooling, ridgeRegressionWeight,
-                                           varianceWeight)
+  modelResults <- BackpropagateImportanceOnly(modelResults = modelResults, 
+                                              iteration = iteration, 
+                                              importance = importance, 
+                                              Y.pred = Y.pred)
   if(modelResults@model.input@outcome.type == "categorical"){
     modelResults@iteration.tracking$Error[iteration+1] <- 
       ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
   }else{
     modelResults@iteration.tracking$Error[iteration+1] <- 
-      ComputeNRMSE(modelResults@model.input@true.phenotypes, Y.pred)
+      ComputeRMSE(modelResults@model.input@true.phenotypes, Y.pred)
   }
   
   # Modify the model results and return.

@@ -5,6 +5,107 @@
 #' will be removed.
 #' @param upperPercentileLimit Sample-specific percentile above which outliers
 #' will be removed.
+#' @param metricList A list of the valid metrics to include. Valid metrics are
+#' "pdf", "localerr", "globalerr", and "pathway".
+#' @param k The number of nearest neighbors to consider in localerr.
+#' @param inputData The input data read in using the function IntLIM function
+#' ReadData.
+#' @param eigStep The number of eigenvectors to step by during the evaluation
+#' in localerr.
+#' Note that this must be less than the number of samples in localerr. Default = 10.
+#' @param alphaMin The lowest value of alpha to investigate in localerr. Default = 0.
+#' @param alphaMax The highest value of alpha to investigate in localerr. Default = 1.
+#' @param alphaStep The value of alpha to step by during the evaluation in localerr.
+#' Default = 0.1.
+#' @param analytehaspathway A mapping from analytes to pathways. This
+#' mapping has two columns: RaMPID and PathID. Used in pathway importance.
+#' @param analyteNamesOut A data frame mapping the analyte identifier for the
+#' outcome analyte from the IntLIM model to an identifier that can be mapped
+#' to RaMP. Used in pathway importance.
+#' @param analyteNamesInd A data frame mapping the analyte identifier for the
+#' independent variable analyte from the IntLIM model to an identifier that can be mapped
+#' to RaMP. Used in pathway importance.
+#' @param source A data frame that maps analyte identifiers to RaMP internal
+#' identifiers.
+#' @return A list of data frames (one for each sample) with predictor importance
+#' measured according to the listed criteria (one column per metric, one row
+#' per predictor).
+#' @export
+GetAllImportanceMetrics <- function(predictions, modelInput, inputData,
+                                    lowerPercentileLimit = 0.1,
+                                    upperPercentileLimit = 0.9,
+                                    metricList = c("pdf", "localerr", "globalerr",
+                                                   "pathway"),
+                                    k = k,
+                                    eigStep = 10, 
+                                    alphaMin = 0,
+                                    alphaMax = 1, 
+                                    alphaStep = 0.1,
+                                    analytehaspathway = "", 
+                                    analyteNamesOut = "",
+                                    analyteNamesInd = "", 
+                                    source = ""){
+  # Find all outliers.
+  outliers <- FindDistributionalOutliers(predictions = predictions, 
+                                         lowerPercentileLimit = lowerPercentileLimit,
+                                         upperPercentileLimit = upperPercentileLimit)
+  
+  # Compute metrics.
+  metrics <- list()
+  if("pdf" %in% metricList){
+    print("Computing PDF importance")
+    metrics$pdf <- ComputePDFImportance(predictions = predictions, 
+                                        outliers = outliers)
+  }
+  if("localerr" %in% metricList){
+    print("Computing Local Error importance")
+    metrics$localerr <- ComputeLocalErrorImportance(predictions = predictions, 
+                                                    true = modelInput@true.phenotypes, 
+                                                    outliers = outliers, 
+                                                    k = k,
+                                                    inputData = inputData, 
+                                                    eigStep = eigStep, 
+                                                    alphaMin = alphaMin,
+                                                    alphaMax = alphaMax, 
+                                                    alphaStep = alphaStep)
+  }
+  if("globalerr" %in% metricList){  
+    print("Computing Global Error importance")
+    metrics$globalerr <- ComputeGlobalErrorImportance(predictions = predictions, 
+                                                    true = modelInput@true.phenotypes, 
+                                                    outliers = outliers)
+  }
+  if("pathway" %in% metricList){
+    print("Computing Pathway importance")
+    metrics$pathway <- ComputePathwayImportance(predictions = predictions, 
+                                                analytehaspathway = analytehaspathway, 
+                                                analyteNamesOut = analyteNamesOut,
+                                                analyteNamesInd = analyteNamesInd, 
+                                                source = source,
+                                                outliers = outliers)
+  }
+  
+  # Compress all.
+  allMetrics <- lapply(1:length(metrics[[1]]), function(i){
+    rearranged <- lapply(1:length(metrics), function(j){
+      return(metrics[[j]][[i]])
+    })
+    metricDf <- do.call(cbind, rearranged)
+    colnames(metricDf) <- metricList
+    rownames(metricDf) <- colnames(predictions)
+    return(metricDf)
+  })
+  names(allMetrics) <- rownames(predictions)
+  return(allMetrics)
+}
+
+#' Finds and returns the distributional outliers for each sample.
+#' @param predictions Prediction data frame, where rows are samples, and
+#' columns are predictors.
+#' @param lowerPercentileLimit Sample-specific percentile below which outliers
+#' will be removed.
+#' @param upperPercentileLimit Sample-specific percentile above which outliers
+#' will be removed.
 #' @return A list of vectors (one for each sample) where the outliers are masked
 #' with a 1. Non-outliers are labeled as 0.
 FindDistributionalOutliers <- function(predictions,
@@ -18,8 +119,8 @@ FindDistributionalOutliers <- function(predictions,
     
     # Find quantiles.
     quantiles <- stats::quantile(pred, c(lowerPercentileLimit, upperPercentileLimit))
-    which_quantile <- intersect(which(pred > quantiles[1]),
-                                which(pred < quantiles[2]))
+    which_quantile <- union(which(pred < quantiles[1]),
+                                which(pred > quantiles[2]))
     mask <- rep(0, length(pred))
     mask[which_quantile] <- 1
     return(mask)
@@ -34,6 +135,7 @@ FindDistributionalOutliers <- function(predictions,
 #' @param outliers A vector of outliers for each sample. Generated using 
 #' FindDistributionalOutliers().
 #' @return A list of vectors (one for each sample) with an importance metric.
+#' @export
 ComputePDFImportance <- function(predictions, outliers){
   
   # Compute the importance for each sample.
@@ -43,8 +145,9 @@ ComputePDFImportance <- function(predictions, outliers){
     
     # Remove outliers.
     non_outliers <- which(outliers[[samp]] == 0)
-    
+
     # Compute importance based on density.
+    importance <- rep(0, length(outliers[[samp]]))
     d <- stats::density(pred[non_outliers])
     importance[non_outliers] <- unlist(lapply(pred[non_outliers], function(pred){
       return(d$y[which.min(abs(d$x - pred))])
@@ -165,7 +268,7 @@ FindOptimalSubspaceClustering <- function(type1Similarity, type2Similarity,
                                           eigStep = 10, alphaMin = 0,
                                           alphaMax = 1, alphaStep = 0.1){
   # Check input parameters.
-  if(eigStep > dim(type1Similarity)){
+  if(eigStep > nrow(type1Similarity)){
     stop("Must set eigStep to a value lower than the number of samples!")
   }
   else if(alphaMin < 0 || alphaMin > 1 || alphaMax < 0 || alphaMax > 1 ){
@@ -289,15 +392,15 @@ ComputeCosineSimilarity <- function(R){
 #' Default = 0.1.
 #' @return A list of vectors (one for each sample) with an importance metric.
 #' @export
-ComputeLocalPredImportance <- function(predictions, true, outliers, k,
+ComputeLocalErrorImportance <- function(predictions, true, outliers, k,
                                        inputData, eigStep = 10, alphaMin = 0,
                                        alphaMax = 1, alphaStep = 0.1){
   
   # Find the optimal projection for best cluster separability.
-  gene_sim <- ComputeCosineSimilarity(t(inputData@analyteType1))
-  metab_sim <- ComputeCosineSimilarity(t(inputData@analyteType2))
-  opt <- FindOptimalSubspaceClustering(type1Similarity = gene_sim, 
-                                       type2Similarity = metab_sim,
+  type1sim <- ComputeCosineSimilarity(t(inputData@analyteType1))
+  type2sim <- ComputeCosineSimilarity(t(inputData@analyteType2))
+  opt <- FindOptimalSubspaceClustering(type1Similarity = type1sim, 
+                                       type2Similarity = type2sim,
                                        eigStep = eigStep, alphaMin = alphaMin,
                                        alphaMax = alphaMax, alphaStep = alphaStep)
   
@@ -317,6 +420,7 @@ ComputeLocalPredImportance <- function(predictions, true, outliers, k,
     trueVals <- matrix(rep(true[knn], length(pred_local)),
                        nrow = length(knn),
                        ncol = ncol(pred_local))
+    trueVals <- trueVals[-samp,]
     
     err <- abs(trueVals - pred_local)
     medErr <- unlist(lapply(1:ncol(err), function(c){
@@ -347,7 +451,7 @@ ComputeLocalPredImportance <- function(predictions, true, outliers, k,
 #' FindDistributionalOutliers().
 #' @return A list of vectors (one for each sample) with an importance metric.
 #' @export
-ComputeGlobalPredImportance <- function(predictions, true, outliers){
+ComputeGlobalErrorImportance <- function(predictions, true, outliers){
   
   # Compute the importance for each sample.
   importanceAll <- lapply(1:nrow(predictions), function(samp){
@@ -358,6 +462,7 @@ ComputeGlobalPredImportance <- function(predictions, true, outliers){
     trueVals <- matrix(rep(true, length(pred)),
                        nrow = length(true),
                        ncol = ncol(pred))
+    trueVals <- trueVals[-samp,]
     
     err <- abs(trueVals - pred)
     medErr <- unlist(lapply(1:ncol(err), function(c){

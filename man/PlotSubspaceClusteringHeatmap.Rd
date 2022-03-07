@@ -4,7 +4,13 @@
 \alias{PlotSubspaceClusteringHeatmap}
 \title{Plots a heatmap of the optimal subspace clustering.}
 \usage{
-PlotSubspaceClusteringHeatmap(optimalClustering)
+PlotSubspaceClusteringHeatmap(
+  inputData,
+  eigStep = 10,
+  alphaMin = 0,
+  alphaMax = 1,
+  alphaStep = 0.1
+)
 }
 \arguments{
 \item{optimalClustering}{The output of FindOptimalSubspaceClustering.}
