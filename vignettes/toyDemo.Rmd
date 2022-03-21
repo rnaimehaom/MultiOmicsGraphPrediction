@@ -22,8 +22,14 @@ if(!require("devtools")){
   install.packages("devtools")
 }
 library("devtools")
-install_github("ncats/MultiOmicsGraphPrediction")
+if(!require("MultiOmicsGraphPrediction")){
+  install_github("ncats/MultiOmicsGraphPrediction")
+}
 library(MultiOmicsGraphPrediction)
+if(!require("IntLIM")){
+  install_github("ncats/IntLIM")
+}
+library(IntLIM)
 ```
 
 # Import Toy data files.
@@ -45,7 +51,7 @@ myres <- IntLIM::RunIntLim(inputData = inputData,stype="age",
 # Filter Results
 ```{r}
 myres.sig <- IntLIM::ProcessResults(inputResults = myres, inputData = inputData, 
-                                       pvalcutoff = 0.20)
+                                       pvalcutoff = 0.20, )
 IntLIM::OutputResults(inputResults=myres.sig,filename=paste(result_dir,
                                                                     "toyDataResults.csv"
                                                                     , sep = "/"))
@@ -98,31 +104,187 @@ MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputData, 
 importance <- MultiOmicsGraphPrediction::GetAllImportanceMetrics(predictions = pred, 
                                                                  modelInput = modelInput,
                                       inputData = inputData, metricList = c("pdf", 
-                                                                            "localerr", 
-                                                                            "globalerr"),
+                                                                            "localerr"),
                                       k = 2, eigStep = 1)
+starting_weights <- lapply(1:length(importance), function(i){
+  imp <- importance[[i]]
+  nm <- names(importance)[i]
+  sum_over <- as.data.frame(rowSums(imp))
+  rownames(sum_over) <- rownames(imp)
+  colnames(sum_over) <- nm
+  return(sum_over)
+})
+starting_weights_all <- do.call(cbind,starting_weights)
 ```
 
-## Find Optimal Combination of Importance Metrics Alone.
-```{r combine importance}
-modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInputs = modelInput,
-                                                                        importance = importance)
-importanceOnlyModel <- MultiOmicsGraphPrediction::OptimizeImportanceCombo(importance = importance, 
-                                               modelResults = modelResults)
+## Calculate information gain for when all terms are included in a composite predictor.
+```{r}
+CompositePrediction <- function(pairs, covariates, weights, analyte1Vals, analyte2Vals){
+  # Analyte 1
+  weighted_a1 <- rep(0, ncol(weights))
+  for(pair in pairs){
+    weighted_a1 <- weighted_a1 + weights[pair,] * analyte1Vals[strsplit(pair, "__")[[1]][2],]
+  }
+
+  # beta0
+  weighted_sum_b0 <- rep(0, ncol(weights))
+  for(pair in pairs){
+    weighted_sum_b0 <- weighted_sum_b0 + weights[pair,] * rep(covariates[pair,"(Intercept)"], ncol(weights))
+  }
+  
+  # beta1
+  weighted_sum_b1 <- rep(0, ncol(weights))
+  for(pair in pairs){
+    weighted_sum_b1 <- weighted_sum_b1 + weights[pair,] * rep(covariates[pair, "a"], ncol(weights)) * 
+                                                                analyte2Vals[strsplit(pair, "__")[[1]][1],]
+  }
+  
+  # beta2
+  weighted_sum_b2 <- rep(0, ncol(weights))
+  for(pair in pairs){
+    weighted_sum_b2 <- weighted_sum_b2 + weights[pair,] * rep(covariates[pair, "type"], ncol(weights))
+  }
+  
+  # beta3
+  weighted_sum_b3 <- rep(0, ncol(weights))
+  for(pair in pairs){
+    weighted_sum_b3 <- weighted_sum_b3 + weights[pair,] * rep(covariates[pair, "a:type"], ncol(weights))* 
+                                                                analyte2Vals[strsplit(pair, "__")[[1]][1],]
+  }
+  
+  # Final value.
+  final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1) / (weighted_sum_b2 + weighted_sum_b3)
+  return(final_val)
+}
+
+# Leave-one-out composite prediction
+CompositePredictionLOO <- function(pairs, covariates, weights, analyte1Vals, analyte2Vals){
+  removePairPred <- lapply(pairs, function(pair){
+    return(CompositePrediction(setdiff(pairs, pair), covariates, weights, analyte1Vals, analyte2Vals))
+  })
+  return(removePairPred)
+}
 ```
 
-## Segment Into Pools.
-```{r do pooling}
-pools <- DoPooling(modelInputs = modelInput, method = "kmeans", layers = 1, poolCount = 6)
+```{r}
+# Information gain
+ComputeInfoGain <- function(originalPred, trueVal){
+  midrange <- (max(trueVal) - min(trueVal)) / 2
+  
+  # Compute original entropy.
+  originalProb <- length(which(trueVal > midrange) == TRUE) / length(trueVal)
+  originalEntropy <- -1 * (originalProb * log2(originalProb) + (1 - originalProb) * log2(1 - originalProb))
+
+  # Compute entropy given prediction.
+  predGreaterProb <- length(which(originalPred > midrange)) / length(originalPred)
+  origGreaterPredGreaterProb <- length(intersect(which(trueVal > midrange), which(originalPred > midrange))) / 
+    length(which(originalPred > midrange))
+  origGreaterPredGreaterTerm <- -1 * origGreaterPredGreaterProb * log2(origGreaterPredGreaterProb) * predGreaterProb
+  if(is.nan(origGreaterPredGreaterTerm) == TRUE){
+    origGreaterPredGreaterTerm <- 0
+  }
+  
+  origGreaterPredLessProb <- length(intersect(which(trueVal > midrange), which(originalPred <= midrange))) / 
+    length(which(originalPred <= midrange))
+  origGreaterPredLessTerm <- -1 * origGreaterPredLessProb * log2(origGreaterPredLessProb) * (1 - predGreaterProb)
+  if(is.nan(origGreaterPredLessTerm) == TRUE){
+    origGreaterPredLessTerm <- 0
+  }
+  
+  origLessPredGreaterProb <- length(intersect(which(trueVal <= midrange), which(originalPred > midrange))) /
+    length(which(originalPred > midrange))
+  origLessPredGreaterTerm <- -1 * origLessPredGreaterProb * log2(origLessPredGreaterProb) * predGreaterProb
+  if(is.nan(origLessPredGreaterTerm) == TRUE){
+    origLessPredGreaterTerm <- 0
+  }
+  
+  origLessPredLessProb <- length(intersect(which(trueVal <= midrange), which(originalPred <= midrange))) /
+    length(which(originalPred <= midrange))
+  origLessPredLessTerm <- -1 * origLessPredLessProb * log2(origLessPredLessProb) * (1 - predGreaterProb)
+  if(is.nan(origLessPredLessTerm) == TRUE){
+    origLessPredLessTerm <- 0
+  }
+  
+  conditionalEntropy <- origGreaterPredGreaterTerm + origGreaterPredLessTerm + origLessPredGreaterTerm + origLessPredLessTerm
+  originalIG <- originalEntropy - conditionalEntropy
+  return(originalIG)
+}
 ```
 
-## Learn Optimal Combination of Pools.
-```{r combine importance}
-importanceOnlyModel <- OptimizeModel(importance, modelData, pools)
+```{r}
+pairsPredAll <- list(list("Gene4__Metab2", "Gene6__Metab2", "Gene8__Metab2"),
+                     list("Gene11__Metab4", "Gene5__Metab4", "Gene7__Metab4", "Gene11__Metab1", "Gene11__Metab3"),
+                     list("Gene11__Metab4", "Gene5__Metab4", "Gene7__Metab4", "Gene5__Metab1", "Gene5__Metab3"),
+                     list("Gene11__Metab4", "Gene5__Metab4", "Gene7__Metab4", "Gene7__Metab1", "Gene7__Metab3"),
+                     list("Gene11__Metab1", "Gene5__Metab1", "Gene7__Metab1", "Gene7__Metab4", "Gene7__Metab3"),
+                     list("Gene11__Metab1", "Gene5__Metab1", "Gene7__Metab1", "Gene11__Metab4", "Gene11__Metab3"),
+                     list("Gene11__Metab1", "Gene5__Metab1", "Gene7__Metab1", "Gene5__Metab4", "Gene5__Metab3"),
+                     list("Gene11__Metab3", "Gene5__Metab3", "Gene7__Metab3", "Gene7__Metab4", "Gene7__Metab1"),
+                     list("Gene11__Metab3", "Gene5__Metab3", "Gene7__Metab3", "Gene11__Metab4", "Gene11__Metab1"),
+                     list("Gene11__Metab3", "Gene5__Metab3", "Gene7__Metab3", "Gene5__Metab4", "Gene5__Metab1"))
+importantPredictors <- lapply(pairsPredAll, function(pairsPred){
+  pred1 <- CompositePrediction(pairsPred, myres@covariate.coefficients, starting_weights_all,
+                             inputData@analyteType1, inputData@analyteType2)
+
+  # Prune the pairs.
+  removePairPred <- CompositePredictionLOO(pairsPred, myres@covariate.coefficients, starting_weights_all,
+                             inputData@analyteType1, inputData@analyteType2)
+  infoGainOriginal <- ComputeInfoGain(unlist(pred1), inputData@sampleMetaData[,myres@stype])
+  infoGainsLOO <- lapply(removePairPred, function(p){
+    return(ComputeInfoGain(unlist(p), inputData@sampleMetaData[,myres@stype]))
+  })
+  informativePairs <- unlist(pairsPred[which(infoGainsLOO < infoGainsOriginal)])
+  if(length(which(infoGainsLOO < infoGainOriginal))==0){
+    informativePairs <- unlist(pairsPred[which(infoGainsLOO == infoGainsOriginal)])[1]
+  }
+
+  # For each pair that was pruned, see if it functions better than the full
+  # predictor as an "orphan" pair.
+  orphans <- setdiff(unlist(pairsPred), informativePairs)
+  importantOrphans <- unlist(lapply(1:length(orphans), function(orphan){
+    orphanPred <- as.data.frame(t(as.data.frame(pred[,orphan])))
+    orphanInfoGain <- ComputeInfoGain(orphanPred, inputData@sampleMetaData[,myres@stype])
+    retval <- NULL
+    if(orphanInfoGain > infoGainOriginal){
+      retval <- orphan
+    }
+    return(retval)
+  }))
+  return(list(modelPairs = informativePairs, orphans = importantOrphans))
+})
+print(importantPredictors)
 ```
 
-## Plot Graph Weights
-```{r plot graph}
-# PlotGraphWeights <- function(graph, results)
-# PlotGraphWeightsHeatmap <- function(inputResults, inputData)
+# Merge Predictors (Second Layer)
+```{r}
+# Compute table of pair overlaps.
+pairCounts <- table(unlist(pairsPredAll))
+predictorsContaining <- pairCounts[order(-pairCounts)]
+
+# Loop through and group composite predictors.
+belongsTo <- rep(0, length(pairsPredAll))
+compositePredictors <- list()
+predictorIdx <- 1
+for(pair in names(predictorsContaining)){
+  # For each pair, find the predictors containing it.
+  listContainsPair <- unlist(lapply(1:length(pairsPredAll), function(i){
+    composite <- pairsPredAll[[i]]
+    containsPair <- FALSE
+    if(pair %in% composite){
+      containsPair <- TRUE
+    }
+    return(containsPair)
+  }))
+  # If the predictors containing it have not been assigned, assign them.
+  if(max(belongsTo[which(listContainsPair == TRUE)]) == 0){
+    belongsTo[which(listContainsPair == TRUE)] <- predictorIdx
+    predictorIdx <- predictorIdx + 1
+  }
+  # If some of the predictors have already been assigned, merge with them.
+  else{
+    belongsTo[which(listContainsPair == TRUE)] <- max(belongsTo[which(listContainsPair == TRUE)])
+  }
+  #compositePredictors[[length(compositePredictors)+1]] <- which(listContainsPair == TRUE)
+}
+print(belongsTo)
 ```

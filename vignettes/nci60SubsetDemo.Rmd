@@ -1,0 +1,375 @@
+
+---
+title: "Ensemble NCI-60 Subset Demo"
+author: "Tara Eicher"
+date: "3/19/2022"
+output: rmarkdown::html_document
+vignette: >
+  %\VignetteIndexEntry{MultiOmicsGraphPrediction NCI-60 Subset}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+# Set up.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+result_dir <- "~\\Ensemble_nci60_subset_vignette_results"
+dir.create(result_dir)
+```
+
+# Install the packages.
+```{r eval = FALSE}
+if(!require("devtools")){
+  install.packages("devtools")
+}
+library("devtools")
+if(!require("MultiOmicsGraphPrediction")){
+  install_github("ncats/MultiOmicsGraphPrediction")
+}
+library(MultiOmicsGraphPrediction)
+if(!require("IntLIM")){
+  install_github("ncats/IntLIM")
+}
+library(IntLIM)
+```
+
+# Import data files.
+First, we read in the RaMP files, which will be used later.
+```{r}
+if(!require(data.table)){
+  install.packages("data.table")
+}
+library(data.table)
+
+analyte <- fread("/Volumes/eichertd$/Thesis/aim_2/analyte.txt", sep = "\t", header = FALSE)
+analytehaspathway <- fread("/Volumes/eichertd$/Thesis/aim_2/analytehaspathway.txt", sep = "\t", header = FALSE)
+pathway <- fread("/Volumes/eichertd$/Thesis/aim_2/pathway.txt", sep = "\t", header = FALSE)
+source <- fread("/Volumes/eichertd$/Thesis/aim_2/source.txt", sep = "\t", header = FALSE)
+```
+These data are limited to the metabolites tryptophan, serine, and beta-NADP and also include only the genes known to participate in the following RaMP pathways: "central carbon metabolism in cancer", "WNT Signaling", and "chemical carcinogenesis". First, we filter these metabolites and genes from the original NCI-60 data.
+```{r}
+# Filter metabolites.
+csvorig <- read.csv("/Volumes/eichertd$/IntLIM_vignettes/NCI60_data/metabData.csv", row.names = 1)
+csvtrain <- csvorig[c("beta-nicotinamide adenine dinucleotide", "serine", "tryptophan"),1:46]
+csvtest <- csvorig[c("beta-nicotinamide adenine dinucleotide", "serine", "tryptophan"),47:57]
+write.csv(csvtrain, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/metabDataNCI60.train.csv")
+write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/metabDataNCI60.test.csv")
+
+# Filter genes.
+pathwayList <- c("Central carbon metabolism in cancer", "Wnt signaling pathway", 
+                 "Chemical carcinogenesis - DNA adducts", "Chemical carcinogenesis - receptor activation",
+                 "Chemical carcinogenesis - reactive oxygen species")
+pathwayIds <- pathway$V1[which(pathway$V5 %in% pathwayList)]
+pathwayAnalytes <- analytehaspathway$V1[which(analytehaspathway$V2 %in% pathwayIds)]
+pathwayGenes <- unlist(lapply(pathwayAnalytes, function(analyte){
+  retval <- NA
+  if(grepl("_G_", analyte)){
+    retval <- analyte
+  }
+  return(retval)
+}))
+symbols <- unique(source$V1[intersect(intersect(which(source$V4 == "gene"), which(source$V3 == "gene_symbol")), 
+                                      which(source$V2 %in% pathwayGenes))])
+symbolsWithoutHeader <- unlist(lapply(symbols, function(gene){
+  return(strsplit(gene, ":")[[1]][2])
+}))
+csvorig <- read.csv("/Volumes/eichertd$/IntLIM_vignettes/NCI60_data/geneData.csv", row.names = 1)
+csvtrain <- csvorig[intersect(rownames(csvorig),symbolsWithoutHeader),1:46]
+csvtest <- csvorig[intersect(rownames(csvorig),symbolsWithoutHeader),47:57]
+write.csv(csvtrain, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/geneDataNCI60.train.csv")
+write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/geneDataNCI60.test.csv")
+```
+
+Next, we read in the new data.
+```{r}
+dir <- system.file("extdata", package="MultiOmicsGraphPrediction", mustWork=TRUE)
+
+# Import training data.
+csvfileTrain <- file.path(dir, "nci60subsetinput.train.csv")
+inputDataTrain <- IntLIM::ReadData(csvfileTrain)
+
+# Import testing data.
+csvfileTest <- file.path(dir, "nci60subsetinput.test.csv")
+inputDataTest <- IntLIM::ReadData(csvfileTest)
+```
+
+# Run IntLIM
+```{r}
+myres <- IntLIM::RunIntLim(inputData = inputDataTrain,stype="drugscore",
+                                 save.covar.pvals = TRUE, 
+                                 outcome = 1, 
+                                 independent.var.type = 2, 
+                                 continuous = TRUE)
+```
+
+# Filter Results
+```{r}
+myres.sig <- IntLIM::ProcessResults(inputResults = myres, inputData = inputDataTrain, 
+                                       pvalcutoff = 0.20, rsquaredCutoff = 0.20)
+IntLIM::OutputResults(inputResults=myres.sig,filename=paste(result_dir,
+                                                                    "nci60DataResults.csv"
+                                                                    , sep = "/"))
+```
+
+# Create Co-Regulation Graph
+In a co-regulation graph, nodes are analytes (genes and metabolites) and edges indicate
+a significant phenotype-dependent association between the analytes.
+```{r}
+# Build graph.
+coreg <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.sig)
+PlotCoRegulationGraph(coreg, "NCI-60 Subset Graph", saveInFile = NULL, vertices = NULL,truncateTo = 4)
+```
+
+# Run Pairwise Prediction.
+```{r}
+# Run pairwise prediction.
+pred <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.sig, 
+                                                         inputData = inputDataTrain,
+                                                         stype = "drugscore")
+```
+
+## Project Predictions
+```{r plot graph}
+# Project graph.
+projectedGraph <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg,
+                                                                         predictions = pred)
+PlotGraphPredictions(projectedGraph, inputDataTrain, saveInDir = NULL, 
+                                 vertices = NULL, truncateTo = 4, includeLabels = TRUE,
+                                 cutoffs = NULL, vertexSize = 10)
+```
+
+## Create Model Input
+```{r model input}
+# Create input.
+modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+                                                     coregulationGraph = coreg,
+                   inputData = inputDataTrain, stype.class = "numeric", stype = "drugscore",
+                   edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"))
+saveRDS(modelInput,file=paste(result_dir, paste0("nci60modelInput.RDS"), sep = "\\"))
+PlotPredictionDendrogram(modelInput, hierarchicalClustering, sampleIndex, 
+                                     predictionLimits)
+MultiOmicsGraphPrediction::PlotLineGraph(modelInput = modelInput, stype = "drugscore", cutoffs = c(0,100))
+```
+
+## Compute Importance Metrics.
+```{r importance}
+# Format the pathway-related files appropriately.
+colnames(analytehaspathway) <- c("RaMPID", "PathID", "database")
+metabMeta <- read.csv(file.path(dir, "fData.metab.nci60.csv"), row.names = 1)
+colnames(source) <- c("SourceID", "RaMPID", "source", "type", "commonName", "HMDB_status", "source2")
+MultiOmicsGraphPrediction::PlotSubspaceClusteringDendrogram(inputData = inputDataTrain, eigStep = 1)
+MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputDataTrain, eigStep = 1)
+importance <- MultiOmicsGraphPrediction::GetAllImportanceMetrics(predictions = pred, 
+                                                                 modelInput = modelInput,
+                                                                 inputData = inputDataTrain, metricList = c("pdf", 
+                                                                                                            "localerr",
+                                                                                                            "pathway"),
+                                                                 k = 2, eigStep = 1,
+                                                                 analytehaspathway = analytehaspathway,
+                                                                 analyteNamesOut = metabMeta,
+                                                                 source = source)
+starting_weights <- lapply(1:length(importance), function(i){
+  imp <- importance[[i]]
+  nm <- names(importance)[i]
+  sum_over <- as.data.frame(rowSums(imp))
+  rownames(sum_over) <- rownames(imp)
+  colnames(sum_over) <- nm
+  return(sum_over)
+})
+starting_weights_all <- do.call(cbind,starting_weights)
+wt <- as.matrix(starting_weights_all)
+heatmap.2(wt)
+```
+
+## Calculate information gain for when all terms are included in a composite predictor.
+```{r}
+CompositePrediction <- function(pairs, covariates, weights, analyte1Vals, analyte2Vals){
+  # Reverse pairs.
+  revpairs <- lapply(pairs, function(pair){
+    return(paste(strsplit(pair, "__")[[1]][2], strsplit(pair, "__")[[1]][1], sep = "__"))
+  })
+  # Analyte 1
+  weighted_a1 <- rep(0, ncol(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    revpair <- revpairs[[i]]
+    weighted_a1 <- weighted_a1 + weights[revpair,] * analyte1Vals[strsplit(pair, "__")[[1]][2],]
+  }
+
+  # beta0
+  weighted_sum_b0 <- rep(0, ncol(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    revpair <- revpairs[[i]]
+    weighted_sum_b0 <- weighted_sum_b0 + weights[revpair,] * rep(covariates[revpair,"(Intercept)"], ncol(weights))
+  }
+  
+  # beta1
+  weighted_sum_b1 <- rep(0, ncol(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    revpair <- revpairs[[i]]
+    weighted_sum_b1 <- weighted_sum_b1 + weights[revpair,] * rep(covariates[revpair, "a"], ncol(weights)) * 
+                                                                analyte2Vals[strsplit(pair, "__")[[1]][1],]
+  }
+  
+  # beta2
+  weighted_sum_b2 <- rep(0, ncol(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    revpair <- revpairs[[i]]
+    weighted_sum_b2 <- weighted_sum_b2 + weights[revpair,] * rep(covariates[revpair, "type"], ncol(weights))
+  }
+  
+  # beta3
+  weighted_sum_b3 <- rep(0, ncol(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    revpair <- revpairs[[i]]
+    weighted_sum_b3 <- weighted_sum_b3 + weights[revpair,] * rep(covariates[revpair, "a:type"], ncol(weights))* 
+                                                                analyte2Vals[strsplit(pair, "__")[[1]][1],]
+  }
+  
+  # Final value.
+  final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1) / (weighted_sum_b2 + weighted_sum_b3)
+  return(final_val)
+}
+
+# Leave-one-out composite prediction
+CompositePredictionLOO <- function(pairs, covariates, weights, analyte1Vals, analyte2Vals){
+  removePairPred <- lapply(pairs, function(pair){
+    return(CompositePrediction(setdiff(pairs, pair), covariates, weights, analyte1Vals, analyte2Vals))
+  })
+  return(removePairPred)
+}
+```
+
+```{r}
+# Information gain
+ComputeInfoGain <- function(originalPred, trueVal){
+  trueVal <- trueVal[which(!is.nan(originalPred))]
+  originalPred <- originalPred[which(!is.nan(originalPred))]
+  originalIG <- NULL
+  
+  if(length(trueVal)>0 && length(originalPred)>0){
+    midrange <- min(trueVal) + (max(trueVal) - min(trueVal)) / 2
+  
+    # Compute original entropy.
+    originalProb <- length(which(trueVal > midrange)) / length(trueVal)
+    originalEntropy <- -1 * (originalProb * log2(originalProb) + (1 - originalProb) * log2(1 - originalProb))
+  
+    # Compute entropy given prediction.
+    predGreaterProb <- length(which(originalPred > midrange)) / length(originalPred)
+    origGreaterPredGreaterProb <- length(intersect(which(trueVal > midrange), which(originalPred > midrange))) / 
+      length(which(originalPred > midrange))
+    origGreaterPredGreaterTerm <- -1 * origGreaterPredGreaterProb * log2(origGreaterPredGreaterProb) * predGreaterProb
+    if(is.nan(origGreaterPredGreaterTerm) == TRUE){
+      origGreaterPredGreaterTerm <- 0
+    }
+    
+    origGreaterPredLessProb <- length(intersect(which(trueVal > midrange), which(originalPred <= midrange))) / 
+      length(which(originalPred <= midrange))
+    origGreaterPredLessTerm <- -1 * origGreaterPredLessProb * log2(origGreaterPredLessProb) * (1 - predGreaterProb)
+    if(is.nan(origGreaterPredLessTerm) == TRUE){
+      origGreaterPredLessTerm <- 0
+    }
+    
+    origLessPredGreaterProb <- length(intersect(which(trueVal <= midrange), which(originalPred > midrange))) /
+      length(which(originalPred > midrange))
+    origLessPredGreaterTerm <- -1 * origLessPredGreaterProb * log2(origLessPredGreaterProb) * predGreaterProb
+    if(is.nan(origLessPredGreaterTerm) == TRUE){
+      origLessPredGreaterTerm <- 0
+    }
+    
+    origLessPredLessProb <- length(intersect(which(trueVal <= midrange), which(originalPred <= midrange))) /
+      length(which(originalPred <= midrange))
+    origLessPredLessTerm <- -1 * origLessPredLessProb * log2(origLessPredLessProb) * (1 - predGreaterProb)
+    if(is.nan(origLessPredLessTerm) == TRUE){
+      origLessPredLessTerm <- 0
+    }
+    conditionalEntropy <- origGreaterPredGreaterTerm + origGreaterPredLessTerm + origLessPredGreaterTerm + origLessPredLessTerm
+    originalIG <- originalEntropy - conditionalEntropy
+  }
+  # If all terms are NA, then categorize this as an information loss.
+  else{
+    originalIG <- -1
+  }
+  
+  return(originalIG)
+}
+```
+
+Find the set of composite predictors.
+```{r}
+lineGraph <- igraph::graph_from_adjacency_matrix(modelInput@line.graph)
+pairsPredAll <- lapply(igraph::V(lineGraph), function(node){
+  return(igraph::as_ids(igraph::neighbors(lineGraph, node)))
+})
+```
+
+```{r}
+importantPredictors <- lapply(pairsPredAll, function(pairsPred){
+  pred1 <- CompositePrediction(pairsPred, myres@covariate.coefficients, starting_weights_all,
+                             inputDataTrain@analyteType2, inputDataTrain@analyteType1)
+
+  # Prune the pairs.
+  removePairPred <- CompositePredictionLOO(pairsPred, myres@covariate.coefficients, starting_weights_all,
+                             inputDataTrain@analyteType2, inputDataTrain@analyteType1)
+  infoGainOriginal <- ComputeInfoGain(unlist(pred1), inputDataTrain@sampleMetaData[,myres@stype])
+  infoGainsLOO <- lapply(removePairPred, function(p){
+    return(ComputeInfoGain(unlist(p), inputDataTrain@sampleMetaData[,myres@stype]))
+  })
+  informativePairs <- unlist(pairsPred[which(infoGainsLOO < infoGainOriginal)])
+  if(length(which(infoGainsLOO < infoGainOriginal))==0){
+    informativePairs <- unlist(pairsPred[which(infoGainsLOO == infoGainOriginal)])[1]
+  }
+
+  # For each pair that was pruned, see if it functions better than the full
+  # predictor as an "orphan" pair.
+  orphans <- setdiff(unlist(pairsPred), informativePairs)
+  importantOrphans <- unlist(lapply(1:length(orphans), function(orphan){
+    orphanPred <- pred[,orphan]
+    orphanInfoGain <- ComputeInfoGain(orphanPred, inputDataTrain@sampleMetaData[,myres@stype])
+    retval <- NULL
+    if(orphanInfoGain > infoGainOriginal){
+      retval <- orphans[orphan]
+    }
+    return(retval)
+  }))
+  return(list(modelPairs = informativePairs, orphans = importantOrphans))
+})
+print(importantPredictors)
+```
+
+# Merge Predictors (Second Layer)
+```{r}
+# Compute table of pair overlaps.
+pairCounts <- table(unlist(pairsPredAll))
+predictorsContaining <- pairCounts[order(-pairCounts)]
+
+# Loop through and group composite predictors.
+belongsTo <- rep(0, length(pairsPredAll))
+compositePredictors <- list()
+predictorIdx <- 1
+for(pair in names(predictorsContaining)){
+  # For each pair, find the predictors containing it.
+  listContainsPair <- unlist(lapply(1:length(pairsPredAll), function(i){
+    composite <- pairsPredAll[[i]]
+    containsPair <- FALSE
+    if(pair %in% composite){
+      containsPair <- TRUE
+    }
+    return(containsPair)
+  }))
+  # If the predictors containing it have not been assigned, assign them.
+  if(max(belongsTo[which(listContainsPair == TRUE)]) == 0){
+    belongsTo[which(listContainsPair == TRUE)] <- predictorIdx
+    predictorIdx <- predictorIdx + 1
+  }
+  # If some of the predictors have already been assigned, merge with them.
+  else{
+    belongsTo[which(listContainsPair == TRUE)] <- max(belongsTo[which(listContainsPair == TRUE)])
+  }
+  #compositePredictors[[length(compositePredictors)+1]] <- which(listContainsPair == TRUE)
+}
+print(belongsTo)
+```
