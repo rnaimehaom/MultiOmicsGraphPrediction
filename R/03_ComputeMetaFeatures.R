@@ -164,7 +164,9 @@ ComputePDFImportance <- function(predictions, outliers){
 }
 
 # Function for obtaining prediction names.
-GetPredictorRaMPNames <- function(preds, analyteMappingsType1){
+#' @param source A data frame that maps analyte identifiers to RaMP internal
+#' identifiers.
+GetPredictorRaMPNames <- function(preds, analyteMappingsType1, source){
   # Get prediction names.
   geneNames <- unlist(lapply(colnames(preds), function(pair){
     return(strsplit(pair, "__")[[1]][1])
@@ -212,7 +214,7 @@ ComputePathwayImportance <- function(predictions, analytehaspathway, analyteName
                                      outliers){
   
   # Obtain names of predictors.
-  predNames <- GetPredictorRaMPNames(predictions, analyteNamesOut)
+  predNames <- GetPredictorRaMPNames(predictions, analyteNamesOut, source)
   
   # Measure importance for each predictor.
   importance <- unlist(lapply(1:nrow(predNames), function(pair_i){
