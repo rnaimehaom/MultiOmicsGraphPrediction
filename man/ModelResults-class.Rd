@@ -47,5 +47,7 @@ optimization}
 
 \item{\code{sum.square.gradients}}{Sum of squared gradients over iterations, used in
 Adagrad optimization}
+
+\item{\code{importance}}{Calculated importance values}
 }}
 

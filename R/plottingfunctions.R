@@ -127,6 +127,14 @@ PlotGraphWeights <- function(graph, results){
                  las = 1)
 }
 
+#' Plot the current weight associated with each predictor and sample.
+#' @param modelResults A ModelResults object.
+#' @export
+PlotWeightHeatmap <- function(modelResults){
+  wt <- ComputeImportanceWeights(modelResults)
+  gplots::heatmap.2(wt)
+}
+
 #' Plot the graph as a heatmap with edges colored by interaction coefficient.
 #' @param inputResults The IntLIM results (from RunIntLim())
 #' @param inputData The input data (from ReadData())
@@ -248,6 +256,7 @@ PlotCoRegulationGraphAllFolds <- function(graph, saveInDir = NULL, vertices = NU
 #' @param inputData Named list (output of 
 #' FilterData()) with gene expression, metabolite abundances, 
 #' and associated meta-data
+#' @param stype The outcome type or phenotype of interest
 #' @param saveInDir Directory where files should be saved. If NULL, then the output
 #' is plotted without being saved. Default is NULL.
 #' @param vertices List of vectors of vertices to plot. This is used if one
@@ -260,7 +269,7 @@ PlotCoRegulationGraphAllFolds <- function(graph, saveInDir = NULL, vertices = NU
 #' Default is NULL.
 #' @param vertexSize Vertex size to use in display.
 #' @export
-PlotGraphPredictions <- function(graph, inputData, saveInDir = NULL, 
+PlotGraphPredictions <- function(graph, inputData, stype, saveInDir = NULL, 
                                  vertices = NULL, truncateTo = 4, includeLabels = TRUE,
                                  cutoffs = NULL, vertexSize = 10){
   for(j in 1:length(graph)){
@@ -276,8 +285,9 @@ PlotGraphPredictions <- function(graph, inputData, saveInDir = NULL,
     
     # Set up variables for plotting.
     bin_count <- 100
+    print(inputData@sampleMetaData[j,stype])
     title <- paste(names(graph)[j], paste("True Outcome =",
-                                          formatC(inputData$p[[j]], digits = 2, 
+                                          formatC(inputData@sampleMetaData[j,stype], digits = 2, 
                                                   format = "f")), sep = "\n")
     edges <- igraph::E(g)
     wt <- edges$weight
@@ -345,35 +355,38 @@ PlotGraphPredictionsAllFolds <- function(graphs, inputDataFolds,
 
 #' Plot the line graph for each sample with nodes colored according to prediction.
 #' Include a color scale for the predictions.
-#' @param modelInput A list of ModelInput objects.
+#' @param modelResults A ModelResults object.
 #' @param saveInDir Directory where file should be saved. If NULL, then the output
 #' is plotted without being saved. Default is NULL.
 #' @param stype Outcome / phenotype
+#' @param subset The subset of predictors to include. If NULL, then all nodes
+#' will be plotted.
 #' @param analytes List of vectors of analytes to plot. This is used if one
 #' wishes to focus on a subset of analytes If NULL, then all vertices are plotted.
 #' Default is NULL.
 #' @param truncateTo Analyte names are truncated to the first "truncateTo" characters.
 #' Default is 4. If NULL, names are not truncated.
-#' @param weights The weight assigned to each node. This is encoded using opacity.
-#' If NULL, all nodes are opaque. Default is NULL.
+#' @param weights Whether or not to encode weights in the opacity of the nodes.
+#' Defaults to FALSE.
 #' @param analytes analytes of interest. Default is NULL
 #' @param includeLabels whether or not to include labels. Defaults to TRUE.
 #' @param cutoffs Cutoff weight values, which can be included for visibility.
 #' Default is NULL.
 #' @param vertexSize Vertex size to use in display.
 #' @export
-PlotLineGraph <- function(modelInput, stype, saveInDir = NULL,
-                          truncateTo = 2, weights = NULL,
+PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
+                          truncateTo = 2, weights = FALSE,
                           analytes = NULL, includeLabels = TRUE, cutoffs = NULL,
                           vertexSize = 10){
   # Extract graph and predictions.
-  line.graph <- modelInput@line.graph
-  node.wise.prediction <- modelInput@node.wise.prediction
-  Y <- modelInput@true.phenotypes
+  line.graph <- modelResults@model.input@line.graph
+  node.wise.prediction <- modelResults@model.input@node.wise.prediction
+  Y <- modelResults@model.input@true.phenotypes
   if(length(unique(Y)) == 2 && min(Y) == 1){
     Y <- Y - 1
   }
   
+  wt_opacity <- ComputeImportanceWeights(modelResults = modelResults)
   for(j in 1:dim(node.wise.prediction)[2]){
     
     # Build node and edge graphs.
@@ -386,34 +399,33 @@ PlotLineGraph <- function(modelInput, stype, saveInDir = NULL,
     rownames(node_df) <- names(node.wise.prediction[,j])
     colnames(node_df) <- c("name", "prediction", "color")
     node_df$frame.color <- color
-    final_graph <- igraph::graph_from_data_frame(edge_df, vertices = node_df)
-    
-    # Filter graph if required.
     wt <- node.wise.prediction[,j]
-    if(!is.null(analytes)){
-      
-      vertices_with_analytes <- unlist(lapply(analytes, function(a){
-        return(igraph::V(final_graph)$name[grepl(a, igraph::V(final_graph)$name,
-                                                 fixed = TRUE)])
-      }))
-      final_graph <- igraph::induced_subgraph(final_graph, vertices_with_analytes)
+    final_graph <- igraph::graph_from_data_frame(edge_df, vertices = node_df)
+    if(!is.null(subset)){
+      final_graph <- igraph::induced_subgraph(final_graph, subset)
       wt <- node.wise.prediction[names(igraph::V(final_graph)),j]
     }
-    wt[which(wt<cutoffs[1])]<-cutoffs[1]
-    wt[which(wt>cutoffs[2])]<-cutoffs[2]
     
+    if(!is.null(cutoffs)){
+      wt[which(wt<cutoffs[1])]<-cutoffs[1]
+      wt[which(wt>cutoffs[2])]<-cutoffs[2]
+    }
+
     # Set up node colors.
     bin_count <- 100
     # Make sure the spacing is even. We need to do this using seq.
     intervals <- seq(range(wt)[1], range(wt)[2],
                      by = (range(wt)[2] - range(wt)[1]) / (bin_count - 1))
     subject_color_scale <- findInterval(wt, intervals)
+    names(subject_color_scale) <- names(wt)
     pal <- grDevices::colorRampPalette(c("limegreen", "purple"))(bin_count+1)
     color <-pal[subject_color_scale]
-    
+    names(color) <- names(subject_color_scale)
+
     # Adjust color opacity.
-    if(!is.null(weights)){
-      opacity <- abs(weights) / max(abs(weights))
+    if(weights == TRUE){
+      opacity <- abs(wt_opacity[names(igraph::V(final_graph)),j]) / 
+        max(abs(wt_opacity[names(igraph::V(final_graph)),j]))
       color <- unlist(lapply(1:length(color), function(c){
         return(grDevices::adjustcolor(color[c], alpha.f = opacity[c]))
       }))

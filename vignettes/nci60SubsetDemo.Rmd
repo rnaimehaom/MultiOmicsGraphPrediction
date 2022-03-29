@@ -81,7 +81,7 @@ write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/geneData
 
 Next, we read in the new data.
 ```{r}
-dir <- system.file("extdata", package="MultiOmicsGraphPrediction", mustWork=TRUE)
+ dir <- system.file("extdata", package="MultiOmicsGraphPrediction", mustWork=TRUE)
 
 # Import training data.
 csvfileTrain <- file.path(dir, "nci60subsetinput.train.csv")
@@ -116,7 +116,7 @@ a significant phenotype-dependent association between the analytes.
 ```{r}
 # Build graph.
 coreg <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.sig)
-PlotCoRegulationGraph(coreg, "NCI-60 Subset Graph", saveInFile = NULL, vertices = NULL,truncateTo = 4)
+PlotCoRegulationGraph(coreg, "NCI-60 Subset Graph", saveInFile = NULL, vertices = NULL)
 ```
 
 # Run Pairwise Prediction.
@@ -132,7 +132,7 @@ pred <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.si
 # Project graph.
 projectedGraph <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg,
                                                                          predictions = pred)
-PlotGraphPredictions(projectedGraph, inputDataTrain, saveInDir = NULL, 
+MultiOmicsGraphPrediction::PlotGraphPredictions(projectedGraph, inputDataTrain, saveInDir = NULL, 
                                  vertices = NULL, truncateTo = 4, includeLabels = TRUE,
                                  cutoffs = NULL, vertexSize = 10)
 ```
@@ -145,9 +145,7 @@ modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projecte
                    inputData = inputDataTrain, stype.class = "numeric", stype = "drugscore",
                    edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"))
 saveRDS(modelInput,file=paste(result_dir, paste0("nci60modelInput.RDS"), sep = "\\"))
-PlotPredictionDendrogram(modelInput, hierarchicalClustering, sampleIndex, 
-                                     predictionLimits)
-MultiOmicsGraphPrediction::PlotLineGraph(modelInput = modelInput, stype = "drugscore", cutoffs = c(0,100))
+MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, weights = FALSE, stype = "drugscore")
 ```
 
 ## Compute Importance Metrics.
@@ -160,216 +158,117 @@ MultiOmicsGraphPrediction::PlotSubspaceClusteringDendrogram(inputData = inputDat
 MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputDataTrain, eigStep = 1)
 importance <- MultiOmicsGraphPrediction::GetAllImportanceMetrics(predictions = pred, 
                                                                  modelInput = modelInput,
-                                                                 inputData = inputDataTrain, metricList = c("pdf", 
-                                                                                                            "localerr",
-                                                                                                            "pathway"),
+                                                                 inputData = inputDataTrain, 
+                                                                 metricList = c("pdf", 
+                                                                                "localerr",
+                                                                                "pathway"),
                                                                  k = 2, eigStep = 1,
                                                                  analytehaspathway = analytehaspathway,
                                                                  analyteNamesOut = metabMeta,
                                                                  source = source)
-starting_weights <- lapply(1:length(importance), function(i){
-  imp <- importance[[i]]
-  nm <- names(importance)[i]
-  sum_over <- as.data.frame(rowSums(imp))
-  rownames(sum_over) <- rownames(imp)
-  colnames(sum_over) <- nm
-  return(sum_over)
-})
-starting_weights_all <- do.call(cbind,starting_weights)
-wt <- as.matrix(starting_weights_all)
-heatmap.2(wt)
+#modelInput <- MultiOmicsGraphPrediction::InitializeWeights(modelInput = modelInput,
+#                                                           importance = importance)
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput,
+                                                                        importance = importance)
+modelResultsPDF <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput,
+                                                                        importance = importance,
+                                                                        initialImportanceWeights = c(1,0,0))
+modelResultsLocal <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput,
+                                                                        importance = importance,
+                                                                        initialImportanceWeights = c(0,1,0))
+MultiOmicsGraphPrediction::PlotWeightHeatmap(modelResults = modelResults)
+MultiOmicsGraphPrediction::PlotWeightHeatmap(modelResults = modelResultsPDF)
+MultiOmicsGraphPrediction::PlotWeightHeatmap(modelResults = modelResultsLocal)
+```
+
+```{r}
+MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, weights = TRUE, stype = "drugscore")
 ```
 
 ## Calculate information gain for when all terms are included in a composite predictor.
-```{r}
-CompositePrediction <- function(pairs, covariates, weights, analyte1Vals, analyte2Vals){
-  # Reverse pairs.
-  revpairs <- lapply(pairs, function(pair){
-    return(paste(strsplit(pair, "__")[[1]][2], strsplit(pair, "__")[[1]][1], sep = "__"))
-  })
-  # Analyte 1
-  weighted_a1 <- rep(0, ncol(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    revpair <- revpairs[[i]]
-    weighted_a1 <- weighted_a1 + weights[revpair,] * analyte1Vals[strsplit(pair, "__")[[1]][2],]
-  }
-
-  # beta0
-  weighted_sum_b0 <- rep(0, ncol(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    revpair <- revpairs[[i]]
-    weighted_sum_b0 <- weighted_sum_b0 + weights[revpair,] * rep(covariates[revpair,"(Intercept)"], ncol(weights))
-  }
-  
-  # beta1
-  weighted_sum_b1 <- rep(0, ncol(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    revpair <- revpairs[[i]]
-    weighted_sum_b1 <- weighted_sum_b1 + weights[revpair,] * rep(covariates[revpair, "a"], ncol(weights)) * 
-                                                                analyte2Vals[strsplit(pair, "__")[[1]][1],]
-  }
-  
-  # beta2
-  weighted_sum_b2 <- rep(0, ncol(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    revpair <- revpairs[[i]]
-    weighted_sum_b2 <- weighted_sum_b2 + weights[revpair,] * rep(covariates[revpair, "type"], ncol(weights))
-  }
-  
-  # beta3
-  weighted_sum_b3 <- rep(0, ncol(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    revpair <- revpairs[[i]]
-    weighted_sum_b3 <- weighted_sum_b3 + weights[revpair,] * rep(covariates[revpair, "a:type"], ncol(weights))* 
-                                                                analyte2Vals[strsplit(pair, "__")[[1]][1],]
-  }
-  
-  # Final value.
-  final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1) / (weighted_sum_b2 + weighted_sum_b3)
-  return(final_val)
-}
-
-# Leave-one-out composite prediction
-CompositePredictionLOO <- function(pairs, covariates, weights, analyte1Vals, analyte2Vals){
-  removePairPred <- lapply(pairs, function(pair){
-    return(CompositePrediction(setdiff(pairs, pair), covariates, weights, analyte1Vals, analyte2Vals))
-  })
-  return(removePairPred)
-}
-```
-
-```{r}
-# Information gain
-ComputeInfoGain <- function(originalPred, trueVal){
-  trueVal <- trueVal[which(!is.nan(originalPred))]
-  originalPred <- originalPred[which(!is.nan(originalPred))]
-  originalIG <- NULL
-  
-  if(length(trueVal)>0 && length(originalPred)>0){
-    midrange <- min(trueVal) + (max(trueVal) - min(trueVal)) / 2
-  
-    # Compute original entropy.
-    originalProb <- length(which(trueVal > midrange)) / length(trueVal)
-    originalEntropy <- -1 * (originalProb * log2(originalProb) + (1 - originalProb) * log2(1 - originalProb))
-  
-    # Compute entropy given prediction.
-    predGreaterProb <- length(which(originalPred > midrange)) / length(originalPred)
-    origGreaterPredGreaterProb <- length(intersect(which(trueVal > midrange), which(originalPred > midrange))) / 
-      length(which(originalPred > midrange))
-    origGreaterPredGreaterTerm <- -1 * origGreaterPredGreaterProb * log2(origGreaterPredGreaterProb) * predGreaterProb
-    if(is.nan(origGreaterPredGreaterTerm) == TRUE){
-      origGreaterPredGreaterTerm <- 0
-    }
-    
-    origGreaterPredLessProb <- length(intersect(which(trueVal > midrange), which(originalPred <= midrange))) / 
-      length(which(originalPred <= midrange))
-    origGreaterPredLessTerm <- -1 * origGreaterPredLessProb * log2(origGreaterPredLessProb) * (1 - predGreaterProb)
-    if(is.nan(origGreaterPredLessTerm) == TRUE){
-      origGreaterPredLessTerm <- 0
-    }
-    
-    origLessPredGreaterProb <- length(intersect(which(trueVal <= midrange), which(originalPred > midrange))) /
-      length(which(originalPred > midrange))
-    origLessPredGreaterTerm <- -1 * origLessPredGreaterProb * log2(origLessPredGreaterProb) * predGreaterProb
-    if(is.nan(origLessPredGreaterTerm) == TRUE){
-      origLessPredGreaterTerm <- 0
-    }
-    
-    origLessPredLessProb <- length(intersect(which(trueVal <= midrange), which(originalPred <= midrange))) /
-      length(which(originalPred <= midrange))
-    origLessPredLessTerm <- -1 * origLessPredLessProb * log2(origLessPredLessProb) * (1 - predGreaterProb)
-    if(is.nan(origLessPredLessTerm) == TRUE){
-      origLessPredLessTerm <- 0
-    }
-    conditionalEntropy <- origGreaterPredGreaterTerm + origGreaterPredLessTerm + origLessPredGreaterTerm + origLessPredLessTerm
-    originalIG <- originalEntropy - conditionalEntropy
-  }
-  # If all terms are NA, then categorize this as an information loss.
-  else{
-    originalIG <- -1
-  }
-  
-  return(originalIG)
-}
-```
 
 Find the set of composite predictors.
 ```{r}
-lineGraph <- igraph::graph_from_adjacency_matrix(modelInput@line.graph)
-pairsPredAll <- lapply(igraph::V(lineGraph), function(node){
-  return(igraph::as_ids(igraph::neighbors(lineGraph, node)))
-})
+pairsPredAll <- MultiOmicsGraphPrediction::ObtainCompositeModels(modelInput = modelInput)
+compositeModelFull <- MultiOmicsGraphPrediction::CompositePrediction(pairs = unlist(pairsPredAll), 
+                                                                     IntLIMresults = myres,
+                                                                     modelResults = modelResults,
+                                                                     inputData = inputDataTrain)
+compositeModelFullPDF <- MultiOmicsGraphPrediction::CompositePrediction(pairs = unlist(pairsPredAll), 
+                                                                     IntLIMresults = myres,
+                                                                     modelResults = modelResultsPDF,
+                                                                     inputData = inputDataTrain)
+compositeModelFullLocal <- MultiOmicsGraphPrediction::CompositePrediction(pairs = unlist(pairsPredAll), 
+                                                                     IntLIMresults = myres,
+                                                                     modelResults = modelResultsLocal,
+                                                                     inputData = inputDataTrain)
 ```
 
 ```{r}
-importantPredictors <- lapply(pairsPredAll, function(pairsPred){
-  pred1 <- CompositePrediction(pairsPred, myres@covariate.coefficients, starting_weights_all,
-                             inputDataTrain@analyteType2, inputDataTrain@analyteType1)
-
-  # Prune the pairs.
-  removePairPred <- CompositePredictionLOO(pairsPred, myres@covariate.coefficients, starting_weights_all,
-                             inputDataTrain@analyteType2, inputDataTrain@analyteType1)
-  infoGainOriginal <- ComputeInfoGain(unlist(pred1), inputDataTrain@sampleMetaData[,myres@stype])
-  infoGainsLOO <- lapply(removePairPred, function(p){
-    return(ComputeInfoGain(unlist(p), inputDataTrain@sampleMetaData[,myres@stype]))
-  })
-  informativePairs <- unlist(pairsPred[which(infoGainsLOO < infoGainOriginal)])
-  if(length(which(infoGainsLOO < infoGainOriginal))==0){
-    informativePairs <- unlist(pairsPred[which(infoGainsLOO == infoGainOriginal)])[1]
-  }
-
-  # For each pair that was pruned, see if it functions better than the full
-  # predictor as an "orphan" pair.
-  orphans <- setdiff(unlist(pairsPred), informativePairs)
-  importantOrphans <- unlist(lapply(1:length(orphans), function(orphan){
-    orphanPred <- pred[,orphan]
-    orphanInfoGain <- ComputeInfoGain(orphanPred, inputDataTrain@sampleMetaData[,myres@stype])
-    retval <- NULL
-    if(orphanInfoGain > infoGainOriginal){
-      retval <- orphans[orphan]
-    }
-    return(retval)
-  }))
-  return(list(modelPairs = informativePairs, orphans = importantOrphans))
-})
-print(importantPredictors)
+importantPredictors <- MultiOmicsGraphPrediction::PrunePredictors(pairs = pairsPredAll, 
+                                                                  IntLIMresults = myres,
+                                                                  modelResults = modelResults, 
+                                                                  inputData = inputDataTrain)
+#print(importantPredictors)
+MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = unlist(c(importantPredictors[[1]]$modelPairs,
+                                                                                        importantPredictors[[2]]$modelPairs)), 
+                                         weights = TRUE, stype = "drugscore")
 ```
 
-# Merge Predictors (Second Layer)
+# Compute the final prediction.
 ```{r}
-# Compute table of pair overlaps.
-pairCounts <- table(unlist(pairsPredAll))
-predictorsContaining <- pairCounts[order(-pairCounts)]
+compositeModel1 <- MultiOmicsGraphPrediction::CompositePrediction(pairs = importantPredictors[[1]]$modelPairs, 
+                                                                     IntLIMresults = myres,
+                                                                     modelResults = modelResults,
+                                                                     inputData = inputDataTrain) 
+compositeModel2 <- MultiOmicsGraphPrediction::CompositePrediction(pairs = importantPredictors[[2]]$modelPairs, 
+                                                                     IntLIMresults = myres,
+                                                                     modelResults = modelResults,
+                                                                     inputData = inputDataTrain) 
+avgCompositeModel <- (compositeModel1 + compositeModel2) / 2
+avgCompositeModel[which(is.nan(compositeModel1))] <- compositeModel2[which(is.nan(compositeModel1))]
+avgCompositeModel[which(is.nan(compositeModel2))] <- compositeModel1[which(is.nan(compositeModel2))]
 
-# Loop through and group composite predictors.
-belongsTo <- rep(0, length(pairsPredAll))
-compositePredictors <- list()
-predictorIdx <- 1
-for(pair in names(predictorsContaining)){
-  # For each pair, find the predictors containing it.
-  listContainsPair <- unlist(lapply(1:length(pairsPredAll), function(i){
-    composite <- pairsPredAll[[i]]
-    containsPair <- FALSE
-    if(pair %in% composite){
-      containsPair <- TRUE
-    }
-    return(containsPair)
-  }))
-  # If the predictors containing it have not been assigned, assign them.
-  if(max(belongsTo[which(listContainsPair == TRUE)]) == 0){
-    belongsTo[which(listContainsPair == TRUE)] <- predictorIdx
-    predictorIdx <- predictorIdx + 1
-  }
-  # If some of the predictors have already been assigned, merge with them.
-  else{
-    belongsTo[which(listContainsPair == TRUE)] <- max(belongsTo[which(listContainsPair == TRUE)])
-  }
-  #compositePredictors[[length(compositePredictors)+1]] <- which(listContainsPair == TRUE)
-}
-print(belongsTo)
+compositeModelFull1 <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsPredAll[[1]], 
+                                                                     IntLIMresults = myres,
+                                                                     modelResults = modelResults,
+                                                                     inputData = inputDataTrain)
+compositeModelFull2 <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsPredAll[[1]], 
+                                                                     IntLIMresults = myres,
+                                                                     modelResults = modelResults,
+                                                                     inputData = inputDataTrain)
+
+plot(compositeModel1, modelResults@model.input@true.phenotypes, ylab = "True Phenotypes", xlab = "Predicted Phenotypes (LRP6 --> beta-NAD)")
+plot(compositeModelFull1, modelResults@model.input@true.phenotypes, ylab = "True Phenotypes", xlab = "Predicted Phenotypes (beta-NAD)")
+plot(compositeModel2, modelResults@model.input@true.phenotypes, ylab = "True Phenotypes", xlab = "Predicted Phenotypes (Serine)")
+```
+
+# Re-Do the same prediction with the weights of each measurement type being given influence alone.
+```{r}
+importantPredictorsPDF <- MultiOmicsGraphPrediction::PrunePredictors(pairs = pairsPredAll, 
+                                                                  IntLIMresults = myres,
+                                                                  modelResults = modelResultsPDF, 
+                                                                  inputData = inputDataTrain)
+MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResultsPDF, 
+                                         weights = TRUE, stype = "drugscore")
+```
+```{r}
+#print(importantPredictors)
+MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResultsPDF, subset = unlist(importantPredictorsPDF[[1]]$modelPairs), 
+                                         weights = TRUE, stype = "drugscore")
+```
+
+```{r}
+compositeModel1 <- MultiOmicsGraphPrediction::CompositePrediction(pairs = importantPredictorsPDF[[1]]$modelPairs, 
+                                                                     IntLIMresults = myres,
+                                                                     modelResults = modelResultsPDF,
+                                                                     inputData = inputDataTrain) 
+
+compositeModelFull1 <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsPredAll[[1]], 
+                                                                     IntLIMresults = myres,
+                                                                     modelResults = modelResults,
+                                                                     inputData = inputDataTrain)
+
+plot(compositeModel1, modelResults@model.input@true.phenotypes, ylab = "True Phenotypes", xlab = "Predicted Phenotypes (beta-NAD Subset)")
+plot(compositeModelFull1, modelResults@model.input@true.phenotypes, ylab = "True Phenotypes", xlab = "Predicted Phenotypes (beta-NAD)")
 ```

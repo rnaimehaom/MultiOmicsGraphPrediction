@@ -13,6 +13,8 @@
 #' "tanh", or "none". Default is "none", meaning stype.class is numeric.
 #' @param optimizationType Type of optimization. May be "SGD", "momentum",
 #' "adagrad", or "adam". Default is "SGD".
+#' @param initialImportanceWeights Initial weights for model importance. Default
+#' is NULL, which results in each importance metric being given equal weight.
 #' @export
 InitializeGraphLearningModel <- function(modelInputs, importance,
                                          iterations = 1000,
@@ -21,7 +23,8 @@ InitializeGraphLearningModel <- function(modelInputs, importance,
                                          stype.class = "numeric", 
                                          learningRate = 0.2,
                                          activationType = "none", 
-                                         optimizationType = "SGD"){
+                                         optimizationType = "SGD",
+                                         initialImportanceWeights = NULL){
   # Initialize importance weights.
   weights_count <- ncol(importance[[1]])
   wt_name <- colnames(importance[[1]])
@@ -40,6 +43,9 @@ InitializeGraphLearningModel <- function(modelInputs, importance,
   max_phen <- max(modelInputs@true.phenotypes)
   num_nodes <- nrow(modelInputs@node.wise.prediction)
   weights <- as.matrix(rep(1 / weights_count, weights_count))
+  if(!is.null(initialImportanceWeights)){
+    weights <- initialImportanceWeights
+  }
   
   tracking.frame[1,3:(2+weights_count)] <- weights
 
@@ -54,7 +60,8 @@ InitializeGraphLearningModel <- function(modelInputs, importance,
                         previous.update.vector=as.matrix(rep(0,length(weights))),
                         sum.square.gradients=as.matrix(rep(0,length(weights))),
                         current.iteration=0, activation.type=activationType,
-                        optimization.type=optimizationType)
+                        optimization.type=optimizationType,
+                        importance=importance)
   return(newModelResults)
 }
 

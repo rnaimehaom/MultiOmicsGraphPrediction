@@ -6,11 +6,12 @@
 Include a color scale for the predictions.}
 \usage{
 PlotLineGraph(
-  modelInput,
+  modelResults,
   stype,
+  subset = NULL,
   saveInDir = NULL,
   truncateTo = 2,
-  weights = NULL,
+  weights = FALSE,
   analytes = NULL,
   includeLabels = TRUE,
   cutoffs = NULL,
@@ -18,9 +19,12 @@ PlotLineGraph(
 )
 }
 \arguments{
-\item{modelInput}{A list of ModelInput objects.}
+\item{modelResults}{A ModelResults object.}
 
 \item{stype}{Outcome / phenotype}
+
+\item{subset}{The subset of predictors to include. If NULL, then all nodes
+will be plotted.}
 
 \item{saveInDir}{Directory where file should be saved. If NULL, then the output
 is plotted without being saved. Default is NULL.}
@@ -28,8 +32,8 @@ is plotted without being saved. Default is NULL.}
 \item{truncateTo}{Analyte names are truncated to the first "truncateTo" characters.
 Default is 4. If NULL, names are not truncated.}
 
-\item{weights}{The weight assigned to each node. This is encoded using opacity.
-If NULL, all nodes are opaque. Default is NULL.}
+\item{weights}{Whether or not to encode weights in the opacity of the nodes.
+Defaults to FALSE.}
 
 \item{analytes}{analytes of interest. Default is NULL}
 

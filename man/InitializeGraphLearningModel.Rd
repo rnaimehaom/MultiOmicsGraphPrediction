@@ -13,7 +13,8 @@ InitializeGraphLearningModel(
   stype.class = "numeric",
   learningRate = 0.2,
   activationType = "none",
-  optimizationType = "SGD"
+  optimizationType = "SGD",
+  initialImportanceWeights = NULL
 )
 }
 \arguments{
@@ -39,6 +40,9 @@ select from the following:
 
 \item{optimizationType}{Type of optimization. May be "SGD", "momentum",
 "adagrad", or "adam". Default is "SGD".}
+
+\item{initialImportanceWeights}{Initial weights for model importance. Default
+is NULL, which results in each importance metric being given equal weight.}
 }
 \description{
 Find edges that share nodes and add them to a data frame.

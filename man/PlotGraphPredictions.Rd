@@ -8,6 +8,7 @@ Include a color scale for the predictions.}
 PlotGraphPredictions(
   graph,
   inputData,
+  stype,
   saveInDir = NULL,
   vertices = NULL,
   truncateTo = 4,
@@ -22,6 +23,8 @@ PlotGraphPredictions(
 \item{inputData}{Named list (output of 
 FilterData()) with gene expression, metabolite abundances, 
 and associated meta-data}
+
+\item{stype}{The outcome type or phenotype of interest}
 
 \item{saveInDir}{Directory where files should be saved. If NULL, then the output
 is plotted without being saved. Default is NULL.}

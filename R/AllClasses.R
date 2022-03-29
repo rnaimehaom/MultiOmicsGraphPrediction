@@ -64,6 +64,7 @@ methods::setClass(
 #' optimization
 #' @slot sum.square.gradients Sum of squared gradients over iterations, used in
 #' Adagrad optimization
+#' @slot importance Calculated importance values
 methods::setClass(
   Class="ModelResults",
   representation(model.input="ModelInput",
@@ -81,7 +82,8 @@ methods::setClass(
                  outcome.prediction="numeric",
                  optimization.type="character",
                  sum.square.gradients="matrix",
-                 previous.momentum="matrix")
+                 previous.momentum="matrix",
+                 importance="list")
 )
 
 
