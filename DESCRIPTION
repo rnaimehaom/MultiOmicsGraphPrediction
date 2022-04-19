@@ -35,6 +35,7 @@ Collate:
     '04_AssignToPools.R'
     '05_LearnGraphPredictionModel.R'
     'AllClasses.R'
+    'compositemodelfunctions.R'
     'gradientfunctions.R'
     'learningfunctions.R'
     'plottingfunctions.R'

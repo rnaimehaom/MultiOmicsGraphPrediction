@@ -133,8 +133,6 @@ BuildCoRegulationGraphAllFolds <- function(inputResults, vertexSize=15,
       }))
     })
   }
-  print(length(inputResults))
-  print(length(inputResults[[1]]))
   graphs <- lapply(1:length(inputResults), function(i){
     return(BuildCoRegulationGraph(inputResults = inputResults[[i]]))
   })

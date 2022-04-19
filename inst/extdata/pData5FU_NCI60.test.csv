@@ -1,0 +1,12 @@
+"","cell_line","cancertype","drugscore","drugcateg","drug5FU"
+"HOP.92","SN12C","Renal",-0.30511103626347,"Resistant",3
+"ACHN","SNB-19","CNS",-0.73859483449463,"Resistant",3
+"M14","SNB-75","CNS",-0.0374331551210873,"No Response",3
+"SK.MEL.5","SR","Leukemia",0.81607409536015,"Sensitive",3.65
+"SR","SW-620","Colon",0.144923334539867,"No Response",3
+"SF.539","T-47D","Breast",0.0304447756974263,"No Response",3
+"SF.295","TK-10","Renal",-0.655434748790706,"Resistant",3.13
+"KM12","U251","CNS",0.167462922017195,"No Response",3
+"NCI.H23","UACC-257","Melanoma",-0.45300247080243,"Resistant",3
+"PC.3","UACC-62","Melanoma",0.190382404158291,"No Response",3.39
+"HT29","UO-31","Renal",-0.0958333416171795,"No Response",3.1

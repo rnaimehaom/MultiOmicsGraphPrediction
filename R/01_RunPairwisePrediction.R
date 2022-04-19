@@ -124,7 +124,7 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
   pred_phenotype = as.data.frame(pred_phenotype)
   
   # Add analyte information for each prediction.
-  rownames(pred_phenotype) <- paste(coefficients$Analyte2, coefficients$Analyte1,
+  rownames(pred_phenotype) <- paste(coefficients$Analyte1, coefficients$Analyte2,
                                     sep = "__")
   return(t(pred_phenotype))
 }

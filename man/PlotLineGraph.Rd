@@ -15,7 +15,8 @@ PlotLineGraph(
   analytes = NULL,
   includeLabels = TRUE,
   cutoffs = NULL,
-  vertexSize = 10
+  vertexSize = 10,
+  sampSubset = NULL
 )
 }
 \arguments{
@@ -43,6 +44,8 @@ Defaults to FALSE.}
 Default is NULL.}
 
 \item{vertexSize}{Vertex size to use in display.}
+
+\item{sampSubset}{Samples to plot.}
 }
 \description{
 Plot the line graph for each sample with nodes colored according to prediction.

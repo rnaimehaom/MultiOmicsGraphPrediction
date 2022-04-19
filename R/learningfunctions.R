@@ -25,7 +25,7 @@ FormatInput <- function(predictionGraphs, coregulationGraph,
   # Extract edge-wise predictions.
   predictions_by_node <- lapply(names(predictionGraphs), function(sampName){
     df_predictions <- igraph::as_data_frame(predictionGraphs[[sampName]])
-    node_names <- paste(make.names(df_predictions$to), make.names(df_predictions$from),
+    node_names <- paste(make.names(df_predictions$from), make.names(df_predictions$to),
                         sep = "__")
     df_predictions_new <- data.frame(Node = node_names, Weight = df_predictions$weight)
     return(df_predictions_new)
@@ -144,7 +144,7 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
                                   nodeType2){
   # Convert predictions to data frame.
   graph_df <- igraph::as_data_frame(graphWithPredictions)
-  
+
   # Find shared nodes.
   nodes <- unique(graph_df[,nodeType1])
   to_shared <- lapply(1:length(nodes), function(i){
@@ -156,7 +156,7 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
     set_with_2 <- predictionsByEdge$Node[which(graph_df[,nodeType2] == node)]
     
     # If there are multiple line graph nodes including this analyte, return them.
-    combs <- expand.grid(set_with_1, set_with_2)
+    combs <- expand.grid(set_with_2, set_with_1)
     combs$Var1 <- as.character(combs$Var1)
     combs$Var2 <- as.character(combs$Var2)
     combs <- combs[which(combs$Var1 != combs$Var2),]

@@ -21,26 +21,18 @@ CompositePrediction <- function(pairs, IntLIMresults, modelResults, inputData){
     weighted_a1 <- weighted_a1 + weights[pair,] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
   }
   
-  # Reverse pairs for accessing covariates.
-  revpairs <- lapply(pairs, function(pair){
-    split <- strsplit(pair, split = "__")[[1]]
-    return(paste(split[2], split[1], sep = "__"))
-  })
-  
   # beta0
   weighted_sum_b0 <- rep(0, ncol(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    revpair <- revpairs[[i]]
-    weighted_sum_b0 <- weighted_sum_b0 + weights[pair,] * rep(covariates[revpair,"(Intercept)"], ncol(weights))
+    weighted_sum_b0 <- weighted_sum_b0 + weights[pair,] * rep(covariates[pair,"(Intercept)"], ncol(weights))
   }
   
   # beta1
   weighted_sum_b1 <- rep(0, ncol(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    revpair <- revpairs[[i]]
-    weighted_sum_b1 <- weighted_sum_b1 + weights[pair,] * rep(covariates[revpair, "a"], ncol(weights)) * 
+    weighted_sum_b1 <- weighted_sum_b1 + weights[pair,] * rep(covariates[pair, "a"], ncol(weights)) * 
       analyte2Vals[strsplit(pair, "__")[[1]][2],]
   }
   
@@ -48,16 +40,14 @@ CompositePrediction <- function(pairs, IntLIMresults, modelResults, inputData){
   weighted_sum_b2 <- rep(0, ncol(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    revpair <- revpairs[[i]]
-    weighted_sum_b2 <- weighted_sum_b2 + weights[pair,] * rep(covariates[revpair, "type"], ncol(weights))
+    weighted_sum_b2 <- weighted_sum_b2 + weights[pair,] * rep(covariates[pair, "type"], ncol(weights))
   }
   
   # beta3
   weighted_sum_b3 <- rep(0, ncol(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    revpair <- revpairs[[i]]
-    weighted_sum_b3 <- weighted_sum_b3 + weights[pair,] * rep(covariates[revpair, "a:type"], ncol(weights))* 
+    weighted_sum_b3 <- weighted_sum_b3 + weights[pair,] * rep(covariates[pair, "a:type"], ncol(weights))* 
       analyte2Vals[strsplit(pair, "__")[[1]][2],]
   }
   
@@ -246,8 +236,6 @@ PrunePredictors <- function(pairs, IntLIMresults, modelResults, inputData){
       return(ComputeInfoGain(pred = unlist(p), 
                              trueVal = inputData@sampleMetaData[,IntLIMresults@stype]))
     })
-    str(infoGainOriginal)
-    str(infoGainsLOO)
     informativePairs <- unlist(pairsPred[which(infoGainsLOO < infoGainOriginal)])
     if(length(which(infoGainsLOO < infoGainOriginal))==0){
       informativePairs <- unlist(pairsPred[which(infoGainsLOO == infoGainOriginal)])[1]
@@ -337,4 +325,5 @@ ComputeImportanceWeights <- function(modelResults){
   })
   weights_all <- do.call(cbind,weights)
   wt <- as.matrix(weights_all)
+  return(wt)
 }

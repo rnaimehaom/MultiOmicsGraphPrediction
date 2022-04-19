@@ -132,7 +132,7 @@ PlotGraphWeights <- function(graph, results){
 #' @export
 PlotWeightHeatmap <- function(modelResults){
   wt <- ComputeImportanceWeights(modelResults)
-  gplots::heatmap.2(wt)
+  gplots::heatmap.2(wt, dendrogram = "none")
 }
 
 #' Plot the graph as a heatmap with edges colored by interaction coefficient.
@@ -289,11 +289,15 @@ PlotGraphPredictions <- function(graph, inputData, stype, saveInDir = NULL,
     title <- paste(names(graph)[j], paste("True Outcome =",
                                           formatC(inputData@sampleMetaData[j,stype], digits = 2, 
                                                   format = "f")), sep = "\n")
+    # Color.
     edges <- igraph::E(g)
     wt <- edges$weight
-    wt[which(wt<(-1))]<-cutoffs[1]
-    wt[which(wt>1)]<-cutoffs[2]
-    intervals <- seq(range(wt)[1], range(wt)[2], by = (range(wt)[2] - range(wt)[1]) / (bin_count - 1))
+    if(!is.null(cutoffs)){
+      wt[which(wt<(-1))]<-cutoffs[1]
+      wt[which(wt>1)]<-cutoffs[2]
+    }
+    range_wt <- range(wt[which(!is.na(wt))])
+    intervals <- seq(range_wt[1], range_wt[2], by = (range_wt[2] - range_wt[1]) / (bin_count - 1))
     subject_color_scale <- findInterval(wt, intervals)
     pal <- grDevices::colorRampPalette(c("limegreen", "purple"))(bin_count+1)
     igraph::E(g)$color <- pal[subject_color_scale]
@@ -373,11 +377,12 @@ PlotGraphPredictionsAllFolds <- function(graphs, inputDataFolds,
 #' @param cutoffs Cutoff weight values, which can be included for visibility.
 #' Default is NULL.
 #' @param vertexSize Vertex size to use in display.
+#' @param sampSubset Samples to plot.
 #' @export
 PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
                           truncateTo = 2, weights = FALSE,
                           analytes = NULL, includeLabels = TRUE, cutoffs = NULL,
-                          vertexSize = 10){
+                          vertexSize = 10, sampSubset = NULL){
   # Extract graph and predictions.
   line.graph <- modelResults@model.input@line.graph
   node.wise.prediction <- modelResults@model.input@node.wise.prediction
@@ -387,84 +392,98 @@ PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
   }
   
   wt_opacity <- ComputeImportanceWeights(modelResults = modelResults)
-  for(j in 1:dim(node.wise.prediction)[2]){
-    
-    # Build node and edge graphs.
-    edge_df <- reshape2::melt(line.graph)
-    edge_df <- edge_df[which(edge_df[,3] != 0),]
-    edge_df$arrow.size <- 0.25
-    color <- "black"
-    node_df <- data.frame(names(node.wise.prediction[,j]), node.wise.prediction[,j],
-                          color)
-    rownames(node_df) <- names(node.wise.prediction[,j])
-    colnames(node_df) <- c("name", "prediction", "color")
-    node_df$frame.color <- color
-    wt <- node.wise.prediction[,j]
-    final_graph <- igraph::graph_from_data_frame(edge_df, vertices = node_df)
-    if(!is.null(subset)){
-      final_graph <- igraph::induced_subgraph(final_graph, subset)
-      wt <- node.wise.prediction[names(igraph::V(final_graph)),j]
-    }
-    
-    if(!is.null(cutoffs)){
-      wt[which(wt<cutoffs[1])]<-cutoffs[1]
-      wt[which(wt>cutoffs[2])]<-cutoffs[2]
-    }
-
-    # Set up node colors.
-    bin_count <- 100
-    # Make sure the spacing is even. We need to do this using seq.
-    intervals <- seq(range(wt)[1], range(wt)[2],
-                     by = (range(wt)[2] - range(wt)[1]) / (bin_count - 1))
-    subject_color_scale <- findInterval(wt, intervals)
-    names(subject_color_scale) <- names(wt)
-    pal <- grDevices::colorRampPalette(c("limegreen", "purple"))(bin_count+1)
-    color <-pal[subject_color_scale]
-    names(color) <- names(subject_color_scale)
-
-    # Adjust color opacity.
-    if(weights == TRUE){
-      opacity <- abs(wt_opacity[names(igraph::V(final_graph)),j]) / 
-        max(abs(wt_opacity[names(igraph::V(final_graph)),j]))
-      color <- unlist(lapply(1:length(color), function(c){
-        return(grDevices::adjustcolor(color[c], alpha.f = opacity[c]))
-      }))
-    }
-    igraph::V(final_graph)$color <- color
-    
-    # Set up variables for plotting.
-    title <- paste(colnames(node.wise.prediction)[j],
-                   paste("True Outcome =", formatC(Y[j], digits = 2, format = "f")),
-                   sep = "\n")
-    minPred <- min(unname(wt))
-    maxPred <- max(unname(wt))
-    ticks <- seq(minPred, maxPred, len=11)
-    scale <- (length(pal)-1)/(maxPred-minPred)
-    colorBarTitle <- "Prediction"
-    
-    # Plot.
-    graph_labels <- NA
-    if(includeLabels == TRUE){
-      graph_labels <- unlist(lapply(igraph::V(final_graph)$name, function(v){
-        pieces <- strsplit(v, "__")[[1]]
-        sub_from <- pieces[1]
-        sub_to <- pieces[2]
-        if(!is.null(truncateTo)){
-          sub_from <- substr(pieces[1], 1, truncateTo)
-          sub_to <- substr(pieces[2], 1, truncateTo)
+  wt_opacity <- wt_opacity[rownames(node.wise.prediction),]
+  print(setdiff(rownames(wt_opacity), rownames(node.wise.prediction)))
+  for(j in 1:ncol(node.wise.prediction)){
+    if(!is.null(sampSubset) && colnames(node.wise.prediction)[j] %in% sampSubset){
+      # Build node and edge graphs.
+      edge_df <- reshape2::melt(line.graph)
+      edge_df <- edge_df[which(edge_df[,3] != 0),]
+      edge_df$arrow.size <- 0.25
+      color <- "black"
+      node_df <- data.frame(names(node.wise.prediction[,j]), node.wise.prediction[,j],
+                            color)
+      rownames(node_df) <- names(node.wise.prediction[,j])
+      colnames(node_df) <- c("name", "prediction", "color")
+      node_df$frame.color <- color
+      wt <- node.wise.prediction[,j]
+      final_graph <- igraph::graph_from_data_frame(edge_df, vertices = node_df)
+      if(!is.null(subset)){
+        final_graph <- igraph::induced_subgraph(final_graph, subset)
+        wt <- node.wise.prediction[names(igraph::V(final_graph)),j]
+      }
+      
+      if(!is.null(cutoffs)){
+        wt[which(wt<cutoffs[1])]<-cutoffs[1]
+        wt[which(wt>cutoffs[2])]<-cutoffs[2]
+      }
+      
+      # Set up node colors.
+      bin_count <- 100
+      # Make sure the spacing is even. We need to do this using seq.
+      range_wt <- range(wt[intersect(which(!is.na(wt)), which(!is.nan(wt)))])
+      if(!is.nan(range_wt[1]) && !is.na(range_wt[1]) && is.finite(range_wt[1])){
+        intervals <- seq(range_wt[1], range_wt[2], by = (range_wt[2] - range_wt[1]) / (bin_count - 1))
+        subject_color_scale <- findInterval(wt, intervals)
+        names(subject_color_scale) <- names(wt)
+        pal <- grDevices::colorRampPalette(c("limegreen", "purple"))(bin_count+1)
+        color <-pal[subject_color_scale]
+        names(color) <- names(subject_color_scale)
+        
+        # Adjust color opacity.
+        if(weights == TRUE){
+          max_opacity <- max(abs(wt_opacity[names(igraph::V(final_graph)),j]))
+          opacity <- rep(0, length(wt_opacity))
+          if(max_opacity > 0){
+            opacity <- abs(wt_opacity[names(igraph::V(final_graph)),j]) / 
+              max(abs(wt_opacity[names(igraph::V(final_graph)),j]))
+          }
+          color <- unlist(lapply(1:length(color), function(c){
+            return(grDevices::adjustcolor(color[c], alpha.f = opacity[c]))
+          }))
         }
-        return(paste(sub_from, sub_to, sep = "_"))
-      }))
-    }
-    
-    graphics::par(mfrow=c(1,2))
-    plot(final_graph, main = title, vertex.label = graph_labels, vertex.size = vertexSize)
-    plot(c(0,10), c(minPred,maxPred), type='n', bty='n', xaxt='n', xlab='', yaxt='n', ylab='')
-    title(colorBarTitle, adj = 0, cex.main = 0.75)
-    graphics::axis(2, ticks, las=1)
-    for (l in 1:(length(pal)-1)) {
-      y <- (l-1)/scale + minPred
-      graphics::rect(0,y,1,y+1/scale, col=pal[l], border=NA)
+        
+        igraph::V(final_graph)$color <- color
+        
+        # Set up variables for plotting.
+        title <- paste(colnames(node.wise.prediction)[j],
+                       paste("True Outcome =", formatC(Y[j], digits = 2, format = "f")),
+                       sep = "\n")
+        minPred <- min(unname(wt))
+        maxPred <- max(unname(wt))
+        ticks <- seq(minPred, maxPred, len=11)
+        scale <- (length(pal)-1)/(maxPred-minPred)
+        colorBarTitle <- "Prediction"
+        
+        # Plot.
+        graph_labels <- NA
+        if(includeLabels == TRUE){
+          graph_labels <- unlist(lapply(igraph::V(final_graph)$name, function(v){
+            pieces <- strsplit(v, "__")[[1]]
+            sub_from <- pieces[1]
+            sub_to <- pieces[2]
+            if(!is.null(truncateTo)){
+              sub_from <- substr(pieces[1], 1, truncateTo)
+              sub_to <- substr(pieces[2], 1, truncateTo)
+            }
+            return(paste(sub_from, sub_to, sep = "_"))
+          }))
+        }
+        
+        graphics::par(mfrow=c(1,2))
+        plot(final_graph, main = title, vertex.label = graph_labels, vertex.size = vertexSize)
+        plot(c(0,10), c(minPred,maxPred), type='n', bty='n', xaxt='n', xlab='', yaxt='n', ylab='')
+        title(colorBarTitle, adj = 0, cex.main = 0.75)
+        graphics::axis(2, ticks, las=1)
+        for (l in 1:(length(pal)-1)) {
+          y <- (l-1)/scale + minPred
+          graphics::rect(0,y,1,y+1/scale, col=pal[l], border=NA)
+        }
+      }
+      else{
+        color = rep("white", length(igraph::V(final_graph)))
+        weights = FALSE
+      }
     }
   }
 }
