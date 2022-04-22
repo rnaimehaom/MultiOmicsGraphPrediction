@@ -4,17 +4,25 @@
 \alias{PrunePredictors}
 \title{Given all predictors, find only the important predictors.}
 \usage{
-PrunePredictors(pairs, IntLIMresults, modelResults, inputData)
+PrunePredictors(
+  compositeSubgraphs,
+  IntLIMresults,
+  modelResults,
+  inputData,
+  verbose = FALSE
+)
 }
 \arguments{
-\item{pairs}{A list of pairs to include in the composite model.}
-
 \item{IntLIMresults}{The filtered results obtained from the IntLIM function
 ProcessRe}
 
 \item{modelResults}{A ModelResults object.}
 
 \item{inputData}{An object of type IntLimData.}
+
+\item{verbose}{Whether or not to print out each step.}
+
+\item{pairs}{A list of pairs to include in the composite model.}
 }
 \value{
 A list of informative pairs

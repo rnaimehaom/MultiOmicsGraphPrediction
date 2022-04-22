@@ -285,7 +285,6 @@ PlotGraphPredictions <- function(graph, inputData, stype, saveInDir = NULL,
     
     # Set up variables for plotting.
     bin_count <- 100
-    print(inputData@sampleMetaData[j,stype])
     title <- paste(names(graph)[j], paste("True Outcome =",
                                           formatC(inputData@sampleMetaData[j,stype], digits = 2, 
                                                   format = "f")), sep = "\n")
@@ -393,7 +392,6 @@ PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
   
   wt_opacity <- ComputeImportanceWeights(modelResults = modelResults)
   wt_opacity <- wt_opacity[rownames(node.wise.prediction),]
-  print(setdiff(rownames(wt_opacity), rownames(node.wise.prediction)))
   for(j in 1:ncol(node.wise.prediction)){
     if(!is.null(sampSubset) && colnames(node.wise.prediction)[j] %in% sampSubset){
       # Build node and edge graphs.

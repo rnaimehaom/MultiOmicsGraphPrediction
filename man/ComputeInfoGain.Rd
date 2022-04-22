@@ -5,13 +5,16 @@
 \title{Compute the information gain for a given prediction. The information gain
 is computed as the difference between the entropy of the true values and the
 conditional entropy of the true value given the prediction. Here, entropy
-is defined using the probability that a value is greater than the midrange
-of true values for the input data.}
+is defined using the probability that a value is greater than a selected
+summary statistic of true values for the input data.}
 \usage{
-ComputeInfoGain(pred, trueVal)
+ComputeInfoGain(pred, trueVal, summaryStatistic = "mean")
 }
 \arguments{
 \item{trueVal}{The true values (predictions or outcomes) of the input data.}
+
+\item{summaryStatistic}{The summary statistic of interest. May be "mean",
+"median", or "midrange".}
 
 \item{pairs}{A list of pairs to include in the composite model.}
 }
@@ -19,6 +22,6 @@ ComputeInfoGain(pred, trueVal)
 Compute the information gain for a given prediction. The information gain
 is computed as the difference between the entropy of the true values and the
 conditional entropy of the true value given the prediction. Here, entropy
-is defined using the probability that a value is greater than the midrange
-of true values for the input data.
+is defined using the probability that a value is greater than a selected
+summary statistic of true values for the input data.
 }

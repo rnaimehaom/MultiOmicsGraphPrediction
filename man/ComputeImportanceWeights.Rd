@@ -2,7 +2,53 @@
 % Please edit documentation in R/compositemodelfunctions.R
 \name{ComputeImportanceWeights}
 \alias{ComputeImportanceWeights}
-\title{Compute the weight of each predictor given the weights of different
+\title{#' Given multiple composite predictors, prune the predictors that are not needed.
+#' @param pairs A list of pairs to include in the composite model.
+#' @param IntLIMresults The filtered results obtained from the IntLIM function
+#' @param modelResults A ModelResults object.
+#' @param inputData An object of type IntLimData.
+#' @return A list of informative pairs
+#' @export
+PrunePredictorsHiddenLayers <- function(pairs, IntLIMresults, modelResults, inputData){
+  importantPredictors <- lapply(pairs, function(pairsPred){
+    pred1 <- CompositePrediction(pairs = pairs, 
+                                 IntLIMresults = IntLIMresults, 
+                                 modelResults = modelResults,
+                                 inputData = inputData)
+    
+    # Prune the pairs.
+    removePairPred <- CompositePredictionLOO(pairs = pairs, 
+                                             IntLIMresults = IntLIMresults, 
+                                             modelResults = modelResults,
+                                             inputData = inputData)
+    infoGainOriginal <- ComputeInfoGain(pred = unlist(pred1), 
+                                        trueVal = inputData@sampleMetaData[,IntLIMresults@stype])
+    infoGainsLOO <- lapply(removePairPred, function(p){
+      return(ComputeInfoGain(pred = unlist(p), 
+                             trueVal = inputData@sampleMetaData[,IntLIMresults@stype]))
+    })
+    informativePairs <- unlist(pairsPred[which(infoGainsLOO < infoGainOriginal)])
+    if(length(which(infoGainsLOO < infoGainOriginal))==0){
+      informativePairs <- unlist(pairsPred[which(infoGainsLOO == infoGainOriginal)])[1]
+    }
+    
+    # For each pair that was pruned, see if it functions better than the full
+    # predictor as an "orphan" pair.
+    orphans <- setdiff(unlist(pairs), informativePairs)
+    importantOrphans <- unlist(lapply(1:length(orphans), function(orphan){
+      orphanPred <- pred[,orphan]
+      orphanInfoGain <- ComputeInfoGain(pred = orphanPred, 
+                                        trueVal = inputData@sampleMetaData[,IntLIMresults@stype])
+      retval <- NULL
+      if(orphanInfoGain > infoGainOriginal){
+        retval <- orphans[orphan]
+      }
+      return(retval)
+    }))
+    return(list(modelPairs = informativePairs, orphans = importantOrphans))
+  })
+}
+Compute the weight of each predictor given the weights of different
 importance metrics.}
 \usage{
 ComputeImportanceWeights(modelResults)
@@ -14,6 +60,52 @@ ComputeImportanceWeights(modelResults)
 A list of informative pairs
 }
 \description{
+#' Given multiple composite predictors, prune the predictors that are not needed.
+#' @param pairs A list of pairs to include in the composite model.
+#' @param IntLIMresults The filtered results obtained from the IntLIM function
+#' @param modelResults A ModelResults object.
+#' @param inputData An object of type IntLimData.
+#' @return A list of informative pairs
+#' @export
+PrunePredictorsHiddenLayers <- function(pairs, IntLIMresults, modelResults, inputData){
+  importantPredictors <- lapply(pairs, function(pairsPred){
+    pred1 <- CompositePrediction(pairs = pairs, 
+                                 IntLIMresults = IntLIMresults, 
+                                 modelResults = modelResults,
+                                 inputData = inputData)
+    
+    # Prune the pairs.
+    removePairPred <- CompositePredictionLOO(pairs = pairs, 
+                                             IntLIMresults = IntLIMresults, 
+                                             modelResults = modelResults,
+                                             inputData = inputData)
+    infoGainOriginal <- ComputeInfoGain(pred = unlist(pred1), 
+                                        trueVal = inputData@sampleMetaData[,IntLIMresults@stype])
+    infoGainsLOO <- lapply(removePairPred, function(p){
+      return(ComputeInfoGain(pred = unlist(p), 
+                             trueVal = inputData@sampleMetaData[,IntLIMresults@stype]))
+    })
+    informativePairs <- unlist(pairsPred[which(infoGainsLOO < infoGainOriginal)])
+    if(length(which(infoGainsLOO < infoGainOriginal))==0){
+      informativePairs <- unlist(pairsPred[which(infoGainsLOO == infoGainOriginal)])[1]
+    }
+    
+    # For each pair that was pruned, see if it functions better than the full
+    # predictor as an "orphan" pair.
+    orphans <- setdiff(unlist(pairs), informativePairs)
+    importantOrphans <- unlist(lapply(1:length(orphans), function(orphan){
+      orphanPred <- pred[,orphan]
+      orphanInfoGain <- ComputeInfoGain(pred = orphanPred, 
+                                        trueVal = inputData@sampleMetaData[,IntLIMresults@stype])
+      retval <- NULL
+      if(orphanInfoGain > infoGainOriginal){
+        retval <- orphans[orphan]
+      }
+      return(retval)
+    }))
+    return(list(modelPairs = informativePairs, orphans = importantOrphans))
+  })
+}
 Compute the weight of each predictor given the weights of different
 importance metrics.
 }
