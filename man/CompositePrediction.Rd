@@ -4,7 +4,13 @@
 \alias{CompositePrediction}
 \title{Obtain a prediction from a composite model, given the pairs to include in the model.}
 \usage{
-CompositePrediction(pairs, IntLIMresults, modelResults, inputData)
+CompositePrediction(
+  pairs,
+  IntLIMresults,
+  modelResults,
+  inputData,
+  covar = NULL
+)
 }
 \arguments{
 \item{pairs}{A list of pairs to include in the composite model.}
@@ -15,6 +21,8 @@ ProcessRe}
 \item{modelResults}{A ModelResults object.}
 
 \item{inputData}{An object of type IntLimData.}
+
+\item{covar}{Covariates to be used in the model.}
 }
 \value{
 A final predicted value for each sample in the input data

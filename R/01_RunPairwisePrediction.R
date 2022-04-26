@@ -68,46 +68,23 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
   # by subtracting them.
   if(!is.null(covar)) {
     all_cov_terms<- lapply(covar, function(cov_name){
-      coef_cov_name <- colnames(coefficients)[grepl(cov_name, colnames(coefficients))]
-      cov_cov_name <- colnames(covariates)[grepl(cov_name, colnames(covariates))]
       this_covariate_term <- NULL
       
-      # If the term is numeric, simply multiply.
-      if(is.numeric(covariates[,cov_cov_name])){
-        this_coefficient_mat <- matrix(coefficients[,coef_cov_name], 
-                                       nrow=length(coefficients[,coef_cov_name]), 
-                                       ncol=dim(covariates)[1])
-        this_covariate_mat <- t(matrix(covariates[,cov_cov_name], 
-                                       ncol=length(coefficients[,coef_cov_name]), 
-                                       nrow=dim(covariates)[1]))
-        this_covariate_term <- this_coefficient_mat * this_covariate_mat
-      }
-      else if(length(coef_cov_name) == 1){
-        second_part_of_name <- strsplit(coef_cov_name, cov_name)[[1]][2]
-        this_covariate_term <- multiplyCovariate(coefficients, covariates, coef_cov_name, 
-                                                 cov_cov_name, second_part_of_name)
-      }
-      # Add together the multiples of the one-hot-encoded terms.
-      else{
-        these_covariate_terms <-lapply(1:length(coef_cov_name), function(i){
-          second_part_of_name <- strsplit(coef_cov_name[i], cov_name)[[1]][2]
-          cova <- covariates
-          for(j in 1:dim(cova)[2]){
-            cova[,j] <- as.character(cova[,j])
-          }
-          cova[multi.which(cova != second_part_of_name)] <- "Other"
-          current_covariate_term <- multiplyCovariate(coefficients, cova, coef_cov_name[i], 
-                                                      cov_cov_name, second_part_of_name)
-          return(current_covariate_term)
-        })
-        this_covariate_term <- Reduce('+', these_covariate_terms)
-      }
+      # We expect that the terms are one-hot-encoded now, so it should be numeric.
+      this_coefficient_mat <- matrix(coefficients[,cov_name], 
+                                     nrow=length(coefficients[,cov_name]), 
+                                     ncol=dim(covariates)[1])
+      this_covariate_mat <- t(matrix(covariates[,cov_name], 
+                                     ncol=length(coefficients[,cov_name]), 
+                                     nrow=dim(covariates)[1]))
+      this_covariate_term <- this_coefficient_mat * this_covariate_mat
       return(this_covariate_term)
     })
     
     # Include the covariates in the numerator prediction.
     final_covariate_val <- Reduce('+', all_cov_terms)
     pred_phenotype <- pred_phenotype - final_covariate_val
+    print(pred_phenotype)
   }
   
   # Calculate the denominator and divide.
@@ -197,6 +174,42 @@ ProjectPredictionsOntoGraph <- function(predictions, coRegulationGraph){
   })
   names(new_graphs)<-rownames(predictions)
   return(new_graphs)
+}
+
+#' Perform one-hot encoding of the sample metadata. This is useful when categorical
+#' covariates are used. This one-hot encoding will be used later in predictions,
+#' and will simplify the prediction process because the names of the result columns
+#' and the covariates will match up.
+#' @param inputData An object with the following fields:
+#' @param covar The clinical covariates to include in the model. These should be the same
+#' covariates that were included when running the IntLIM linear models.
+#' @export
+OneHotEncoding <- function(inputData, covar=NULL){
+  # Extract the covariate values from the input data.
+  covariateVals <- inputData@sampleMetaData
+  
+  # If the covariates are factors, then one-hot encode them. Else, stop.
+  retVal <- NULL
+  if(!is.numeric(covariateVals[,covar])){
+    newCovars <- list()
+    for(c in covar){
+      # Find all factor covariates derived from the original covariate.
+      for(fac in unique(covariateVals[,c])){
+        # Append new one-hot-encoded factor covariates.
+        covariateVals[,paste0(c, fac)] <- 0
+        covariateVals[which(covariateVals[,c] == fac),paste0(c, fac)] <- 1
+        
+        # Append to the list of new covariates.
+        newCovars <- c(newCovars, paste0(c, fac))
+      }
+    }
+    
+    # Return results
+    retVal <- list(covar = newCovars, sampleMetaData = covariateVals)
+  }else{
+    stop("The covariates input to OneHotEncoding do not exist or are not factors.")
+  }
+  return(retVal)
 }
 
 #' A which for multidimensional arrays.

@@ -167,6 +167,12 @@ lines(density(myres.all$Pval, col = "red"), col = "red")
 plot(density(myres.pairs$rsquared))
 lines(density(myres.all$rsquared, col = "red"), col = "red")
 ```
+```{r}
+covar = "cancertype"
+encoding <- MultiOmicsGraphPrediction::OneHotEncoding(covar = "cancertype", inputData = inputDataTrain)
+covar = encoding$covar
+inputDataTrain@sampleMetaData <- encoding$sampleMetaData
+```
 
 # Run Pairwise Prediction.
 ```{r}
@@ -174,8 +180,11 @@ lines(density(myres.all$rsquared, col = "red"), col = "red")
 pred <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.sig, 
                                                          inputData = inputDataTrain,
                                                          stype = "drug5FU",
+                                                         covar = covar,
                                                          independentVarType = 1,
                                                          outcomeType = 2)
+write.csv(pred,file=paste(result_dir, paste0("nci60_5FUPairPredictions.csv"), sep = "\\"))
+hist(pred, breaks = 100)
 ```
 
 ## Project Predictions
@@ -221,7 +230,7 @@ MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset
 ```
 
 ```{r}
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = "UACC.62", weights = TRUE, stype = "drug5FU")
+MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = TRUE, stype = "drug5FU")
 ```
 
 ## Calculate information gain for when all terms are included in a composite predictor.
@@ -237,16 +246,47 @@ for(pairs in pairsPredAll){
 
 # Compute the information gain with each analyte left out, sequentially.
 ```{r}
-prunedPredictors <- MultiOmicsGraphPrediction::PrunePredictors(compositeSubgraphs = pairsPredAll, IntLIMresults = myres, modelResults = modelResults, inputData = inputDataTrain, verbose = TRUE)
+prunedPredictors <- MultiOmicsGraphPrediction::PrunePredictors(compositeSubgraphs = pairsPredAll, IntLIMresults = myres, modelResults = modelResults, inputData = inputDataTrain, covar = covar, verbose = TRUE)
+```
+# Consolidate the Pruned Predictors.
+```{r}
+consolidatedPredictorsSecondLayer <- MultiOmicsGraphPrediction::ObtainCompositeModelsFirstLayer(pairsInEachPredictor = pairsPredAll, importantPairs = prunedPredictors)
+for(pairs in consolidatedPredictorsSecondLayer$compositeModels){
+  MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = pairs, sampSubset = "UACC.62", weights = TRUE, stype = "drug5FU")
+}
+```
+# Prune again.
+```{r}
+prunedAgain <- MultiOmicsGraphPrediction::PrunePredictorsHiddenLayers(compositeSubgraphs = consolidatedPredictorsSecondLayer, covar = covar,
+                                                                      previousModels = prunedPredictors, IntLIMresults = myres, modelResults = modelResults, inputData = inputDataTrain, verbose = TRUE)
+for(pairs in prunedAgain){
+  MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = pairs, sampSubset = "UACC.62", weights = TRUE, stype = "drug5FU")
+}
+```
+# Consolidate again
+```{r}
+consolidatedPredictorsThirdLayer <- MultiOmicsGraphPrediction::ObtainCompositeModelsFirstLayer(pairsInEachPredictor = consolidatedPredictorsSecondLayer$expandedCompositeModels, importantPairs = prunedAgain)
+for(pairs in consolidatedPredictorsThirdLayer$compositeModels){
+  MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = pairs, sampSubset = "UACC.62", weights = TRUE, stype = "drug5FU")
+}
 ```
 
-# Compare All Information Gains
+# Plot Results
 ```{r}
-for(pair in unique(unlist(pairsPredAll))){
-  compositeModelFull <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pair, 
-                                                                   IntLIMresults = myres,
-                                                                   modelResults = modelResults,
-                                                                   inputData = inputDataTrain)
-  print(paste(pair, ComputeInfoGain(pred = unlist(compositeModelFull), trueVal = inputDataTrain@sampleMetaData[,myres@stype])))
-}
+predPairs1 <- MultiOmicsGraphPrediction::CompositePrediction(pairs = prunedAgain[[1]],
+                                                                         IntLIMresults = myres,
+                                                                         modelResults = modelResults,
+                                                                         covar = covar,
+                                                                         inputData = inputDataTrain)
+predPairs2 <- MultiOmicsGraphPrediction::CompositePrediction(pairs = prunedAgain[[2]],
+                                                                         IntLIMresults = myres,
+                                                                         modelResults = modelResults,
+                                                                         covar = covar,
+                                                                         inputData = inputDataTrain)
+plot(inputDataTrain@sampleMetaData$drug5FU, predPairs1, xlab = "True Value", ylab = "Predicted Value (Composite Model 1)", ylim = range(inputDataTrain@sampleMetaData$drug5FU))
+plot(inputDataTrain@sampleMetaData$drug5FU, predPairs2, xlab = "True Value", ylab = "Predicted Value (Composite Model 2)", ylim = range(inputDataTrain@sampleMetaData$drug5FU))
+plot(inputDataTrain@sampleMetaData$drug5FU, (predPairs2 + predPairs1) / 2, xlab = "True Value", ylab = "Predicted Value (Composite Model 2)", ylim = range(inputDataTrain@sampleMetaData$drug5FU))
+plot(inputDataTrain@sampleMetaData$drug5FU, predPairs1, xlab = "True Value", ylab = "Predicted Value (Composite Model 1)", ylim = c(0,10))
+plot(inputDataTrain@sampleMetaData$drug5FU, predPairs2, xlab = "True Value", ylab = "Predicted Value (Composite Model 2)", ylim = c(0,10))
+plot(inputDataTrain@sampleMetaData$drug5FU, (predPairs2 + predPairs1) / 2, xlab = "True Value", ylab = "Predicted Value (Composite Model 2)", ylim = c(0,10))
 ```

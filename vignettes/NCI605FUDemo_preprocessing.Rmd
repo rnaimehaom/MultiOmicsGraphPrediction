@@ -1,0 +1,190 @@
+---
+title: "NCI605FUDemo_preprocessing.Rmd"
+author: "Tara Eicher"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Set up.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+result_dir <- "~\\Ensemble_5fu_vignette_results"
+dir.create(result_dir)
+```
+
+# Install the packages.
+```{r eval = FALSE}
+if(!require("devtools")){
+  install.packages("devtools")
+}
+library("devtools")
+if(!require("MultiOmicsGraphPrediction")){
+  install_github("ncats/MultiOmicsGraphPrediction")
+}
+library(MultiOmicsGraphPrediction)
+if(!require("IntLIM")){
+  install_github("ncats/IntLIM")
+}
+library(IntLIM)
+```
+
+# Filter metabolites and genes.
+
+This data includes NCI-60 gene expression and metabolite abundance levels for 57 cell lines. The outcome of interest is response to 5-FU drugs, as reviewed in the following papers: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3837334/ and https://pubmed.ncbi.nlm.nih.gov/34151400/. From the first paper, we obtained the following list of analytes of interest that are contained within the NCI-60 analyte data:
+- dUTP (metabolite)
+- FURIN (gene)
+- UMPS (gene)
+- UPP1 and UPP2 (genes)
+- UCK1 (gene)
+- RRM2 (genes)
+- TYMS (gene)
+
+From the second paper, we obtained the following additional list of analytes. These analytes were shown to be independently altered with respect to 5-FU administration in humans:
+- Citric acid (metabolite hmdb:HMDB0000094)
+- Malic acid (metabolite hmdb:HMDB0000156)
+- Succinate (metabolite hmdb:HMDB0000254)
+- Cysteine (metabolite hmdb:HMDB0003417)
+- E2F1 (gene ensembl:ENSG00000101412)
+- TP53 (gene ensembl:ENSG00000141510)
+- TNFSF10 (gene ensembl:ENSG00000121858)
+
+For the second list, we also queried the RaMP GUI (RaMP 2.0, https://rampdb.nih.gov/) for analytes involved in reactions with this list and obtained the following additional analytes:
+- For citric acid: CNDP1, APRT, SLCO2B1, CLYBL, BHMT, PDE5A, IL4I1, HS3ST3A1, HS3ST3B1, and OR10H3
+- For malic acid: MDH2, FH, ME2, ME1, ME3, and MDH1
+- For succinate: TMLHE, ALKBH2, PHYH, P4HA2, P4HA1, BBOX1, PLOD1, PLOD2, PLOD3, and P3H1
+
+5-FU drug response for the NCI-60 cell lines was downloaded from the following link: https://discover.nci.nih.gov/cellminer/downloadquery.do.
+
+## Plot 5-FU Response Distribution
+```{r}
+# Read and process 5-FU response.
+#dir <- system.file("extdata", package="MultiOmicsGraphPrediction", mustWork=TRUE)
+dir <- "/Volumes/eichertd$/Ensemble_prediction/inst/extdata"
+drugs_5fu <- c("Tegafur", "Capecitabine")
+drug_responses_init <- read.csv(paste(dir, "DTP_NCI60_RAW.csv", sep = "/"), header = T, skip = 8)
+drug_names <- drug_responses_init$Drug.name
+drug_responses_trimmed <- t(drug_responses_init[,10:ncol(drug_responses_init)])
+drug_responses <- matrix(as.numeric(drug_responses_trimmed), ncol = ncol(drug_responses_trimmed))
+rownames(drug_responses) <- rownames(drug_responses_trimmed)
+
+# Read analyte files.
+metabs <- read.csv("/Volumes/eichertd$/IntLIM_vignette_code/IntLIMVignettes/NCI60_data/metabData.csv", row.names = 1)
+genes <- read.csv("/Volumes/eichertd$/IntLIM_vignette_code/IntLIMVignettes/NCI60_data/geneData.csv", row.names = 1)
+pdata <- read.csv("/Volumes/eichertd$/IntLIM_vignette_code/IntLIMVignettes/NCI60_data/pData.csv", row.names = 1)
+row.names(pdata) <- make.names(row.names(pdata))
+
+# Take subset of 5-FU data.
+rownames(drug_responses) <- sub("^.*?\\.", "", rownames(drug_responses))
+drug_responses <- drug_responses[sort(intersect(colnames(metabs), rownames(drug_responses))),]
+
+# Plot a histogram of the drug info.
+# We remove column 13 because all but one value is NA.
+which_drugs <- which(drug_names %in% drugs_5fu)
+drugs_heatmap <- drug_responses[,which_drugs[-13]]
+colnames(drugs_heatmap) <- paste(drug_names[which_drugs[-13]], drug_responses_init$Experiment.name[which_drugs[-13]], sep = " - ")
+gplots::heatmap.2(drugs_heatmap, na.color = "gray", tracecol = NA, scale = "none", margins = c(10,5), cexCol = 0.75)
+
+# Take the mean of all but the leftmost four data points.
+experiments_of_interest <- c("9402AG15", "8905CS23", "9402SA37", "8904SA83", "8904NS27", "9403SA38", "9403AG16", "8904NS20", "9403SS94", "8904SA76")
+drugs_heatmap_filtered <- drugs_heatmap[,paste("Tegafur", experiments_of_interest, sep = " - ")]
+drug_levels_mean <- rowMeans(drugs_heatmap_filtered, na.rm = TRUE)
+drug_levels_median <- unlist(lapply(1:nrow(drugs_heatmap_filtered), function(i){return(median(drugs_heatmap_filtered[i,], na.rm = TRUE))}))
+hist(drugs_heatmap_filtered, breaks = 25, xlim = c(0,6))
+hist(drug_levels_mean, breaks = 25, xlim = c(0,6))
+hist(drug_levels_median, breaks = 25, xlim = c(0,6))
+
+# Since taking the mean does not provide a wide enough range, we take the experiment that has the fewest NA values. In two experiments,
+# there are only 4 missing values each.
+count_na <- unlist(lapply(1:ncol(drugs_heatmap_filtered), function(i){return(length(which(is.na(drugs_heatmap_filtered[,i]))))}))
+least_na_drugs <- drugs_heatmap_filtered[,which(count_na == 4)]
+hist(least_na_drugs[,1], breaks = 25, xlim = c(0,6))
+hist(least_na_drugs[,2], breaks = 25, xlim = c(0,6))
+
+# The second of these has the best range. We check to see how much the high values correspond to colon cancer cell lines.
+colon_cell_lines <- c("COLO.205", "HCC.2998", "HCT.116", "HCT.15", "HT29", "KM12", "SW.620")
+hist(least_na_drugs[colon_cell_lines,2], breaks = 25, xlim = c(0,6))
+
+# Finalize the drug measurements we are using and filter the cell lines.
+final_drug <- colnames(drugs_heatmap_filtered)[which(count_na == 4)[2]]
+final_cell_lines <- rownames(drugs_heatmap_filtered)[which(!is.na(drugs_heatmap_filtered[,final_drug]))]
+shared_samps <- sort(intersect(colnames(metabs), colnames(genes)))
+shared_samps <- intersect(shared_samps, final_cell_lines)
+metabs <- metabs[,shared_samps]
+genes <- genes[,shared_samps]
+pdata <- pdata[shared_samps,]
+pdata$drug5FU <- least_na_drugs[shared_samps, 2]
+```
+
+## Plot Analyte Pair Distribution
+```{r}
+# List analytes of interest.
+metabolites_of_interest <- c(rep("2'-deoxyuridine 5'-triphosphate", 7), rep("citric acid", 11),
+                             rep("malic acid", 6), rep("succinate", 9))
+genes_of_interest <- c(c("FURIN", "UMPS", "UPP1", "UPP2", "UCK1", "RRM2", "TYMS"),
+                       c("CNDP1", "APRT", "SLCO2B1", "CLYBL", "BHMT", "PDE5A", "IL4I1", "HS3ST3A1", "HS3ST3B1", "OR10H3"),
+                       c("MDH2", "FH", "ME2", "ME1", "ME3", "MDH1"),
+                       c("TMLHE", "ALKBH2", "PHYH", "P4HA2", "P4HA1", "BBOX1", "PLOD1", "PLOD2", "PLOD3", "P3H1"))
+
+# Plot analyte pairs.
+for(i in 1:length(metabolites_of_interest)){
+  numeric_metab <- as.numeric(metabs[metabolites_of_interest[i],])
+  numeric_gene <- as.numeric(genes[genes_of_interest[i],])
+  which_neither_na <- intersect(which(!is.na(numeric_metab)), which(!is.na(numeric_gene)))
+  str(numeric_gene)
+  plot(y = numeric_metab[which_neither_na], 
+       x = numeric_gene[which_neither_na],
+       xlab = genes_of_interest[i], ylab = metabolites_of_interest[i])
+}
+```
+
+## Plot Analyte Distribution With Respect to 5-FU
+```{r}
+metabolites_of_interest <- c("2'-deoxyuridine 5'-triphosphate", "citric acid",
+                             "malic acid", "succinate", "cysteine")
+genes_of_interest <- c("FURIN", "UMPS", "UPP1", "UPP2", "UCK1", "RRM2", "TYMS",
+                       "CNDP1", "APRT", "SLCO2B1", "CLYBL", "BHMT", "PDE5A", "IL4I1", "HS3ST3A1", "HS3ST3B1", "OR10H3",
+                       "MDH2", "FH", "ME2", "ME1", "ME3", "MDH1",
+                       "TMLHE", "ALKBH2", "PHYH", "P4HA2", "P4HA1", "BBOX1", "PLOD1", "PLOD2", "PLOD3", "P3H1",
+                       "E2F1", "TP53", "TNFSF10")
+
+# Plot analyte pairs.
+for(i in 1:length(metabolites_of_interest)){
+  plot(y = metabs[metabolites_of_interest[i], shared_samps], x = pdata$drug5FU, na.rm = TRUE, 
+       ylab = metabolites_of_interest[i], xlab = "Mean Tegafur Score")
+}
+for(i in 1:length(genes_of_interest)){
+  plot(y = genes[genes_of_interest[i], shared_samps], x = pdata$drug5FU, na.rm = TRUE, 
+       ylab = genes_of_interest[i], xlab = "Mean Tegafur Score")
+}
+```
+
+```{r}
+# Filter metabolites.
+colnames(metabs) <- sample(colnames(metabs), ncol(metabs))
+csvtrain <- metabs[metabolites_of_interest,1:40]
+csvtest <- metabs[metabolites_of_interest,41:51]
+write.csv(csvtrain, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/metabData5FU_NCI60.train.csv")
+write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/metabData5FU_NCI60.test.csv")
+
+# Filter genes.
+colnames(genes) <- colnames(metabs)
+csvtrain <- genes[genes_of_interest,1:40]
+csvtest <- genes[genes_of_interest,41:51]
+write.csv(csvtrain, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/geneData5FU_NCI60.train.csv")
+write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/geneData5FU_NCI60.test.csv")
+
+# Filter pdata.
+rownames(pdata) <- colnames(metabs)
+csvtrain <- pdata[1:40,]
+csvtest <- pdata[41:51,]
+write.csv(csvtrain, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/pData5FU_NCI60.train.csv")
+write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/pData5FU_NCI60.test.csv")
+
+# Write reference file.
+refdata.train <- data.frame(type = c("analyteType2", "analyteType1", "analyteType2MetaData", "analyteType1MetaData", "sampleMetaData"),
+                      filenames = c("metabData5FU_NCI60.train.csv", "geneData5FU_NCI60.train.csv", "", "", "pData5FU_NCI60.train.csv"))
+refdata.test <- data.frame(type = c("analyteType2", "analyteType1", "analyteType2MetaData", "analyteType1MetaData", "sampleMetaData"),
+                      filenames = c("metabData5FU_NCI60.test.csv", "geneData5FU_NCI60.test.csv", "", "", "pData5FU_NCI60.test.csv"))
+write.csv(refdata.train, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/nci60_5FU.train.csv", row.names = FALSE)
+write.csv(refdata.test, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/nci60_5FU.test.csv", row.names = FALSE)
+```

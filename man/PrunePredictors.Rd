@@ -9,10 +9,13 @@ PrunePredictors(
   IntLIMresults,
   modelResults,
   inputData,
+  covar = NULL,
   verbose = FALSE
 )
 }
 \arguments{
+\item{compositeSubgraphs}{A list of pairs to include in the composite model.}
+
 \item{IntLIMresults}{The filtered results obtained from the IntLIM function
 ProcessRe}
 
@@ -20,9 +23,9 @@ ProcessRe}
 
 \item{inputData}{An object of type IntLimData.}
 
-\item{verbose}{Whether or not to print out each step.}
+\item{covar}{Covariates to be used in the model.}
 
-\item{pairs}{A list of pairs to include in the composite model.}
+\item{verbose}{Whether or not to print out each step.}
 }
 \value{
 A list of informative pairs
