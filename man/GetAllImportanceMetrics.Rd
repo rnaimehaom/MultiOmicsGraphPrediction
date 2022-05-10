@@ -6,20 +6,23 @@
 \usage{
 GetAllImportanceMetrics(
   predictions,
-  modelInput,
   inputData,
   lowerPercentileLimit = 0.1,
   upperPercentileLimit = 0.9,
-  metricList = c("pdf", "localerr", "globalerr", "pathway"),
+  metricList = c("pdf", "localerr", "globalerr", "pathway", "reaction",
+    "interactionpval", "interactioncoef", "analytecoef"),
+  modelStats = "",
   k = k,
   eigStep = 10,
   alphaMin = 0,
   alphaMax = 1,
   alphaStep = 0.1,
   analytehaspathway = "",
+  reaction = "",
   analyteNamesOut = "",
   analyteNamesInd = "",
-  source = ""
+  source = "",
+  stype = ""
 )
 }
 \arguments{
@@ -38,6 +41,10 @@ will be removed.}
 \item{metricList}{A list of the valid metrics to include. Valid metrics are
 "pdf", "localerr", "globalerr", and "pathway".}
 
+\item{modelStats}{A data frame that includes the interaction p-values and
+interaction coefficients for each pair (such as the one output by IntLIM's
+ProcessResults function)}
+
 \item{k}{The number of nearest neighbors to consider in localerr.}
 
 \item{eigStep}{The number of eigenvectors to step by during the evaluation
@@ -54,6 +61,8 @@ Default = 0.1.}
 \item{analytehaspathway}{A mapping from analytes to pathways. This
 mapping has two columns: RaMPID and PathID. Used in pathway importance.}
 
+\item{reaction}{A list of analyte pairs with two columns: srcId and tgtId.}
+
 \item{analyteNamesOut}{A data frame mapping the analyte identifier for the
 outcome analyte from the IntLIM model to an identifier that can be mapped
 to RaMP. Used in pathway importance.}
@@ -64,6 +73,8 @@ to RaMP. Used in pathway importance.}
 
 \item{source}{A data frame that maps analyte identifiers to RaMP internal
 identifiers.}
+
+\item{stype}{Phenotype or outcome to use in models.}
 }
 \value{
 A list of data frames (one for each sample) with predictor importance

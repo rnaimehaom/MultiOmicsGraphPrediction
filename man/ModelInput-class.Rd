@@ -23,5 +23,19 @@ and clinical covariates}
 \item{\code{coregulation.graph}}{the original co-regulation graph for the input data.}
 
 \item{\code{line.graph}}{the line graph of the input data.}
+
+\item{\code{importance}}{A list of calculated importance metric data frames for each sample}
+
+\item{\code{model.properties}}{A data frame that includes model information, i.e. R^2,
+interaction term p-value, and coefficients.}
+
+\item{\code{input.data}}{An IntLIMData object that includes slots for the sample data,
+the analyte data, and the analyte meta data.}
+
+\item{\code{covariates}}{A list of covariates to use in the models.}
+
+\item{\code{stype}}{Outcome/phenotype column name.}
+
+\item{\code{stype.class}}{Class of outcome/phenotype (either factor or numeric).}
 }}
 

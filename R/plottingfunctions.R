@@ -132,7 +132,7 @@ PlotGraphWeights <- function(graph, results){
 #' @export
 PlotWeightHeatmap <- function(modelResults){
   wt <- ComputeImportanceWeights(modelResults)
-  gplots::heatmap.2(wt, dendrogram = "none")
+  gplots::heatmap.2(wt, dendrogram = "none", trace = "none")
 }
 
 #' Plot the graph as a heatmap with edges colored by interaction coefficient.
@@ -391,24 +391,24 @@ PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
   }
   
   wt_opacity <- ComputeImportanceWeights(modelResults = modelResults)
-  wt_opacity <- wt_opacity[rownames(node.wise.prediction),]
-  for(j in 1:ncol(node.wise.prediction)){
-    if(!is.null(sampSubset) && colnames(node.wise.prediction)[j] %in% sampSubset){
+  wt_opacity <- wt_opacity[,colnames(node.wise.prediction)]
+  for(j in 1:nrow(node.wise.prediction)){
+    if(!is.null(sampSubset) && rownames(node.wise.prediction)[j] %in% sampSubset){
       # Build node and edge graphs.
       edge_df <- reshape2::melt(line.graph)
       edge_df <- edge_df[which(edge_df[,3] != 0),]
       edge_df$arrow.size <- 0.25
       color <- "black"
-      node_df <- data.frame(names(node.wise.prediction[,j]), node.wise.prediction[,j],
+      node_df <- data.frame(names(node.wise.prediction[j,]), node.wise.prediction[j,],
                             color)
-      rownames(node_df) <- names(node.wise.prediction[,j])
+      rownames(node_df) <- names(node.wise.prediction[j,])
       colnames(node_df) <- c("name", "prediction", "color")
       node_df$frame.color <- color
-      wt <- node.wise.prediction[,j]
+      wt <- node.wise.prediction[j,]
       final_graph <- igraph::graph_from_data_frame(edge_df, vertices = node_df)
       if(!is.null(subset)){
         final_graph <- igraph::induced_subgraph(final_graph, subset)
-        wt <- node.wise.prediction[names(igraph::V(final_graph)),j]
+        wt <- node.wise.prediction[j,names(igraph::V(final_graph))]
       }
       
       if(!is.null(cutoffs)){
@@ -430,11 +430,11 @@ PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
         
         # Adjust color opacity.
         if(weights == TRUE){
-          max_opacity <- max(abs(wt_opacity[names(igraph::V(final_graph)),j]))
+          max_opacity <- max(abs(wt_opacity[j,names(igraph::V(final_graph))]))
           opacity <- rep(0, length(wt_opacity))
           if(max_opacity > 0){
-            opacity <- abs(wt_opacity[names(igraph::V(final_graph)),j]) / 
-              max(abs(wt_opacity[names(igraph::V(final_graph)),j]))
+            opacity <- abs(wt_opacity[j,names(igraph::V(final_graph))]) / 
+              max(abs(wt_opacity[j,names(igraph::V(final_graph))]))
           }
           color <- unlist(lapply(1:length(color), function(c){
             return(grDevices::adjustcolor(color[c], alpha.f = opacity[c]))
@@ -444,7 +444,7 @@ PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
         igraph::V(final_graph)$color <- color
         
         # Set up variables for plotting.
-        title <- paste(colnames(node.wise.prediction)[j],
+        title <- paste(rownames(node.wise.prediction)[j],
                        paste("True Outcome =", formatC(Y[j], digits = 2, format = "f")),
                        sep = "\n")
         minPred <- min(unname(wt))

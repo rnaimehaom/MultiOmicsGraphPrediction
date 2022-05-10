@@ -11,6 +11,14 @@
 #' @slot outcome.type "numeric" or "categorical"
 #' @slot coregulation.graph the original co-regulation graph for the input data.
 #' @slot line.graph the line graph of the input data.
+#' @slot importance A list of calculated importance metric data frames for each sample
+#' @slot model.properties A data frame that includes model information, i.e. R^2,
+#' interaction term p-value, and coefficients.
+#' @slot input.data An IntLIMData object that includes slots for the sample data,
+#' the analyte data, and the analyte meta data.
+#' @slot covariates A list of covariates to use in the models.
+#' @slot stype Outcome/phenotype column name.
+#' @slot stype.class Class of outcome/phenotype (either factor or numeric).
 methods::setClass(
   Class="ModelInput",
   representation(A.hat="matrix",
@@ -19,7 +27,12 @@ methods::setClass(
                  coregulation.graph="matrix",
                  line.graph="matrix",
                  outcome.type="character",
-                 modified.outliers="list")
+                 importance="list",
+                 model.properties = "data.frame",
+                 input.data = "IntLimData",
+                 covariates = "list",
+                 stype = "character",
+                 stype.class = "character")
 )
 #' PoolingFilter class
 #'
@@ -64,11 +77,9 @@ methods::setClass(
 #' optimization
 #' @slot sum.square.gradients Sum of squared gradients over iterations, used in
 #' Adagrad optimization
-#' @slot importance Calculated importance values
 methods::setClass(
   Class="ModelResults",
   representation(model.input="ModelInput",
-                 pooling.filter="PoolingFilter",
                  iteration.tracking="data.frame",
                  max.iterations="numeric",
                  convergence.cutoff="numeric",
@@ -82,8 +93,7 @@ methods::setClass(
                  outcome.prediction="numeric",
                  optimization.type="character",
                  sum.square.gradients="matrix",
-                 previous.momentum="matrix",
-                 importance="list")
+                 previous.momentum="matrix")
 )
 
 

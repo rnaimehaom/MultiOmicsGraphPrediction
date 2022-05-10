@@ -6,9 +6,8 @@
 \usage{
 InitializeGraphLearningModel(
   modelInputs,
-  importance,
   iterations = 1000,
-  convergenceCutoff = 0.001,
+  convergenceCutoff = 1e-10,
   modelType = "importance",
   stype.class = "numeric",
   learningRate = 0.2,
@@ -19,8 +18,6 @@ InitializeGraphLearningModel(
 }
 \arguments{
 \item{modelInputs}{An object of the ModelInput class.}
-
-\item{importance}{Calculated importance metrics.}
 
 \item{iterations}{Maximum number of iterations. Default is 1,000.}
 
@@ -43,6 +40,8 @@ select from the following:
 
 \item{initialImportanceWeights}{Initial weights for model importance. Default
 is NULL, which results in each importance metric being given equal weight.}
+
+\item{importance}{Calculated importance metrics.}
 }
 \description{
 Find edges that share nodes and add them to a data frame.

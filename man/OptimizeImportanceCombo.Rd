@@ -5,12 +5,10 @@
 \title{Optimize the combination of predictors by importance alone (in other words,
 exclude pooling and combine in a single layer using a linear combination).}
 \usage{
-OptimizeImportanceCombo(modelResults, importance, verbose = TRUE)
+OptimizeImportanceCombo(modelResults, verbose = TRUE)
 }
 \arguments{
 \item{modelResults}{An object of the ModelResults class.}
-
-\item{importance}{The importance metrics (meta-features)}
 
 \item{verbose}{Whether to print results as you run the model.}
 }

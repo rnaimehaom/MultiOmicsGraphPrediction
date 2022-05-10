@@ -4,8 +4,11 @@
 #' each node corresponds to a pair of analytes.
 #' 2. A prediction value for each node of the line graph, for each sample X.
 #' 3. The true prediction values Y for each sample X.
-#' @param inputData MultiDataSet object (output of ReadData()) with gene expression,
-#' metabolite abundances, and associated meta-data
+#' @slot importance A list of calculated importance metric data frames for each sample
+#' @slot modelProperties A data frame that includes model information, i.e. R^2,
+#' interaction term p-value, and coefficients.
+#' @slot inputData An IntLIMData object that includes slots for the sample data,
+#' the analyte data, and the analyte meta data.
 #' @param predictionGraphs A list of igraph objects, each of which includes
 #' predictions for each edge.
 #' @param coregulationGraph An igraph object containing the coregulation graph.
@@ -19,8 +22,8 @@
 #' @param verbose Whether to print the number of predictions replaced in each sample.
 #' TRUE or FALSE. Default is FALSE.
 #' @export
-FormatInput <- function(predictionGraphs, coregulationGraph,
-                        inputData, stype.class, edgeTypeList, stype, verbose = FALSE){
+FormatInput <- function(predictionGraphs, coregulationGraph, importance, modelProperties,
+                        inputData, stype.class, edgeTypeList, stype, verbose = FALSE, covariates = list()){
   
   # Extract edge-wise predictions.
   predictions_by_node <- lapply(names(predictionGraphs), function(sampName){
@@ -78,10 +81,11 @@ FormatInput <- function(predictionGraphs, coregulationGraph,
   names(Y) <- names(predictions_by_node)
   
   # Create a ModelInput object and return it.
-  newModelInput <- methods::new("ModelInput", A.hat=A_hat, node.wise.prediction=t(predictions_flattened),
+  newModelInput <- methods::new("ModelInput", A.hat=A_hat, node.wise.prediction=predictions_flattened,
                                 true.phenotypes=Y, outcome.type=stype.class, 
                                 coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
-                                line.graph=as.matrix(A), modified.outliers=list())
+                                line.graph=as.matrix(A), input.data = inputData, model.properties = modelProperties,
+                                importance = importance, stype = stype, covariates = covariates, stype.class = stype.class)
   return(newModelInput)
 }
 
@@ -172,29 +176,23 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
 
 #' Predict Y given current weights.
 #' @param modelResults An object of the ModelResults class.
-#' @param iteration The current iteration.
-#' @param importance Importance metrics for each predictor and sample.
-DoPredictionImportanceOnly <- function(modelResults, iteration, importance){
+#' @param prunedModels The models that remain after pruning.
+DoPrediction <- function(modelResults, prunedModels){
   
-  # Extract thetas, predictors, and meta-features.
-  X <- matrix(rep(modelResults@model.input@node.wise.prediction, ncol(importance)),
-              ncol = ncol(importance))
-  M <- importance
-  Theta.old <- matrix(rep(modelResults@current.importance.weights, nrow(X)), 
-                      nrow = nrow(X))
-  
-  # Compute the total contribution of the predictor.
-  individual.importance <- Theta.old * M * X
+  # Obtain prediction for each composite model.
+  predictions <- as.data.frame(lapply(prunedModels, function(model){
+    return(CompositePrediction(pairs = model, modelResults = modelResults))
+  }))
+  predictionsDF <- do.call(rbind, predictions)
 
-  # Sum together each predictor.
-  Y.pred.term <- colSums(individual.importance)
-  Y.pred <- sum(Y.pred.term)
-  
+  # Average the predictions to obtain the final prediction.
+  Y.pred <- colMeans(predictionsDF)
+
   # Use activation function if output is of a character type. Note that all character
   # types are converted into factors, and since only binary factors are accepted by
   # the package, the values will be 1 (for the alphanumerically lowest level) and 2
   # (for the alphanumerically highest level).
-  if(modelResults@model.input@outcome.type == "categorical"){
+  if(modelResults@model.input@outcome.type == "factor"){
     if(modelResults@activation.type == "softmax"){
       Y.pred <- round(SoftmaxWithCorrection(Y.pred))
     }else if(modelResults@activation.type == "tanh"){
@@ -209,27 +207,24 @@ DoPredictionImportanceOnly <- function(modelResults, iteration, importance){
 }
 
 #' Train the graph learning model, using the specifications in the ModelResults
-#' class and storing the results in the ModelResults class.T
+#' class and storing the results in the ModelResults class.
 #' @param modelResults An object of the ModelResults class.
-#' @param iteration The current iteration.
-#' @param importance Importance metrics for each predictor and sample.
-DoSingleTrainingIterationImportanceOnly <- function(modelResults, iteration,
-                                                    importance){
+#' @param prunedModels The models that remain after pruning.
+DoSingleTrainingIteration <- function(modelResults, prunedModels){
   # Predict Y.
-  Y.pred <- DoPredictionImportanceOnly(modelResults, iteration, importance)
+  Y.pred <- DoPrediction(modelResults, prunedModels)
   modelResults@outcome.prediction <- Y.pred
-  
+
   # Backpropagate and calculate the error.
-  error <- modelResults@iteration.tracking$Error[iteration-1]
-  modelResults <- BackpropagateImportanceOnly(modelResults = modelResults, 
-                                              iteration = iteration, 
-                                              importance = importance, 
-                                              Y.pred = Y.pred)
+  error <- modelResults@iteration.tracking$Error[modelResults@current.iteration-1]
+  modelResults <- Backpropagate(modelResults = modelResults,
+                                prunedModels = prunedModels,
+                                Y.pred = Y.pred)
   if(modelResults@model.input@outcome.type == "categorical"){
     modelResults@iteration.tracking$Error[iteration+1] <- 
       ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
   }else{
-    modelResults@iteration.tracking$Error[iteration+1] <- 
+    modelResults@iteration.tracking$Error[modelResults@current.iteration+1] <- 
       ComputeRMSE(modelResults@model.input@true.phenotypes, Y.pred)
   }
   

@@ -1,66 +1,96 @@
 #' Obtain a prediction from a composite model, given the pairs to include in the model.
 #' @param pairs A list of pairs to include in the composite model.
+#' @param modelResults A ModelResults object.
+#' @param verbose Whether or not to print out each step.
+#' @param makePlots Whether or not to plot the pruned model at each step.
+#' @return A final predicted value for each sample in the input data
+#' @export
+DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose = FALSE, makePlots = FALSE){
+  # Initialize consolidated pairs.
+  consolidated <- list(compositeModels = pairs, expandedCompositeModels = pairs, 
+                       mapping = data.frame(from = 1:length(unlist(pairsPredAll)),
+                                            to = unlist(lapply(1:length(pairsPredAll), function(i){rep(i, length(pairsPredAll[[i]]))}))))
+  prevModels <- unlist(pairs)
+  
+  # If this is the first iteration or if the mapping has not changed, stop.
+  while(length(unique(consolidated$mapping[,1])) != length(unique(consolidated$mapping[,2]))){
+    prunedPairs <- MultiOmicsGraphPrediction::PrunePredictors(compositeSubgraphs = consolidated,
+                                                              previousModels = prevModels,
+                                                              modelResults = modelResults, 
+                                                              verbose = verbose,
+                                                              makePlots = makePlots)
+    consolidated <- MultiOmicsGraphPrediction::ObtainCompositeModels(pairsInEachPredictor = consolidated$expandedCompositeModels, 
+                                                                     importantPairs = prunedPairs)
+    prevModels <- prunedPairs
+  }
+  
+  # Return consolidated pairs.
+  return(prunedPairs)
+}
+
+#' Obtain a prediction from a composite model, given the pairs to include in the model.
+#' @param pairs A list of pairs to include in the composite model.
 #' @param IntLIMresults The filtered results obtained from the IntLIM function
 #' ProcessRe
 #' @param modelResults A ModelResults object.
-#' @param inputData An object of type IntLimData.
 #' @param covar Covariates to be used in the model.
 #' @return A final predicted value for each sample in the input data
 #' @export
-CompositePrediction <- function(pairs, IntLIMresults, modelResults, inputData, covar = NULL){
+CompositePrediction <- function(pairs, modelResults){
   
   # Set variables for further analysis.
-  covariates <- IntLIMresults@covariate.coefficients
-  analyte1Vals <- inputData@analyteType1
-  analyte2Vals <- inputData@analyteType2
-  covariateVals <- inputData@sampleMetaData
+  covar <- modelResults@model.input@covariates
+  covariates <- modelResults@model.input@model.properties
+  analyte1Vals <- modelResults@model.input@input.data@analyteType1
+  analyte2Vals <- modelResults@model.input@input.data@analyteType2
+  covariateVals <- modelResults@model.input@input.data@sampleMetaData
   weights <- ComputeImportanceWeights(modelResults)
-  
+
   # Analyte 1
-  weighted_a1 <- rep(0, ncol(weights))
+  weighted_a1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_a1 <- weighted_a1 + weights[pair,] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
+    weighted_a1 <- weighted_a1 + weights[,pair] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
   }
   
   # beta0
-  weighted_sum_b0 <- rep(0, ncol(weights))
+  weighted_sum_b0 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b0 <- weighted_sum_b0 + weights[pair,] * rep(covariates[pair,"(Intercept)"], ncol(weights))
+    weighted_sum_b0 <- weighted_sum_b0 + weights[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
   }
   
   # beta1
-  weighted_sum_b1 <- rep(0, ncol(weights))
+  weighted_sum_b1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b1 <- weighted_sum_b1 + weights[pair,] * rep(covariates[pair, "a"], ncol(weights)) * 
+    weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
       analyte2Vals[strsplit(pair, "__")[[1]][2],]
   }
   
   # beta2
-  weighted_sum_b2 <- rep(0, ncol(weights))
+  weighted_sum_b2 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b2 <- weighted_sum_b2 + weights[pair,] * rep(covariates[pair, "type"], ncol(weights))
+    weighted_sum_b2 <- weighted_sum_b2 + weights[,pair] * rep(covariates[pair, "type"], nrow(weights))
   }
   
   # beta3
-  weighted_sum_b3 <- rep(0, ncol(weights))
+  weighted_sum_b3 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b3 <- weighted_sum_b3 + weights[pair,] * rep(covariates[pair, "a:type"], ncol(weights))* 
+    weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
       analyte2Vals[strsplit(pair, "__")[[1]][2],]
   }
   
   # covariates
-  weighted_sum_covars <- rep(0, ncol(weights))
+  weighted_sum_covars <- rep(0, nrow(weights))
   if(!is.null(covar)){
     weighted_sum_each <- lapply(covar, function(c){
-      weighted_sum <- rep(0, ncol(weights))
+      weighted_sum <- rep(0, nrow(weights))
       for(i in 1:length(pairs)){
         pair <- pairs[[i]]
-        weighted_sum <- weighted_sum + weights[pair,] * rep(covariates[pair, c], ncol(weights)) *
+        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
           covariateVals[,c]
       }
       return(weighted_sum)
@@ -145,8 +175,10 @@ ComputeInfoGain <- function(pred, trueVal, summaryStatistic = "mean"){
 
 #' Obtain the list of pairs in a composite model.
 #' @param modelInput A ModelInput object
+#' @param percentOverlapCutoff Neighborhoods that have this percent overlap
+#' with another neighborhood will be removed from consideration. Default is 100.
 #' @export
-ObtainCompositeSubgraphs <- function(modelInput){
+ObtainSubgraphNeighborhoods <- function(modelInput, percentOverlapCutoff = 100){
   # Convert to graph.
   lineGraph <- igraph::graph_from_adjacency_matrix(modelInput@line.graph)
   
@@ -170,7 +202,8 @@ ObtainCompositeSubgraphs <- function(modelInput){
       isSubset <- 0
       nbrNeighbors <- igraph::as_ids(igraph::neighbors(lineGraph, nbr))
       nbrAndNeighbors <- union(nbrNeighbors, nbr)
-      if(length(setdiff(nodeAndNeighbors, nbrAndNeighbors)) == 0){
+      if(length(intersect(nodeAndNeighbors, nbrAndNeighbors)) /
+         length(nodeAndNeighbors) * 100 >= percentOverlapCutoff){
         isSubset <- 1
       }
     }))
@@ -200,7 +233,8 @@ ObtainCompositeSubgraphs <- function(modelInput){
 #' @param importantPairs A list of all pairs that were found to be important in the
 #' previous layer.
 #' @export
-ObtainCompositeModelsFirstLayer <- function(pairsInEachPredictor, importantPairs){
+ObtainCompositeModels <- function(pairsInEachPredictor, importantPairs){
+
   # Compute table of pair overlaps.
   pairCounts <- table(unlist(pairsInEachPredictor))
   predictorsContaining <- pairCounts[order(-pairCounts)]
@@ -244,110 +278,15 @@ ObtainCompositeModelsFirstLayer <- function(pairsInEachPredictor, importantPairs
   return(list(compositeModels = compositePredictors, expandedCompositeModels = compositeFull, mapping = pairMapping))
 }
 
-#' Given all predictors, find only the important predictors.
-#' @param compositeSubgraphs A list of pairs to include in the composite model.
-#' @param IntLIMresults The filtered results obtained from the IntLIM function
-#' ProcessRe
-#' @param modelResults A ModelResults object.
-#' @param inputData An object of type IntLimData.
-#' @param verbose Whether or not to print out each step.
-#' @param covar Covariates to be used in the model.
-#' @return A list of informative pairs
-#' @export
-PrunePredictors <- function(compositeSubgraphs, IntLIMresults, modelResults, inputData, covar = NULL, verbose = FALSE){
-  prunedSubgraphs <- lapply(1:length(compositeSubgraphs), function(i){
-    # Print initial graph.
-    if(verbose == TRUE){
-      print(unlist(compositeSubgraphs[[i]]))
-    }
-    
-    # Initialize the predictor to include all pairs in the composite subgraph.
-    importantPairs <- compositeSubgraphs[[i]]
-    compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = importantPairs, 
-                                                                     IntLIMresults = IntLIMresults,
-                                                                     modelResults = modelResults,
-                                                                     covar = covar,
-                                                                     inputData = inputData)
-    infoGain <- MultiOmicsGraphPrediction::ComputeInfoGain(pred = unlist(compositeModel), 
-                                                           trueVal = inputData@sampleMetaData[,IntLIMresults@stype])
-    print(paste(list("Original information gain is", infoGain), collapse = " "))
-    removedLastTime <- FALSE
-    compositeModelFull <- compositeModel
-    infoGainFull <- infoGain
-    
-    # Sequentially test removal of each pair.
-    for(pair in compositeSubgraphs[[i]]){
-      # Save the information gain for the full model.
-      if(removedLastTime == TRUE){
-        compositeModelFull <- compositeModel
-        infoGainFull <- infoGain
-      }
-      
-      # Compute the information gain for the new model.
-      pairsToInclude <- setdiff(importantPairs, pair)
-      if(length(pairsToInclude) > 0){
-        compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsToInclude,
-                                                                         IntLIMresults = IntLIMresults,
-                                                                         modelResults = modelResults,
-                                                                         covar = covar,
-                                                                         inputData = inputData)
-        infoGain <- MultiOmicsGraphPrediction::ComputeInfoGain(pred = unlist(compositeModel),
-                                                               trueVal = inputData@sampleMetaData[,IntLIMresults@stype])
-      }
-      
-      # If the information gain for the new model is greater than for the full model, remove the pair.
-      removedLastTime <- FALSE
-      if(infoGain >= infoGainFull && length(pairsToInclude) > 0){
-        # Print the increase in information gain.
-        if(verbose == TRUE){
-          print(paste(list("Removed pair. Information gain after removing", pair, "is", infoGain - infoGainFull), collapse = " "))
-        }
-        
-        importantPairs <- pairsToInclude
-        removedLastTime <- TRUE
-        
-        tryCatch({
-          # Plot the new line graph.
-          newPredictions <- t(matrix(rep(compositeModel, nrow(modelResults@model.input@node.wise.prediction)),
-                                     ncol = nrow(modelResults@model.input@node.wise.prediction)))
-          rownames(newPredictions) <- rownames(modelResults@model.input@node.wise.prediction)
-          colnames(newPredictions) <- colnames(modelResults@model.input@node.wise.prediction)
-          modelResultsNew <- modelResults
-          modelResultsNew@model.input@node.wise.prediction <- newPredictions
-          if(verbose == TRUE){
-            MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResultsNew, subset = pairsToInclude,
-                                                     sampSubset = "UACC.62", weights = TRUE, stype = "drug5FU")
-          }
-        }, warning=function(cond){
-          if(verbose == TRUE){
-            plot.new()
-          }
-        })
-        
-      }else{
-        # Print the decrease in information gain.
-        if(verbose == TRUE){
-          print(paste(list("Kept pair. Information loss after removing", pair, "is", infoGainFull - infoGain), collapse = " "))
-        }
-      }
-    }
-    return(importantPairs)
-  })
-  return(prunedSubgraphs)
-}
-
 #' Given multiple composite predictors, prune the predictors that are not needed.
 #' @param compositeSubgraphs A list of pairs to include in the composite model.
 #' @param previousModels A list of the previous models that were consolidated.
-#' @param IntLIMresults The filtered results obtained from the IntLIM function
-#' ProcessRe
 #' @param modelResults A ModelResults object.
-#' @param inputData An object of type IntLimData.
-#' @param covar Covariates to be used in the model.
 #' @param verbose Whether or not to print out each step.
+#' @param makePlots Whether or not to plot the pruned model at each step.
 #' @return A list of informative pairs
 #' @export
-PrunePredictorsHiddenLayers <- function(compositeSubgraphs, previousModels, IntLIMresults, modelResults, inputData, covar = NULL, verbose = FALSE){
+PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE){
   # Extract relevant information.
   pairs <- compositeSubgraphs$compositeModels
   mapping <- compositeSubgraphs$mapping
@@ -361,27 +300,27 @@ PrunePredictorsHiddenLayers <- function(compositeSubgraphs, previousModels, IntL
     # Initialize the predictor to include all pairs in the composite subgraph.
     importantPairs <- pairs[[i]]
     compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = importantPairs, 
-                                                                     IntLIMresults = IntLIMresults,
-                                                                     modelResults = modelResults,
-                                                                     covar = covar,
-                                                                     inputData = inputData)
+                                                                     modelResults = modelResults)
     infoGain <- MultiOmicsGraphPrediction::ComputeInfoGain(pred = unlist(compositeModel), 
-                                                           trueVal = inputData@sampleMetaData[,IntLIMresults@stype])
-    print(paste(list("Original information gain is", infoGain), collapse = " "))
+                                                           trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype])
+    if(verbose == TRUE){
+      print(paste(list("Original information gain is", infoGain), collapse = " "))
+    }
+    
     removedLastTime <- FALSE
     compositeModelFull <- compositeModel
     infoGainFull <- infoGain
     
     # Figure out which of the previous models mapped to this one.
     previousModelsMapped <- mapping$from[which(mapping$to == i)]
+    importantModels <- previousModelsMapped
+    previousPairsMapped <- previousModels[previousModelsMapped]
     
     # Sequentially test removal of each model.
-    for(model in previousModelsMapped){
+    for(m in 1:length(previousModelsMapped)){
+      model <- previousModelsMapped[m]
+      modelPairs <- unlist(previousPairsMapped[m])
       
-      # Extract the list of pairs to keep.
-      modelsToUse <- setdiff(previousModelsMapped, model)
-      pairsToInclude <- Reduce(union, previousModels[modelsToUse])
-
       # Save the information gain for the full model.
       if(removedLastTime == TRUE){
         compositeModelFull <- compositeModel
@@ -389,14 +328,13 @@ PrunePredictorsHiddenLayers <- function(compositeSubgraphs, previousModels, IntL
       }
       
       # Compute the information gain for the new model.
+      modelsToInclude <- setdiff(importantModels, model)
+      pairsToInclude <- setdiff(importantPairs, modelPairs)
       if(length(pairsToInclude) > 0){
         compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsToInclude,
-                                                                         IntLIMresults = IntLIMresults,
-                                                                         modelResults = modelResults,
-                                                                         covar = covar,
-                                                                         inputData = inputData)
+                                                                         modelResults = modelResults)
         infoGain <- MultiOmicsGraphPrediction::ComputeInfoGain(pred = unlist(compositeModel),
-                                                               trueVal = inputData@sampleMetaData[,IntLIMresults@stype])
+                                                               trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype])
       }
       
       # If the information gain for the new model is greater than for the full model, remove the pair.
@@ -408,17 +346,18 @@ PrunePredictorsHiddenLayers <- function(compositeSubgraphs, previousModels, IntL
         }
         
         importantPairs <- pairsToInclude
+        importantModels <- modelsToInclude
         removedLastTime <- TRUE
         
         tryCatch({
-          # Plot the new line graph.
-          newPredictions <- t(matrix(rep(compositeModel, nrow(modelResults@model.input@node.wise.prediction)),
-                                     ncol = nrow(modelResults@model.input@node.wise.prediction)))
-          rownames(newPredictions) <- rownames(modelResults@model.input@node.wise.prediction)
-          colnames(newPredictions) <- colnames(modelResults@model.input@node.wise.prediction)
-          modelResultsNew <- modelResults
-          modelResultsNew@model.input@node.wise.prediction <- newPredictions
-          if(verbose == TRUE){
+          if(makePlots == TRUE){
+            # Plot the new line graph.
+            newPredictions <- matrix(rep(compositeModel, ncol(modelResults@model.input@node.wise.prediction)),
+                                       ncol = ncol(modelResults@model.input@node.wise.prediction))
+            rownames(newPredictions) <- rownames(modelResults@model.input@node.wise.prediction)
+            colnames(newPredictions) <- colnames(modelResults@model.input@node.wise.prediction)
+            modelResultsNew <- modelResults
+            modelResultsNew@model.input@node.wise.prediction <- newPredictions
             MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResultsNew, subset = pairsToInclude,
                                                      sampSubset = "UACC.62", weights = TRUE, stype = "drug5FU")
           }
@@ -443,22 +382,14 @@ PrunePredictorsHiddenLayers <- function(compositeSubgraphs, previousModels, IntL
 #' Compute the weight of each predictor given the weights of different
 #' importance metrics.
 #' @param modelResults A ModelResults object.
-#' @return A list of informative pairs
+#' @return A weight matrix for each sample and each predictor.
 #' @export
 ComputeImportanceWeights <- function(modelResults){
   importanceWeights <- modelResults@current.importance.weights
-  importanceWeightMatrix <- t(matrix(rep(importanceWeights, nrow(modelResults@importance[[1]])), 
-                                     ncol = nrow(modelResults@importance[[1]]),
-                                     nrow = ncol(modelResults@importance[[1]])))
-  weights <- lapply(1:length(modelResults@importance), function(i){
-    imp <- modelResults@importance[[i]] * importanceWeightMatrix
-    nm <- names(modelResults@importance)[i]
-    sum_over <- as.data.frame(rowSums(imp))
-    rownames(sum_over) <- rownames(imp)
-    colnames(sum_over) <- nm
-    return(sum_over)
+  weights <- lapply(1:length(modelResults@model.input@importance), function(i){
+    imp <- modelResults@model.input@importance[[i]] * modelResults@current.importance.weights[i]
+    return(as.matrix(imp))
   })
-  weights_all <- do.call(cbind,weights)
-  wt <- as.matrix(weights_all)
-  return(wt)
+  weights_all <- Reduce("+",weights)
+  return(weights_all)
 }

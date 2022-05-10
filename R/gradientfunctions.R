@@ -2,17 +2,15 @@
 #' is computed by taking partial derivatives for each of the model weights. Given
 #' a learning rate, the weights are adjusted according to the gradient.
 #' @param modelResults An object of the ModelResults class.
-#' @param iteration The current iteration.
-#' @param importance Importance metrics for each predictor and sample.
+#' @param prunedModels The models that remain after pruning.
 #' @param Y.pred The predicted phenotype value.
-BackpropagateImportanceOnly <- function(modelResults, iteration, importance, Y.pred){
+Backpropagate <- function(modelResults, prunedModels, Y.pred){
   # Calculate gradient.
-  print(paste(Y.pred, modelResults@model.input@true.phenotypes))
-  gradient <- computeGradientImportanceOnly(modelResults, importance, Y.pred)
+  gradient <- computeGradient(modelResults = modelResults, prunedModels = prunedModels)
   
   # Update gradient.
   modelResults@current.gradient <- as.matrix(gradient)
-  modelResults@iteration.tracking[iteration+1,
+  modelResults@iteration.tracking[modelResults@current.iteration+1,
                                   which(grepl("Gradient", 
                                               colnames(modelResults@iteration.tracking)))] <- gradient
   
@@ -66,7 +64,7 @@ BackpropagateImportanceOnly <- function(modelResults, iteration, importance, Y.p
     modelResults@current.importance.weights <- modelResults@previous.importance.weights - 
       (modelResults@learning.rate * update)
   }
-  modelResults@iteration.tracking[iteration+1,
+  modelResults@iteration.tracking[modelResults@current.iteration+1,
                                   which(grepl("Weight", 
                                               colnames(modelResults@iteration.tracking)))] <- modelResults@current.importance.weights
   
@@ -135,32 +133,208 @@ computeHessianSingleLayer <- function(modelResults, convolution, pooling){
 
 #' Compute the gradient for a single layer neural network.
 #' @param modelResults An object of the ModelResults class.
-#' @param importance Importance metrics for each predictor and sample.
-#' @param Y.pred The predicted phenotype value.
-computeGradientImportanceOnly <- function(modelResults, importance, Y.pred){
-  # Components for derivative.
-  X <- modelResults@model.input@node.wise.prediction
-  Y <- modelResults@model.input@true.phenotypes
-  M <- importance
+#' @param prunedModels The models that remain after pruning.
+computeGradient <- function(modelResults, prunedModels){
   
-  # Compute the derivative for each sample.
-  importanceWeightDeriv <- unlist(lapply(1:ncol(M),function(theta){
-    
-    # Compute the derivative for each sample. Remove the 2, which is a constant.
-    derivErrByPred <- (Y - Y.pred) * Y.pred
-    thetaSpecificPred <- sum(modelResults@current.importance.weights[theta] * 
-                               M[theta] * Y.pred)
-    derivPredByAct <- DerivativeOfActivation(modelResults@activation.type,
-                                             thetaSpecificPred)
-    derivActByTheta <- sum(M[theta] * Y.pred)
-    
-    # Return gradient.
-    print(paste(derivErrByPred, derivPredByAct, derivActByTheta))
-    return(derivErrByPred * derivPredByAct * derivActByTheta)
+  # Extract model components.
+  S <- prunedModels
+  S_start <- lapply(S, function(subNet){
+    return(unlist(lapply(subNet, function(pair){
+      return(strsplit(pair, "__")[[1]][1])
+    })))
+  })
+  S_end <- lapply(S, function(subNet){
+    return(unlist(lapply(subNet, function(pair){
+      return(strsplit(pair, "__")[[1]][2])
+    })))
+  })
+  
+  # Extract analyte types.
+  analyteTypeOut <- modelResults@model.input@input.data@analyteType2
+  analyteTypeIn <- modelResults@model.input@input.data@analyteType1
+  if(S_start[[1]][1] %in% rownames(modelResults@model.input@input.data@analyteType2)){
+    analyteTypeIn <- modelResults@model.input@input.data@analyteType2
+  }
+  if(S_end[[1]][1] %in% rownames(modelResults@model.input@input.data@analyteType1)){
+    analyteTypeOut <- modelResults@model.input@input.data@analyteType1
+  }
+  Aind <- lapply(S_start, function(subNet){
+    return(data.frame(analyteTypeIn[subNet,]))
+  })
+  Aout <- lapply(S_end, function(subNet){
+    return(data.frame(analyteTypeOut[subNet,]))
+  })
+  
+  # Extract covariates
+  C <- do.call(cbind, lapply(modelResults@model.input@covariates, function(c){
+    return(modelResults@model.input@input.data@sampleMetaData[,c])
   }))
+  
+  # Extract other components for gradient.
+  P_hat <- mean(unlist(lapply(S, function(subNet){
+    return(CompositePrediction(pairs = subNet, modelResults = modelResults))
+  })))
+  P <- modelResults@model.input@true.phenotypes
+  Beta <- lapply(S, function(subNet){
+    return(modelResults@model.input@model.properties[subNet,])
+  })
+  importance <- do.call(rbind, modelResults@model.input@importance)
+  rownames(importance) <- names(modelResults@model.input@importance)
+  M <- lapply(S, function(subNet){
+    return(importance[,subNet])
+  })
+  phi <- modelResults@current.importance.weights
 
+  # Compute the gradient for each sample.
+  sampGradients <- lapply(1:length(P), function(k){
+    
+    # Compute the derivative of P-hat.
+    PhatDeriv <- 2 * (P[k] - P_hat[k])
+      
+    # Compute the derivative over multiple subgraphs.
+    subgraphDeriv <- lapply(1:length(S), function(lambda){
+      
+      # Extract the independent, outcome, and covariate values.
+      AindLocal <- data.frame(Aind[[lambda]][,k])
+      if(length(AindLocal) == ncol(Aind[[lambda]]) && ncol(Aind[[lambda]]) > 1){
+        AindLocal <- t(AindLocal)
+        colnames(AindLocal) <- colnames(Aind[[lambda]])
+      }
+      AoutLocal <- data.frame(Aout[[lambda]][,k])
+      if(length(AoutLocal) == ncol(Aout[[lambda]]) && ncol(Aout[[lambda]]) > 1){
+        AoutLocal <- t(AoutLocal)
+        colnames(AoutLocal) <- colnames(Aout[[lambda]])
+      }
+      CovarLocal <- data.frame(C[k,])
+      if(length(CovarLocal) == ncol(C)){
+        CovarLocal <- t(CovarLocal)
+        colnames(CovarLocal) <- colnames(C)
+      }
+      M[[lambda]] <- as.data.frame(M[[lambda]])
+      
+      # Compute the denominator.
+      dhat <- Dhat(Aind = as.matrix(AindLocal), 
+                   phi = phi, 
+                   M = M[[lambda]], 
+                   Beta2 = Beta[[lambda]][,"type"],
+                   Beta3 = Beta[[lambda]][,"a:type"])
+      
+      # Compute the numerator.
+      nhat <- Nhat(Aind = as.matrix(AindLocal),
+                   Aout = as.matrix(AoutLocal),
+                   C = CovarLocal,
+                   phi = phi, 
+                   M = M[[lambda]], 
+                   Beta0 = Beta[[lambda]][,"(Intercept)"],
+                   Beta1 = Beta[[lambda]][,"a"],
+                   BetaC = Beta[[lambda]][,unlist(modelResults@model.input@covariates)])
+      
+      # Compute the derivative for each value of phi.
+      phiGradients <- lapply(1:length(phi), function(gamma){
+        # Compute the derivative of P-hat with respect to the denominator.
+        dhatprime <- DhatPrime(Aind = as.matrix(AindLocal), 
+                               M = M[[lambda]][gamma,], 
+                               Beta2 = Beta[[lambda]][,"type"],
+                               Beta3 = Beta[[lambda]][,"a:type"])
+        
+        # Compute the derivative of P-hat with respect to the numerator.
+        nhatprime <- NhatPrime(Aind = as.matrix(AindLocal),
+                               Aout = as.matrix(AoutLocal),
+                               C = CovarLocal,
+                               M = M[[lambda]][gamma,], 
+                               Beta0 = Beta[[lambda]][,"(Intercept)"],
+                               Beta1 = Beta[[lambda]][,"a"],
+                               BetaC = Beta[[lambda]][,unlist(modelResults@model.input@covariates)])
+        return((dhat * nhatprime - nhat * dhatprime) / (dhat ^ 2))
+      })
+      MDF <- t(as.data.frame(M))
+      phiGradientsDF <- as.data.frame(phiGradients)
+      colnames(phiGradientsDF) <- colnames(MDF)
+      return(phiGradientsDF)
+    })
+    subgraphDerivDF <- do.call(rbind, subgraphDeriv)
+    derivOverSubgraphs <- colMeans(subgraphDerivDF)
+
+    # If data are categorical, compute the derivative of the activation function.
+    derivPredByAct <- 1
+    if(modelResults@model.input@stype.class == "factor"){
+      derivPredByAct <- DerivativeOfActivation(modelResults@activation.type, P_hat)
+    }
+    return(PhatDeriv * derivPredByAct * derivOverSubgraphs)
+  })
+  sampGradientsDF <- do.call(rbind, sampGradients)
+  gradients <- colSums(sampGradientsDF)
+  
   # Return the derivative.
-  return(importanceWeightDeriv)
+  return(gradients)
+}
+
+#' Compute the D-hat value, which is the denominator value of the composite prediction
+#' for a sample k and a subgraph lambda.
+#' @param Aind The matrix containing the values of the independent analyte type.
+#' @param phi The weights of the importance metrics.
+#' @param M The importance values.
+#' @param Beta2 The phenotype term coefficients.
+#' @param Beta3 The interaction term coefficients.
+Dhat <- function(Aind, phi, M, Beta2, Beta3){
+  phiMat <- t(matrix(rep(phi, nrow(Aind)), nrow = nrow(Aind)))
+  sumWeights <- colSums(phiMat * M)
+  term1 <- sum(Beta2 * sumWeights)
+  term2 <- sum(Aind * Beta3 * sumWeights)
+  return(term1 + term2)
+}
+
+#' Compute the D-hat value, which is the derivative of the denominator value of the composite prediction
+#' for a sample k, a subgraph lambda, and an importance metric gamma.
+#' @param Aind The matrix containing the values of the independent analyte type.
+#' @param M The importance values.
+#' @param Beta2 The phenotype term coefficients.
+#' @param Beta3 The interaction term coefficients.
+DhatPrime <- function(Aind, M, Beta2, Beta3){
+  term1 <- sum(Beta2 * M)
+  term2 <- sum(Aind * Beta3 * M)
+  return(term1 + term2)
+}
+
+#' Compute the N-hat value, which is the numerator value of the composite prediction
+#' for a sample k and a subgraph lambda.
+#' @param Aind The matrix containing the values of the independent analyte type.
+#' @param Aout The matrix containing the values of the outcome analyte type.
+#' @param phi The weights of the importance metrics.
+#' @param M The importance values.
+#' @param Beta0 The intercept coefficients.
+#' @param Beta1 The analyte coefficients.
+#' @param BetaC The covariate coefficients.
+#' @param C The covariates for the predictors of interest.
+Nhat <- function(Aind, Aout, phi, M, Beta0, Beta1, BetaC, C){
+  phiMat <- t(matrix(rep(phi, nrow(Aind)), nrow = nrow(Aind)))
+  covarMat <- matrix(rep(unlist(C), nrow(BetaC)), nrow = nrow(BetaC))
+  sumWeights <- colSums(phiMat * M)
+  sumWeightsMat <- matrix(rep(unlist(sumWeights), ncol(covarMat)), ncol = ncol(covarMat))
+  term1 <- sum(Aout * sumWeights)
+  term2 <- sum(Beta0 * sumWeights)
+  term3 <- sum(Aind * Beta1 * sumWeights)
+  term4 <- sum(BetaC * covarMat * sumWeightsMat)
+  return(term1 - (term2 + term3 + term4))
+}
+
+#' Compute the N-hat value, which is the derivative of the numerator value of the composite prediction
+#' for a sample k, a subgraph lambda, and an importance metric gamma.
+#' @param Aind The matrix containing the values of the independent analyte type.
+#' @param Aout The matrix containing the values of the outcome analyte type.
+#' @param M The importance values.
+#' @param Beta0 The intercept coefficients.
+#' @param Beta1 The analyte coefficients.
+#' @param BetaC The covariate coefficients.
+#' @param C The covariates for the predictors of interest.
+NhatPrime <- function(Aind, Aout, M, Beta0, Beta1, BetaC, C){
+  covarMat <- matrix(rep(unlist(C), nrow(BetaC)), nrow = nrow(BetaC))
+  sumWeightsMat <- matrix(rep(unlist(M), ncol(covarMat)), ncol = ncol(covarMat))
+  term1 <- sum(Aout * M)
+  term2 <- sum(Beta0 * M)
+  term3 <- sum(Aind * Beta1 * M)
+  term4 <- sum(BetaC * covarMat * sumWeightsMat)
+  return(term1 - (term2 + term3 + term4))
 }
 
 #' Compute the derivative of the error by the predictor.

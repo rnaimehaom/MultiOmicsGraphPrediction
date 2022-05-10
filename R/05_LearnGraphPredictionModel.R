@@ -16,9 +16,9 @@
 #' @param initialImportanceWeights Initial weights for model importance. Default
 #' is NULL, which results in each importance metric being given equal weight.
 #' @export
-InitializeGraphLearningModel <- function(modelInputs, importance,
+InitializeGraphLearningModel <- function(modelInputs,
                                          iterations = 1000,
-                                         convergenceCutoff = 0.001,
+                                         convergenceCutoff = 0.0000000001,
                                          modelType = "importance",
                                          stype.class = "numeric", 
                                          learningRate = 0.2,
@@ -26,8 +26,8 @@ InitializeGraphLearningModel <- function(modelInputs, importance,
                                          optimizationType = "SGD",
                                          initialImportanceWeights = NULL){
   # Initialize importance weights.
-  weights_count <- ncol(importance[[1]])
-  wt_name <- colnames(importance[[1]])
+  weights_count <- length(modelInputs@importance)
+  wt_name <- names(modelInputs@importance)
   
   # Initialize data frame with maximum number of iterations.
   tracking.frame <- as.data.frame(matrix(-1, nrow = iterations, 
@@ -60,8 +60,7 @@ InitializeGraphLearningModel <- function(modelInputs, importance,
                         previous.update.vector=as.matrix(rep(0,length(weights))),
                         sum.square.gradients=as.matrix(rep(0,length(weights))),
                         current.iteration=0, activation.type=activationType,
-                        optimization.type=optimizationType,
-                        importance=importance)
+                        optimization.type=optimizationType)
   return(newModelResults)
 }
 
@@ -69,9 +68,8 @@ InitializeGraphLearningModel <- function(modelInputs, importance,
 #' exclude pooling and combine in a single layer using a linear combination).
 #' @param modelResults An object of the ModelResults class.
 #' @param verbose Whether to print results as you run the model.
-#' @param importance The importance metrics (meta-features)
 #' @export
-OptimizeImportanceCombo <- function(modelResults, importance, verbose = TRUE){
+OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
   
   # Start the first iteration and calculate a dummy weight delta.
   modelResults@current.iteration <- 1
@@ -80,28 +78,41 @@ OptimizeImportanceCombo <- function(modelResults, importance, verbose = TRUE){
   weight.delta <- sqrt(sum((modelResults@current.importance.weights - 
                               modelResults@previous.importance.weights)^2))
   
+  # Get the initial pruned models.
+  pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
+  prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                                                          verbose = FALSE, makePlots = FALSE)
+
   # Placeholder for predictions.
-  Y.pred <- rep(0,ncol(modelResults@model.input@node.wise.prediction))
+  Y.pred <- rep(0,nrow(modelResults@model.input@node.wise.prediction))
   
   # Repeat the training process for all iterations, until the maximum is reached
   # or until convergence.
+  str(modelResults@convergence.cutoff)
   while(modelResults@current.iteration < (modelResults@max.iterations - 1)
         && (weight.delta > modelResults@convergence.cutoff)){
     # For stochastic training, permute the samples, then compute the gradient one
     # sample at a time.
-    perm_samples <- sample(1:ncol(modelResults@model.input@node.wise.prediction),
-                           dim(modelResults@model.input@node.wise.prediction)[2])
+    perm_samples <- sample(1:nrow(modelResults@model.input@node.wise.prediction),
+                           nrow(modelResults@model.input@node.wise.prediction))
+
     for(i in perm_samples){
       # Do training iteration for each sample.
       newModelResults <- modelResults
       newModelResults@model.input@node.wise.prediction <- 
-        as.matrix(modelResults@model.input@node.wise.prediction[,i])
+        as.matrix(modelResults@model.input@node.wise.prediction[i,])
       newModelResults@model.input@true.phenotypes <- 
         modelResults@model.input@true.phenotypes[i]
-      importanceSamp <- importance[[i]]
-      newModelResults <- DoSingleTrainingIterationImportanceOnly(modelResults = newModelResults, 
-                                                                 iteration = modelResults@current.iteration,
-                                                                 importance = importanceSamp)
+      importanceSamp <- lapply(1:length(modelResults@model.input@importance), function(imp){
+        df <- t(as.data.frame(modelResults@model.input@importance[[imp]][i,]))
+        rownames(df) <- rownames(modelResults@model.input@node.wise.prediction)[i]
+        colnames(df) <- colnames(modelResults@model.input@node.wise.prediction)
+        return(df)
+      })
+      names(importanceSamp) <- names(modelResults@model.input@importance)
+      newModelResults@model.input@importance <- importanceSamp
+      newModelResults <- DoSingleTrainingIteration(modelResults = newModelResults,
+                                                   prunedModels = prunedModels)
       
       # Update weights and gradient in the model results according to the
       # results of this sample.
@@ -114,30 +125,34 @@ OptimizeImportanceCombo <- function(modelResults, importance, verbose = TRUE){
       modelResults@iteration.tracking <- newModelResults@iteration.tracking
       
       # Fill in the prediction for error calculation.
-      Y.pred[i] <- DoPredictionImportanceOnly(modelResults = newModelResults, 
-                                              iteration = modelResults@current.iteration,
-                                              importance = importanceSamp)
+      Y.pred <- DoPrediction(modelResults = newModelResults, prunedModels = prunedModels)
     }
     # Compute the prediction error over all samples.
     if(modelResults@model.input@outcome.type == "categorical"){
-      modelResults@iteration.tracking$Error[modelResults@current.iteration+1] <- 
+      modelResults@iteration.tracking$Error[modelResults@current.iteration] <- 
         ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
     }else{
-      modelResults@iteration.tracking$Error[modelResults@current.iteration+1] <- 
+      modelResults@iteration.tracking$Error[modelResults@current.iteration] <- 
         ComputeRMSE(modelResults@model.input@true.phenotypes, Y.pred)
     }
+    currentError <- modelResults@iteration.tracking$Error[modelResults@current.iteration]
     
     # Update the iteration.
     modelResults@current.iteration <- modelResults@current.iteration + 1
     modelResults@iteration.tracking$Iteration[modelResults@current.iteration+1]<-
       modelResults@current.iteration
     
+    # Get the new pruned models.
+    prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                                                         verbose = FALSE, makePlots = FALSE)
+    prunedModelSizes <- lapply(prunedModels, function(model){return(length(model))})
+    
     # Print the weight delta and error.
     weight.delta <- sqrt(sum((modelResults@current.importance.weights - modelResults@previous.importance.weights)^2))
     if(modelResults@current.iteration %% 1 == 0 && verbose == TRUE){
       print(paste("iteration", modelResults@current.iteration, ": weight delta is", weight.delta,
-                  "and error is", 
-                  modelResults@iteration.tracking$Error[modelResults@current.iteration]))
+                  "and error is", paste0(currentError, ". Subgraph sizes are ", 
+                  paste(prunedModelSizes, collapse = ", "))))
     }
   }
   # If we exited before the maximum number of iterations, remove the rest of the

@@ -2,34 +2,30 @@
 % Please edit documentation in R/compositemodelfunctions.R
 \name{PrunePredictors}
 \alias{PrunePredictors}
-\title{Given all predictors, find only the important predictors.}
+\title{Given multiple composite predictors, prune the predictors that are not needed.}
 \usage{
 PrunePredictors(
   compositeSubgraphs,
-  IntLIMresults,
+  previousModels,
   modelResults,
-  inputData,
-  covar = NULL,
-  verbose = FALSE
+  verbose = FALSE,
+  makePlots = FALSE
 )
 }
 \arguments{
 \item{compositeSubgraphs}{A list of pairs to include in the composite model.}
 
-\item{IntLIMresults}{The filtered results obtained from the IntLIM function
-ProcessRe}
+\item{previousModels}{A list of the previous models that were consolidated.}
 
 \item{modelResults}{A ModelResults object.}
 
-\item{inputData}{An object of type IntLimData.}
-
-\item{covar}{Covariates to be used in the model.}
-
 \item{verbose}{Whether or not to print out each step.}
+
+\item{makePlots}{Whether or not to plot the pruned model at each step.}
 }
 \value{
 A list of informative pairs
 }
 \description{
-Given all predictors, find only the important predictors.
+Given multiple composite predictors, prune the predictors that are not needed.
 }

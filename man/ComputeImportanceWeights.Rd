@@ -11,7 +11,7 @@ ComputeImportanceWeights(modelResults)
 \item{modelResults}{A ModelResults object.}
 }
 \value{
-A list of informative pairs
+A weight matrix for each sample and each predictor.
 }
 \description{
 Compute the weight of each predictor given the weights of different

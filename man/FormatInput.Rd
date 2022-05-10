@@ -11,11 +11,14 @@ each node corresponds to a pair of analytes.
 FormatInput(
   predictionGraphs,
   coregulationGraph,
+  importance,
+  modelProperties,
   inputData,
   stype.class,
   edgeTypeList,
   stype,
-  verbose = FALSE
+  verbose = FALSE,
+  covariates = list()
 )
 }
 \arguments{
@@ -23,9 +26,6 @@ FormatInput(
 predictions for each edge.}
 
 \item{coregulationGraph}{An igraph object containing the coregulation graph.}
-
-\item{inputData}{MultiDataSet object (output of ReadData()) with gene expression,
-metabolite abundances, and associated meta-data}
 
 \item{stype.class}{The class of the outcome ("numeric" or "categorical")}
 
@@ -47,3 +47,15 @@ each node corresponds to a pair of analytes.
 2. A prediction value for each node of the line graph, for each sample X.
 3. The true prediction values Y for each sample X.
 }
+\section{Slots}{
+
+\describe{
+\item{\code{importance}}{A list of calculated importance metric data frames for each sample}
+
+\item{\code{modelProperties}}{A data frame that includes model information, i.e. R^2,
+interaction term p-value, and coefficients.}
+
+\item{\code{inputData}}{An IntLIMData object that includes slots for the sample data,
+the analyte data, and the analyte meta data.}
+}}
+

@@ -19,6 +19,7 @@
 #' Default = 0.1.
 #' @param analytehaspathway A mapping from analytes to pathways. This
 #' mapping has two columns: RaMPID and PathID. Used in pathway importance.
+#' @param reaction A list of analyte pairs with two columns: srcId and tgtId.
 #' @param analyteNamesOut A data frame mapping the analyte identifier for the
 #' outcome analyte from the IntLIM model to an identifier that can be mapped
 #' to RaMP. Used in pathway importance.
@@ -27,24 +28,33 @@
 #' to RaMP. Used in pathway importance.
 #' @param source A data frame that maps analyte identifiers to RaMP internal
 #' identifiers.
+#' @param modelStats A data frame that includes the interaction p-values and
+#' interaction coefficients for each pair (such as the one output by IntLIM's
+#' ProcessResults function)
+#' @param stype Phenotype or outcome to use in models.
 #' @return A list of data frames (one for each sample) with predictor importance
 #' measured according to the listed criteria (one column per metric, one row
 #' per predictor).
 #' @export
-GetAllImportanceMetrics <- function(predictions, modelInput, inputData,
-                                    lowerPercentileLimit = 0.1,
-                                    upperPercentileLimit = 0.9,
-                                    metricList = c("pdf", "localerr", "globalerr",
-                                                   "pathway"),
-                                    k = k,
-                                    eigStep = 10, 
-                                    alphaMin = 0,
-                                    alphaMax = 1, 
-                                    alphaStep = 0.1,
-                                    analytehaspathway = "", 
-                                    analyteNamesOut = "",
-                                    analyteNamesInd = "", 
-                                    source = ""){
+GetAllImportanceMetrics <- function(predictions, inputData,
+                                       lowerPercentileLimit = 0.1,
+                                       upperPercentileLimit = 0.9,
+                                       metricList = c("pdf", "localerr", "globalerr",
+                                                      "pathway", "reaction",
+                                                      "interactionpval", "interactioncoef",
+                                                      "analytecoef"),
+                                       modelStats = "",
+                                       k = k,
+                                       eigStep = 10, 
+                                       alphaMin = 0,
+                                       alphaMax = 1, 
+                                       alphaStep = 0.1,
+                                       analytehaspathway = "",
+                                       reaction = "",
+                                       analyteNamesOut = "",
+                                       analyteNamesInd = "", 
+                                       source = "",
+                                    stype = ""){
   # Find all outliers.
   outliers <- FindDistributionalOutliers(predictions = predictions, 
                                          lowerPercentileLimit = lowerPercentileLimit,
@@ -59,9 +69,10 @@ GetAllImportanceMetrics <- function(predictions, modelInput, inputData,
   }
   if("localerr" %in% metricList){
     print("Computing Local Error importance")
+    trueVals <- inputData@sampleMetaData[,stype]
+    names(trueVals) <- rownames(inputData@sampleMetaData)
     metrics$localerr <- ComputeLocalErrorImportance(predictions = predictions, 
-                                                    true = modelInput@true.phenotypes, 
-                                                    outliers = outliers, 
+                                                    true = trueVals,
                                                     k = k,
                                                     inputData = inputData, 
                                                     eigStep = eigStep, 
@@ -72,8 +83,7 @@ GetAllImportanceMetrics <- function(predictions, modelInput, inputData,
   if("globalerr" %in% metricList){  
     print("Computing Global Error importance")
     metrics$globalerr <- ComputeGlobalErrorImportance(predictions = predictions, 
-                                                    true = modelInput@true.phenotypes, 
-                                                    outliers = outliers)
+                                                      true = inputData@sampleMetaData[,stype])
   }
   if("pathway" %in% metricList){
     print("Computing Pathway importance")
@@ -81,22 +91,33 @@ GetAllImportanceMetrics <- function(predictions, modelInput, inputData,
                                                 analytehaspathway = analytehaspathway, 
                                                 analyteNamesOut = analyteNamesOut,
                                                 analyteNamesInd = analyteNamesInd, 
-                                                source = source,
-                                                outliers = outliers)
+                                                source = source)
+  }
+  if("reaction" %in% metricList){
+    print("Computing Reaction importance")
+    metrics$reaction <- ComputeReactionImportance(predictions = predictions, 
+                                                  analytehasreaction = analytehasreaction, 
+                                                  analyteNamesOut = analyteNamesOut,
+                                                  analyteNamesInd = analyteNamesInd, 
+                                                  source = source)
+  }
+  if("interactionpval" %in% metricList){
+    print("Computing Interaction Term p-Value importance")
+    metrics$interactionpval <- ComputePvalImportance(predictions = predictions, 
+                                                     modelStats = modelStats)
+  }
+  if("interactioncoef" %in% metricList){
+    print("Computing Interaction Coefficient importance")
+    metrics$interactioncoef <- ComputeInteractionCoefImportance(predictions = predictions, 
+                                                                modelStats = modelStats)
+  }
+  if("analytecoef" %in% metricList){
+    print("Computing Analyte Coefficient importance")
+    metrics$analytecoef <- ComputeAnalyteCoefImportance(predictions = predictions, 
+                                                        modelStats = modelStats)
   }
   
-  # Compress all.
-  allMetrics <- lapply(1:length(metrics[[1]]), function(i){
-    rearranged <- lapply(1:length(metrics), function(j){
-      return(metrics[[j]][[i]])
-    })
-    metricDf <- do.call(cbind, rearranged)
-    colnames(metricDf) <- metricList
-    rownames(metricDf) <- colnames(predictions)
-    return(metricDf)
-  })
-  names(allMetrics) <- rownames(predictions)
-  return(allMetrics)
+  return(metrics)
 }
 
 #' Finds and returns the distributional outliers for each sample.
@@ -153,14 +174,17 @@ ComputePDFImportance <- function(predictions, outliers){
       return(d$y[which.min(abs(d$x - pred))])
     }))
     
-    # Scale importance.
-    importance <- importance / sum(importance)
+    # Scale importance to be between 0 and 1.
+    importance <- importance / max(importance)
     
     # Return.
     cat(".")
     return(importance)
   })
-  return(importanceAll)
+  importance <- t(do.call(cbind, importanceAll))
+  rownames(importance) <- rownames(predictions)
+  colnames(importance) <- colnames(predictions)
+  return(importance)
 }
 
 # Function for obtaining prediction names.
@@ -238,15 +262,190 @@ ComputePathwayImportance <- function(predictions, analytehaspathway, analyteName
     return(retval)
   }))
   
-  # Compute the importance for each sample.
-  importanceAll <- lapply(1:nrow(predictions), function(samp){
+  # Make copies for each sample.
+  importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})
+  importanceFinal <- t(do.call(cbind, importanceAll))
+  rownames(importanceFinal) <- rownames(predictions)
+  colnames(importanceFinal) <- colnames(predictions)
+  return(importanceFinal)
+}
+
+#' Compute the importance using reaction membership. Predictor pairs that share
+#' at least one reaction have an importance of 1, and all others have an 
+#' importance of 0. Outliers are also set to 0.
+#' @param predictions Prediction data frame, where rows are samples, and
+#' columns are predictors.
+#' @param analytehasreaction A mapping from analytes to reactions. This
+#' mapping has two columns: RaMPID and PathID
+#' @param analyteNamesOut A data frame mapping the analyte identifier for the
+#' outcome analyte from the IntLIM model to an identifier that can be mapped
+#' to RaMP.
+#' @param analyteNamesInd A data frame mapping the analyte identifier for the
+#' independent variable analyte from the IntLIM model to an identifier that can be mapped
+#' to RaMP.
+#' @param source A data frame that maps analyte identifiers to RaMP internal
+#' identifiers.
+#' @param outliers A vector of outliers for each sample. Generated using 
+#' FindDistributionalOutliers().
+#' @return A list of vectors (one for each sample) with an importance metric.
+ComputeReactionImportance <- function(predictions, analytehasreaction, analyteNamesOut,
+                                     analyteNamesInd, source,
+                                     outliers){
+  
+  # Obtain names of predictors.
+  predNames <- GetPredictorRaMPNames(predictions, analyteNamesOut, source)
+  
+  # Measure importance for each predictor.
+  importance <- unlist(lapply(1:nrow(predNames), function(pair_i){
     
-    # Remove zeros.
-    importance[which(outliers[[samp]] == 0)] <- 0
-    cat(".")
-    return(importance)
-  })
-  return(importanceAll)
+    # Get gene and metabolite names.
+    gene <- predNames[pair_i,"gene"]
+    metab <- predNames[pair_i, "metab"]
+    
+    # Check whether any RaMP ID is NA.
+    retval <- 0
+    if(!is.na(gene) && !is.na(metab)){
+      
+      # Determine whether shared reaction occurs.
+      geneRxn <- analytehasreaction$tgtId[which(analytehasreaction$srcId == gene)]
+      whichTgtMatch <- which(analytehasreaction$tgtId == metab)
+      if(length(whichTgtMatch) > 0){
+        retval <- 1
+      }
+    }
+    return(retval)
+  }))
+  
+  # Make copies for each sample.
+  importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})
+  importanceFinal <- t(do.call(cbind, importanceAll))
+  rownames(importanceFinal) <- rownames(predictions)
+  colnames(importanceFinal) <- colnames(predictions)
+  return(importanceFinal)
+}
+
+#' Compute the importance using p-value of model interaction term. Specifically,
+#' the p-value percentile is calculated, and the weight is taken as 1 - the percentile,
+#' so that the lowest p-values are weighted more heavily.
+#' @param predictions Prediction data frame, where rows are samples, and
+#' columns are predictors.
+#' @param modelStats A data frame that includes the interaction p-values and
+#' interaction coefficients for each pair (such as the one output by IntLIM's
+#' ProcessResults function)
+#' @return A list of vectors (one for each sample) with an importance metric.
+ComputePvalImportance <- function(predictions, modelStats){
+  
+  # Measure importance for each predictor.
+  pvals <- unlist(lapply(colnames(predictions), function(predictor){
+    
+    # Get gene and metabolite names.
+    srcAnalyte <- strsplit(predictor, "__")[[1]][1]
+    tgtAnalyte <- strsplit(predictor, "__")[[1]][2]
+    
+    # Get p-value.
+    return(modelStats[intersect(which(modelStats$Analyte1 == srcAnalyte), 
+                                which(modelStats$Analyte2 == tgtAnalyte)),
+                      "FDRadjPval"])
+  }))
+  
+  # Get the p-value percentile over all pairs.
+  percentileVals <- seq(1, 100, by = 1) / 100
+  quantiles <- stats::quantile(pvals, percentileVals)
+  pvalPercentiles <- unlist(lapply(pvals, function(p){
+    pvec <- rep(p, length(quantiles))
+    which_match <- which.min(abs(pvec - quantiles))
+    return(percentileVals[which_match])
+  }))
+  importance <- 1 - pvalPercentiles
+  
+  # Make copies for each sample.
+  importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})
+  importanceFinal <- t(do.call(cbind, importanceAll))
+  rownames(importanceFinal) <- rownames(predictions)
+  colnames(importanceFinal) <- colnames(predictions)
+  return(importanceFinal)
+}
+
+#' Compute the importance using absolute value of interaction term coefficient. Specifically,
+#' the coefficient percentile is calculated and taken as the weight.
+#' @param predictions Prediction data frame, where rows are samples, and
+#' columns are predictors.
+#' @param modelStats A data frame that includes the interaction p-values and
+#' interaction coefficients for each pair (such as the one output by IntLIM's
+#' ProcessResults function)
+#' @return A list of vectors (one for each sample) with an importance metric.
+ComputeInteractionCoefImportance <- function(predictions, modelStats){
+  
+  # Measure importance for each predictor.
+  coefs <- unlist(lapply(colnames(predictions), function(predictor){
+    
+    # Get gene and metabolite names.
+    srcAnalyte <- strsplit(predictor, "__")[[1]][1]
+    tgtAnalyte <- strsplit(predictor, "__")[[1]][2]
+    
+    # Get coefficient.
+    return(modelStats[intersect(which(modelStats$Analyte1 == srcAnalyte), 
+                                which(modelStats$Analyte2 == tgtAnalyte)),
+                      "interaction_coeff"])
+  }))
+  
+  # Get the coefficient percentile over all pairs.
+  percentileVals <- seq(1, 100, by = 1) / 100
+  quantiles <- stats::quantile(abs(coefs), percentileVals)
+  coefPercentiles <- unlist(lapply(abs(coefs), function(c){
+    cvec <- rep(c, length(quantiles))
+    which_match <- which.min(abs(cvec - quantiles))
+    return(percentileVals[which_match])
+  }))
+  importance <- coefPercentiles
+  
+  # Make copies for each sample.
+  importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})
+  importanceFinal <- t(do.call(cbind, importanceAll))
+  rownames(importanceFinal) <- rownames(predictions)
+  colnames(importanceFinal) <- colnames(predictions)
+  return(importanceFinal)
+}
+
+#' Compute the importance using absolute value of analyte term coefficient. Specifically,
+#' the coefficient percentile is calculated and taken as the weight.
+#' @param predictions Prediction data frame, where rows are samples, and
+#' columns are predictors.
+#' @param modelStats A data frame that includes the interaction p-values,
+#' interaction coefficients, and other coefficients for each pair (such as the one output by IntLIM's
+#' ProcessResults function)
+#' @return A list of vectors (one for each sample) with an importance metric.
+ComputeAnalyteCoefImportance <- function(predictions, modelStats){
+  
+  # Measure importance for each predictor.
+  coefs <- unlist(lapply(colnames(predictions), function(predictor){
+    
+    # Get gene and metabolite names.
+    srcAnalyte <- strsplit(predictor, "__")[[1]][1]
+    tgtAnalyte <- strsplit(predictor, "__")[[1]][2]
+    
+    # Get coefficient.
+    return(modelStats[intersect(which(modelStats$Analyte1 == srcAnalyte), 
+                                which(modelStats$Analyte2 == tgtAnalyte)),
+                      "type"])
+  }))
+  
+  # Get the coefficient percentile over all pairs.
+  percentileVals <- seq(1, 100, by = 1) / 100
+  quantiles <- stats::quantile(abs(coefs), percentileVals)
+  coefPercentiles <- unlist(lapply(abs(coefs), function(c){
+    cvec <- rep(c, length(quantiles))
+    which_match <- which.min(abs(cvec - quantiles))
+    return(percentileVals[which_match])
+  }))
+  importance <- coefPercentiles
+  
+  # Make copies for each sample.
+  importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})
+  importanceFinal <- t(do.call(cbind, importanceAll))
+  rownames(importanceFinal) <- rownames(predictions)
+  colnames(importanceFinal) <- colnames(predictions)
+  return(importanceFinal)
 }
 
 #' Finds the optimal subspace clustering (i.e. using Grassmann Manifold Technique
@@ -419,29 +618,27 @@ ComputeLocalErrorImportance <- function(predictions, true, outliers, k,
     pred_local <- pred[knn,]
     
     # Error
-    trueVals <- matrix(rep(true[knn], length(pred_local)),
+    trueVals <- matrix(rep(true[knn], ncol(pred_local)),
                        nrow = length(knn),
                        ncol = ncol(pred_local))
-    trueVals <- trueVals[-samp,]
-    
+
     err <- abs(trueVals - pred_local)
     medErr <- unlist(lapply(1:ncol(err), function(c){
       return(stats::median(err[,c]))
     }))
     importance <- 1 / medErr
-    
-    # Remove outliers.
-    outliers <- which(outliers[[samp]] == 1)
-    importance[outliers] <- 0
 
-    # Scale importance.
-    importance <- importance / sum(importance)
+    # Scale importance to be between 0 and 1
+    importance <- importance / max(importance)
     
     # Return.
     cat(".")
     return(importance)
   })
-  return(importanceAll)
+  importanceFinal <- t(do.call(cbind, importanceAll))
+  rownames(importanceFinal) <- rownames(predictions)
+  colnames(importanceFinal) <- colnames(predictions)
+  return(importanceFinal)
 }
 
 #' Computes the importance as the median absolute error for all predictors
@@ -472,10 +669,6 @@ ComputeGlobalErrorImportance <- function(predictions, true, outliers){
     }))
     importance <- 1 / medErr
     
-    # Remove outliers.
-    outliers <- which(outliers[[samp]] == 1)
-    importance[outliers] <- 0
-    
     # Scale importance.
     importance <- importance / sum(importance)
     
@@ -483,5 +676,8 @@ ComputeGlobalErrorImportance <- function(predictions, true, outliers){
     cat(".")
     return(importance)
   })
-  return(importanceAll)
+  importanceFinal <- t(do.call(cbind, importanceAll))
+  rownames(importanceFinal) <- rownames(predictions)
+  colnames(importanceFinal) <- colnames(predictions)
+  return(importanceFinal)
 }
