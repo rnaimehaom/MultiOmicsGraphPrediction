@@ -114,7 +114,7 @@ myres.r2 <- IntLIM::ProcessResults(inputResults = myres, inputData = inputDataTr
                                        pvalcutoff = 1, rsquaredCutoff = peak.r2)
 # Build graph.
 coreg.r2 <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2)
-MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2, "", saveInFile = NULL, vertices = NULL, includeLabels = FALSE)
+MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2, "", saveInFile = NULL, vertices = NULL)
 ```
 
 # Check Stats of "Positive Control" Pairs.
@@ -129,7 +129,6 @@ pairs_of_interest <- paste(genes_of_interest, metabolites_of_interest, sep = "__
 myres.all <- IntLIM::ProcessResults(inputResults = myres, inputData = inputDataTrain, 
                                        pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
 myres.pairs <- myres.all[pairs_of_interest,]
-View(myres.pairs)
 plot(density(myres.pairs$interaction_coeff))
 lines(density(myres.all$interaction_coeff), col = "red")
 
@@ -175,24 +174,23 @@ MultiOmicsGraphPrediction::PlotGraphPredictions(graph = projectedGraph,
 Future considerations: outcome coefficient, intercept term (we want this to be low).
 
 We assume RaMP has already been installed and that a MySQL version of the RaMP package exists on the user's machine.
+__colIdInd__ and __colIdOut__ denote the columns of the analyte metadata that contain the source ID's to input to RaMP.
 ```{r importance}
 # Format the pathway-related files appropriately.
 colnames(analytehaspathway) <- c("RaMPID", "PathID", "database")
 #colnames(reaction) <- c("srcId", "tgtId")
-metabMeta <- read.csv(file.path(dir, "fData.metab.nci60.csv"), row.names = 1)
 colnames(source) <- c("SourceID", "RaMPID", "source", "type", "commonName", "HMDB_status", "source2")
 #MultiOmicsGraphPrediction::PlotSubspaceClusteringDendrogram(inputData = inputDataTrain, eigStep = 1)
 #MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputDataTrain, eigStep = 1)
+mysql_password <- unlist(unname(read.csv("mysql_pw.txt", header = FALSE)))
 importance <- MultiOmicsGraphPrediction::GetAllImportanceMetrics(predictions = pred, 
                                                                  stype = "drug5FU",
                                                                  inputData = inputDataTrain, 
-                                                                 metricList = c("pdf", "interactionpval", "interactioncoef", "pathway", "analytecoef", "localerr"),
+                                                                 metricList = c("pdf", "interactionpval", "interactioncoef", "pathway", "reaction", "analytecoef", "localerr"),
                                                                  k = 2, eigStep = 1,
-                                                                 analytehaspathway = analytehaspathway,
-                                                                 reaction = reaction,
-                                                                 analyteNamesOut = metabMeta,
                                                                  modelStats = myres.r2,
-                                                                 source = source)
+                                                                 colIdInd = "databaseId",
+                                                                 colIdOut = "databaseId")
 ```
 
 ## Create Model Input

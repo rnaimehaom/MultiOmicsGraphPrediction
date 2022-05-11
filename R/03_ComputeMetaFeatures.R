@@ -17,21 +17,21 @@
 #' @param alphaMax The highest value of alpha to investigate in localerr. Default = 1.
 #' @param alphaStep The value of alpha to step by during the evaluation in localerr.
 #' Default = 0.1.
-#' @param analytehaspathway A mapping from analytes to pathways. This
-#' mapping has two columns: RaMPID and PathID. Used in pathway importance.
-#' @param reaction A list of analyte pairs with two columns: srcId and tgtId.
 #' @param analyteNamesOut A data frame mapping the analyte identifier for the
 #' outcome analyte from the IntLIM model to an identifier that can be mapped
 #' to RaMP. Used in pathway importance.
 #' @param analyteNamesInd A data frame mapping the analyte identifier for the
 #' independent variable analyte from the IntLIM model to an identifier that can be mapped
 #' to RaMP. Used in pathway importance.
-#' @param source A data frame that maps analyte identifiers to RaMP internal
-#' identifiers.
 #' @param modelStats A data frame that includes the interaction p-values and
 #' interaction coefficients for each pair (such as the one output by IntLIM's
 #' ProcessResults function)
 #' @param stype Phenotype or outcome to use in models.
+#' @param colIdInd The ID of the column that has the analyte ID's for the
+#' independent variable. If blank, then the existing ID's are used.
+#' @param colIdOut The ID of the column that has the analyte ID's for the
+#' outcome variable. If blank, then the existing ID's are used.
+#' @param password The MySQL password for the user.
 #' @return A list of data frames (one for each sample) with predictor importance
 #' measured according to the listed criteria (one column per metric, one row
 #' per predictor).
@@ -49,12 +49,12 @@ GetAllImportanceMetrics <- function(predictions, inputData,
                                        alphaMin = 0,
                                        alphaMax = 1, 
                                        alphaStep = 0.1,
-                                       analytehaspathway = "",
-                                       reaction = "",
                                        analyteNamesOut = "",
-                                       analyteNamesInd = "", 
-                                       source = "",
-                                    stype = ""){
+                                       analyteNamesInd = "",
+                                    stype = "",
+                                    colIdInd = "",
+                                    colIdOut = "",
+                                    password = ""){
   # Find all outliers.
   outliers <- FindDistributionalOutliers(predictions = predictions, 
                                          lowerPercentileLimit = lowerPercentileLimit,
@@ -88,18 +88,18 @@ GetAllImportanceMetrics <- function(predictions, inputData,
   if("pathway" %in% metricList){
     print("Computing Pathway importance")
     metrics$pathway <- ComputePathwayImportance(predictions = predictions, 
-                                                analytehaspathway = analytehaspathway, 
-                                                analyteNamesOut = analyteNamesOut,
-                                                analyteNamesInd = analyteNamesInd, 
-                                                source = source)
+                                                inputData = inputData,
+                                                colIdInd = colIdInd,
+                                                colIdOut = colIdOut, 
+                                                password = password)
   }
   if("reaction" %in% metricList){
     print("Computing Reaction importance")
     metrics$reaction <- ComputeReactionImportance(predictions = predictions, 
-                                                  analytehasreaction = analytehasreaction, 
-                                                  analyteNamesOut = analyteNamesOut,
-                                                  analyteNamesInd = analyteNamesInd, 
-                                                  source = source)
+                                                  inputData = inputData,
+                                                  colIdInd = colIdInd,
+                                                  colIdOut = colIdOut, 
+                                                  password = password)
   }
   if("interactionpval" %in% metricList){
     print("Computing Interaction Term p-Value importance")
@@ -187,32 +187,40 @@ ComputePDFImportance <- function(predictions, outliers){
   return(importance)
 }
 
-# Function for obtaining prediction names.
-#' @param source A data frame that maps analyte identifiers to RaMP internal
-#' identifiers.
-GetPredictorRaMPNames <- function(preds, analyteMappingsType1, source){
+#' Function for obtaining database identifiers for each predictor.
+#' @param predictions Prediction data frame, where rows are samples, and
+#' columns are predictors.
+#' @param inputData Input data, which may include database ID mappings for
+#' the analytes.
+#' @param colIdInd The ID of the column that has the analyte ID's for the
+#' independent variable. If blank, then the existing ID's are used.
+#' @param colIdOut The ID of the column that has the analyte ID's for the
+#' outcome variable. If blank, then the existing ID's are used.
+GetPredictorIDs <- function(preds, inputData, colIdInd, colIdOut){
   # Get prediction names.
-  geneNames <- unlist(lapply(colnames(preds), function(pair){
+  indAnalytes <- unlist(lapply(colnames(preds), function(pair){
     return(strsplit(pair, "__")[[1]][1])
   }))
-  metabNames <- unlist(lapply(colnames(preds), function(pair){
+  outAnalytes <- unlist(lapply(colnames(preds), function(pair){
     return(strsplit(pair, "__")[[1]][2])
   }))
   
   # Map to source ID.
-  metabId <- analyteMappingsType1[metabNames, "databaseId"]
-  geneId <- paste0("gene_symbol:", geneNames)
-  
-  # Map to RaMP ID.
-  geneRampId <- unlist(lapply(geneId, function(id){
-    return(source$RaMPID[which(source$SourceID == id)][1])
-  }))
-  metabRampId <- unlist(lapply(metabId, function(id){
-    return(source$RaMPID[which(source$SourceID == id)][1])
-  }))
+  indId <- indAnalytes
+  outId <- outAnalytes
+  if(length(inputData@analyteType1MetaData) > 0 && colIdInd != "" && indAnalytes[[1]] %in% rownames(inputData@analyteType1MetaData)){
+    indId <- inputData@analyteType1MetaData[indAnalytes, colIdInd]
+  }else if(length(inputData@analyteType2MetaData) > 0 && colIdInd != "" && indAnalytes[[1]] %in% rownames(inputData@analyteType2MetaData)){
+    indId <- inputData@analyteType2MetaData[indAnalytes, colIdInd]
+  }
+  if(length(inputData@analyteType1MetaData) > 0 && colIdOut != "" && outAnalytes[[1]] %in% rownames(inputData@analyteType1MetaData)){
+    outId <- inputData@analyteType1MetaData[outAnalytes, colIdOut]
+  }else if(length(inputData@analyteType2MetaData) > 0 && colIdOut != "" && outAnalytes[[1]] %in% rownames(inputData@analyteType2MetaData)){
+    outId <- inputData@analyteType2MetaData[outAnalytes, colIdOut]
+  }
   
   # Return data frame.
-  return(data.frame(gene = geneRampId, metab = metabRampId))
+  return(data.frame(indId = indId, outId = outId))
 }
 
 #' Compute the importance using pathway membership. Predictor pairs that share
@@ -220,47 +228,35 @@ GetPredictorRaMPNames <- function(preds, analyteMappingsType1, source){
 #' importance of 0. Outliers are also set to 0.
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
-#' @param analytehaspathway A mapping from analytes to pathways. This
-#' mapping has two columns: RaMPID and PathID
-#' @param analyteNamesOut A data frame mapping the analyte identifier for the
-#' outcome analyte from the IntLIM model to an identifier that can be mapped
-#' to RaMP.
-#' @param analyteNamesInd A data frame mapping the analyte identifier for the
-#' independent variable analyte from the IntLIM model to an identifier that can be mapped
-#' to RaMP.
-#' @param source A data frame that maps analyte identifiers to RaMP internal
-#' identifiers.
-#' @param outliers A vector of outliers for each sample. Generated using 
-#' FindDistributionalOutliers().
+#' @param inputData Input data, which may include database ID mappings for
+#' the analytes.
+#' @param colIdInd The ID of the column that has the analyte ID's for the
+#' independent variable. If blank, then the existing ID's are used.
+#' @param colIdOut The ID of the column that has the analyte ID's for the
+#' outcome variable. If blank, then the existing ID's are used.
+#' @param password The MySQL password for the user.
 #' @return A list of vectors (one for each sample) with an importance metric.
-ComputePathwayImportance <- function(predictions, analytehaspathway, analyteNamesOut,
-                                     analyteNamesInd, source,
-                                     outliers){
+ComputePathwayImportance <- function(predictions, inputData, colIdInd,
+                                     colIdOut, password){
   
   # Obtain names of predictors.
-  predNames <- GetPredictorRaMPNames(predictions, analyteNamesOut, source)
-  
-  # Measure importance for each predictor.
-  importance <- unlist(lapply(1:nrow(predNames), function(pair_i){
-    
-    # Get gene and metabolite names.
-    gene <- predNames[pair_i,"gene"]
-    metab <- predNames[pair_i, "metab"]
-    
-    # Check whether any RaMP ID is NA.
-    retval <- 0
-    if(!is.na(gene) && !is.na(metab)){
-      
-      # Determine whether shared pathway occurs.
-      genePathways <- analytehaspathway$PathID[which(analytehaspathway$RaMPID == gene)]
-      metabPathways <- analytehaspathway$PathID[which(analytehaspathway$RaMPID == metab)]
-      intersect <- intersect(genePathways, metabPathways)
-      if(length(intersect) > 0){
-        retval <- 1
-      }
+  predNames <- GetPredictorIDs(predictions, inputData, colIdInd, colIdOut)
+
+  # Find which pairs share pathways.
+  pkg.globals <- RaMP::setConnectionToRaMP(dbname = "ramp", username = "root", conpass = password,
+                                     host = "localhost")
+  sharesPathway <- unlist(lapply(1:nrow(predNames), function(i){
+    shares <- FALSE
+    pwayResult <- RaMP::getPathwayFromAnalyte(c(predNames[i,"indId"], predNames[i,"outId"]))
+    pwayResultInd <- pwayResult$pathwayId[which(pwayResult$inputId == predNames[i,"indId"])]
+    pwayResultOut <- pwayResult$pathwayId[which(pwayResult$inputId == predNames[i,"outId"])]
+    if(length(intersect(pwayResultInd, pwayResultOut)) > 0){
+      shares <- TRUE
     }
-    return(retval)
+    return(shares)
   }))
+  importance <- rep(0, length(sharesPathway))
+  importance[which(sharesPathway == TRUE)] <- 1
   
   # Make copies for each sample.
   importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})
@@ -275,46 +271,38 @@ ComputePathwayImportance <- function(predictions, analytehaspathway, analyteName
 #' importance of 0. Outliers are also set to 0.
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
-#' @param analytehasreaction A mapping from analytes to reactions. This
-#' mapping has two columns: RaMPID and PathID
-#' @param analyteNamesOut A data frame mapping the analyte identifier for the
-#' outcome analyte from the IntLIM model to an identifier that can be mapped
-#' to RaMP.
-#' @param analyteNamesInd A data frame mapping the analyte identifier for the
-#' independent variable analyte from the IntLIM model to an identifier that can be mapped
-#' to RaMP.
-#' @param source A data frame that maps analyte identifiers to RaMP internal
-#' identifiers.
-#' @param outliers A vector of outliers for each sample. Generated using 
-#' FindDistributionalOutliers().
+#' @param inputData Input data, which may include database ID mappings for
+#' the analytes.
+#' @param colIdInd The ID of the column that has the analyte ID's for the
+#' independent variable. If blank, then the existing ID's are used.
+#' @param colIdOut The ID of the column that has the analyte ID's for the
+#' outcome variable. If blank, then the existing ID's are used.
+#' @param password The MySQL password for the user.
 #' @return A list of vectors (one for each sample) with an importance metric.
-ComputeReactionImportance <- function(predictions, analytehasreaction, analyteNamesOut,
-                                     analyteNamesInd, source,
-                                     outliers){
-  
+#' @return A list of vectors (one for each sample) with an importance metric.
+ComputeReactionImportance <- function(predictions, inputData, colIdInd,
+                                      colIdOut, password){
   # Obtain names of predictors.
-  predNames <- GetPredictorRaMPNames(predictions, analyteNamesOut, source)
+  predNames <- GetPredictorIDs(predictions, inputData, colIdInd, colIdOut)
   
-  # Measure importance for each predictor.
-  importance <- unlist(lapply(1:nrow(predNames), function(pair_i){
-    
-    # Get gene and metabolite names.
-    gene <- predNames[pair_i,"gene"]
-    metab <- predNames[pair_i, "metab"]
-    
-    # Check whether any RaMP ID is NA.
-    retval <- 0
-    if(!is.na(gene) && !is.na(metab)){
-      
-      # Determine whether shared reaction occurs.
-      geneRxn <- analytehasreaction$tgtId[which(analytehasreaction$srcId == gene)]
-      whichTgtMatch <- which(analytehasreaction$tgtId == metab)
-      if(length(whichTgtMatch) > 0){
-        retval <- 1
+  # Find which pairs share reactions.
+  pkg.globals <- RaMP::setConnectionToRaMP(dbname = "ramp", username = "root", conpass = password,
+                                           host = "localhost")
+  sharesRxn <- unlist(lapply(1:nrow(predNames), function(i){
+    shares <- FALSE
+    tryCatch({
+      rxnResult <- rampFastCata(predNames[i,"outId"])$rxn_partner_ids
+      rxnResultAll <- unlist(lapply(rxnResult, function(res){
+        return(strsplit(res, "; ")[[1]])
+      }))
+      if(predNames[i,"indId"] %in% rxnResultAll){
+        shares <- TRUE
       }
-    }
-    return(retval)
+    }, error = function(cond){})
+    return(shares)
   }))
+  importance <- rep(0, length(sharesRxn))
+  importance[which(sharesRxn == TRUE)] <- 1
   
   # Make copies for each sample.
   importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})

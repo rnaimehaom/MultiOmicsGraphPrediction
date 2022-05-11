@@ -1,6 +1,0 @@
-type,filenames
-analyteType1,metabDataNCI60.train.csv
-analyteType2,geneDataNCI60.train.csv
-analyteType1MetaData,fData.metab.nci60.csv
-analyteType2MetaData,fData.gene.nci60.csv
-sampleMetaData,pData.nci60.train.csv

@@ -18,8 +18,10 @@ Imports:
 	graphics,
 	grDevices,
 	igraph,
+	IntLIM,
 	MASS,
 	methods,
+	RaMP,
 	reshape2,
 	stats
 Suggests:

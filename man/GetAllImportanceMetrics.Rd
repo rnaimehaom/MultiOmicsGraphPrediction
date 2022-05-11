@@ -17,12 +17,12 @@ GetAllImportanceMetrics(
   alphaMin = 0,
   alphaMax = 1,
   alphaStep = 0.1,
-  analytehaspathway = "",
-  reaction = "",
   analyteNamesOut = "",
   analyteNamesInd = "",
-  source = "",
-  stype = ""
+  stype = "",
+  colIdInd = "",
+  colIdOut = "",
+  password = ""
 )
 }
 \arguments{
@@ -58,11 +58,6 @@ Note that this must be less than the number of samples in localerr. Default = 10
 \item{alphaStep}{The value of alpha to step by during the evaluation in localerr.
 Default = 0.1.}
 
-\item{analytehaspathway}{A mapping from analytes to pathways. This
-mapping has two columns: RaMPID and PathID. Used in pathway importance.}
-
-\item{reaction}{A list of analyte pairs with two columns: srcId and tgtId.}
-
 \item{analyteNamesOut}{A data frame mapping the analyte identifier for the
 outcome analyte from the IntLIM model to an identifier that can be mapped
 to RaMP. Used in pathway importance.}
@@ -71,10 +66,15 @@ to RaMP. Used in pathway importance.}
 independent variable analyte from the IntLIM model to an identifier that can be mapped
 to RaMP. Used in pathway importance.}
 
-\item{source}{A data frame that maps analyte identifiers to RaMP internal
-identifiers.}
-
 \item{stype}{Phenotype or outcome to use in models.}
+
+\item{colIdInd}{The ID of the column that has the analyte ID's for the
+independent variable. If blank, then the existing ID's are used.}
+
+\item{colIdOut}{The ID of the column that has the analyte ID's for the
+outcome variable. If blank, then the existing ID's are used.}
+
+\item{password}{The MySQL password for the user.}
 }
 \value{
 A list of data frames (one for each sample) with predictor importance

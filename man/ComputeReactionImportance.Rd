@@ -6,37 +6,26 @@
 at least one reaction have an importance of 1, and all others have an 
 importance of 0. Outliers are also set to 0.}
 \usage{
-ComputeReactionImportance(
-  predictions,
-  analytehasreaction,
-  analyteNamesOut,
-  analyteNamesInd,
-  source,
-  outliers
-)
+ComputeReactionImportance(predictions, inputData, colIdInd, colIdOut, password)
 }
 \arguments{
 \item{predictions}{Prediction data frame, where rows are samples, and
 columns are predictors.}
 
-\item{analytehasreaction}{A mapping from analytes to reactions. This
-mapping has two columns: RaMPID and PathID}
+\item{inputData}{Input data, which may include database ID mappings for
+the analytes.}
 
-\item{analyteNamesOut}{A data frame mapping the analyte identifier for the
-outcome analyte from the IntLIM model to an identifier that can be mapped
-to RaMP.}
+\item{colIdInd}{The ID of the column that has the analyte ID's for the
+independent variable. If blank, then the existing ID's are used.}
 
-\item{analyteNamesInd}{A data frame mapping the analyte identifier for the
-independent variable analyte from the IntLIM model to an identifier that can be mapped
-to RaMP.}
+\item{colIdOut}{The ID of the column that has the analyte ID's for the
+outcome variable. If blank, then the existing ID's are used.}
 
-\item{source}{A data frame that maps analyte identifiers to RaMP internal
-identifiers.}
-
-\item{outliers}{A vector of outliers for each sample. Generated using 
-FindDistributionalOutliers().}
+\item{password}{The MySQL password for the user.}
 }
 \value{
+A list of vectors (one for each sample) with an importance metric.
+
 A list of vectors (one for each sample) with an importance metric.
 }
 \description{

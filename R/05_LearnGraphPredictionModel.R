@@ -117,6 +117,7 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
       # Update weights and gradient in the model results according to the
       # results of this sample.
       modelResults@current.importance.weights <- newModelResults@current.importance.weights
+      print(modelResults@current.importance.weights)
       modelResults@previous.importance.weights <- newModelResults@previous.importance.weights
       modelResults@current.gradient <- newModelResults@current.gradient
       modelResults@outcome.prediction <- newModelResults@outcome.prediction

@@ -22,10 +22,6 @@ if(!require("MultiOmicsGraphPrediction")){
   install_github("ncats/MultiOmicsGraphPrediction")
 }
 library(MultiOmicsGraphPrediction)
-if(!require("IntLIM")){
-  install_github("ncats/IntLIM")
-}
-library(IntLIM)
 ```
 
 # Filter metabolites and genes.
@@ -71,6 +67,7 @@ rownames(drug_responses) <- rownames(drug_responses_trimmed)
 metabs <- read.csv("/Volumes/eichertd$/IntLIM_vignette_code/IntLIMVignettes/NCI60_data/metabData.csv", row.names = 1)
 genes <- read.csv("/Volumes/eichertd$/IntLIM_vignette_code/IntLIMVignettes/NCI60_data/geneData.csv", row.names = 1)
 pdata <- read.csv("/Volumes/eichertd$/IntLIM_vignette_code/IntLIMVignettes/NCI60_data/pData.csv", row.names = 1)
+fdata <- read.csv("/Volumes/eichertd$/IntLIM_vignette_code/IntLIMVignettes/NCI60_data/fData.metab.csv", row.names = 1)
 row.names(pdata) <- make.names(row.names(pdata))
 
 # Take subset of 5-FU data.
@@ -149,11 +146,11 @@ genes_of_interest <- c("FURIN", "UMPS", "UPP1", "UPP2", "UCK1", "RRM2", "TYMS",
 
 # Plot analyte pairs.
 for(i in 1:length(metabolites_of_interest)){
-  plot(y = metabs[metabolites_of_interest[i], shared_samps], x = pdata$drug5FU, na.rm = TRUE, 
+  plot(y = metabs[metabolites_of_interest[i], shared_samps], x = pdata$drug5FU, 
        ylab = metabolites_of_interest[i], xlab = "Mean Tegafur Score")
 }
 for(i in 1:length(genes_of_interest)){
-  plot(y = genes[genes_of_interest[i], shared_samps], x = pdata$drug5FU, na.rm = TRUE, 
+  plot(y = genes[genes_of_interest[i], shared_samps], x = pdata$drug5FU, 
        ylab = genes_of_interest[i], xlab = "Mean Tegafur Score")
 }
 ```
@@ -180,11 +177,19 @@ csvtest <- pdata[41:51,]
 write.csv(csvtrain, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/pData5FU_NCI60.train.csv")
 write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/pData5FU_NCI60.test.csv")
 
+# Filter fdata.
+fdataFilt <- fdata[metabolites_of_interest,]
+rownames(fdataFilt) <- make.names(rownames(fdataFilt))
+write.csv(fdataFilt, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/fDataMetab5FU_NCI60.csv")
+fdataGenes <- data.frame(id = genes_of_interest, databaseId = paste("gene_symbol", genes_of_interest, sep = ":"))
+rownames(fdataGenes) <- make.names(genes_of_interest)
+write.csv(fdataGenes, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/fDataGene5FU_NCI60.csv")
+
 # Write reference file.
 refdata.train <- data.frame(type = c("analyteType2", "analyteType1", "analyteType2MetaData", "analyteType1MetaData", "sampleMetaData"),
-                      filenames = c("metabData5FU_NCI60.train.csv", "geneData5FU_NCI60.train.csv", "", "", "pData5FU_NCI60.train.csv"))
+                      filenames = c("metabData5FU_NCI60.train.csv", "geneData5FU_NCI60.train.csv", "fDataMetab5FU_NCI60.csv", "fDataGene5FU_NCI60.csv", "pData5FU_NCI60.train.csv"))
 refdata.test <- data.frame(type = c("analyteType2", "analyteType1", "analyteType2MetaData", "analyteType1MetaData", "sampleMetaData"),
-                      filenames = c("metabData5FU_NCI60.test.csv", "geneData5FU_NCI60.test.csv", "", "", "pData5FU_NCI60.test.csv"))
+                      filenames = c("metabData5FU_NCI60.test.csv", "geneData5FU_NCI60.test.csv", "fDataMetab5FU_NCI60.csv", "fDataGene5FU_NCI60.csv", "pData5FU_NCI60.test.csv"))
 write.csv(refdata.train, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/nci60_5FU.train.csv", row.names = FALSE)
 write.csv(refdata.test, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/nci60_5FU.test.csv", row.names = FALSE)
 ```
