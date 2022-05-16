@@ -88,9 +88,10 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
   
   # Repeat the training process for all iterations, until the maximum is reached
   # or until convergence.
-  str(modelResults@convergence.cutoff)
+  sequential_convergence_count <- 0
+  sequential_count_limit <- 5
   while(modelResults@current.iteration < (modelResults@max.iterations - 1)
-        && (weight.delta > modelResults@convergence.cutoff)){
+        && (sequential_convergence_count < sequential_count_limit)){
     # For stochastic training, permute the samples, then compute the gradient one
     # sample at a time.
     perm_samples <- sample(1:nrow(modelResults@model.input@node.wise.prediction),
@@ -117,7 +118,6 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
       # Update weights and gradient in the model results according to the
       # results of this sample.
       modelResults@current.importance.weights <- newModelResults@current.importance.weights
-      print(modelResults@current.importance.weights)
       modelResults@previous.importance.weights <- newModelResults@previous.importance.weights
       modelResults@current.gradient <- newModelResults@current.gradient
       modelResults@outcome.prediction <- newModelResults@outcome.prediction
@@ -154,6 +154,13 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
       print(paste("iteration", modelResults@current.iteration, ": weight delta is", weight.delta,
                   "and error is", paste0(currentError, ". Subgraph sizes are ", 
                   paste(prunedModelSizes, collapse = ", "))))
+    }
+    
+    # Increment the number of convergent iterations if applicable.
+    if(weight.delta < modelResults@convergence.cutoff){
+      sequential_convergence_count = sequential_convergence_count + 1
+    }else{
+      sequential_convergence_count = 0
     }
   }
   # If we exited before the maximum number of iterations, remove the rest of the
