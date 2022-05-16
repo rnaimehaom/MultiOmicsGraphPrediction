@@ -18,7 +18,7 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
   # Reference for the optimization algorithms: https://arxiv.org/abs/1609.04747
   modelResults@previous.importance.weights <- modelResults@current.importance.weights
   if(modelResults@optimization.type == "SGD"){
-    # Batch Gradient Descent
+    # Stochastic Gradient Descent
     modelResults@current.importance.weights <- modelResults@previous.importance.weights - 
       modelResults@learning.rate * modelResults@current.gradient
   }else if(modelResults@optimization.type == "momentum"){
@@ -64,6 +64,12 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
     modelResults@current.importance.weights <- modelResults@previous.importance.weights - 
       (modelResults@learning.rate * update)
   }
+  
+  # Clip the weights to be between 0 and 1.
+  modelResults@current.importance.weights[which(modelResults@current.importance.weights < 0)] <- 0
+  modelResults@current.importance.weights[which(modelResults@current.importance.weights > 1)] <- 1
+  
+  # Update the weights for this iteration.
   modelResults@iteration.tracking[modelResults@current.iteration+1,
                                   which(grepl("Weight", 
                                               colnames(modelResults@iteration.tracking)))] <- modelResults@current.importance.weights
@@ -254,6 +260,7 @@ computeGradient <- function(modelResults, prunedModels){
     })
     subgraphDerivDF <- do.call(rbind, subgraphDeriv)
     derivOverSubgraphs <- colMeans(subgraphDerivDF)
+    
 
     # If data are categorical, compute the derivative of the activation function.
     derivPredByAct <- 1
@@ -263,10 +270,14 @@ computeGradient <- function(modelResults, prunedModels){
     return(PhatDeriv * derivPredByAct * derivOverSubgraphs)
   })
   sampGradientsDF <- do.call(rbind, sampGradients)
-  gradients <- colSums(sampGradientsDF)
+  gradientsUnscaled <- colSums(sampGradientsDF)
+  
+  # Scale the gradients to be unitary.
+  magnitude <- sqrt(sum(gradientsUnscaled ^ 2))
+  gradients <- gradientsUnscaled / magnitude
   
   # Return the derivative.
-  return(gradients)
+  return(-1 * gradients)
 }
 
 #' Compute the D-hat value, which is the denominator value of the composite prediction
