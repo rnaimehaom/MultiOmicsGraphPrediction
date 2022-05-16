@@ -99,7 +99,9 @@ CompositePrediction <- function(pairs, modelResults){
   }
   
   # Final value.
-  final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / (weighted_sum_b2 + weighted_sum_b3)
+  denom <- weighted_sum_b2 + weighted_sum_b3
+  denom[which(denom == 0)] <- 0.0001
+  final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
   return(final_val)
 }
 
