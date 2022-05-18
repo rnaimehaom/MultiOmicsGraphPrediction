@@ -180,13 +180,18 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
 DoPrediction <- function(modelResults, prunedModels){
   
   # Obtain prediction for each composite model.
-  predictions <- as.data.frame(lapply(prunedModels, function(model){
-    return(CompositePrediction(pairs = model, modelResults = modelResults))
-  }))
-  predictionsDF <- do.call(rbind, predictions)
+  predictions <- lapply(1:length(prunedModels), function(i){
+    model <- prunedModels[[i]]
+    composite <- CompositePrediction(pairs = model, modelResults = modelResults)
+    compositeDF <- as.data.frame(composite)
+    colnames(compositeDF) <- i
+    rownames(compositeDF) <- names(composite)
+    return(compositeDF)
+  })
+  predictionsDF <- do.call(cbind, predictions)
 
   # Average the predictions to obtain the final prediction.
-  Y.pred <- colMeans(predictionsDF)
+  Y.pred <- rowMeans(predictionsDF)
 
   # Use activation function if output is of a character type. Note that all character
   # types are converted into factors, and since only binary factors are accepted by

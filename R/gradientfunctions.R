@@ -8,6 +8,16 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
   # Calculate gradient.
   gradient <- computeGradient(modelResults = modelResults, prunedModels = prunedModels)
   
+  # Set previous weights.
+  prevWeights <- modelResults@current.importance.weights
+  
+  # Clip the gradient so that weights range between 0 and 1 even if full gradient is used.
+  weightsWithFullGradient <- prevWeights - gradient
+  weightsBelow <- which(weightsWithFullGradient < 0)
+  weightsAbove <- which(weightsWithFullGradient > 1)
+  gradient[weightsBelow] <- prevWeights[weightsBelow]
+  gradient[weightsAbove] <- prevWeights[weightsAbove] - 1
+
   # Update gradient.
   modelResults@current.gradient <- as.matrix(gradient)
   modelResults@iteration.tracking[modelResults@current.iteration+1,
@@ -16,11 +26,14 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
   
   # Set current weights, previous weights, and gradient.
   # Reference for the optimization algorithms: https://arxiv.org/abs/1609.04747
-  modelResults@previous.importance.weights <- modelResults@current.importance.weights
   if(modelResults@optimization.type == "SGD"){
+    
     # Stochastic Gradient Descent
-    modelResults@current.importance.weights <- modelResults@previous.importance.weights - 
+    modelResults@current.importance.weights <- prevWeights - 
       modelResults@learning.rate * modelResults@current.gradient
+    
+    # Set the new weights and gradient.
+    
   }else if(modelResults@optimization.type == "momentum"){
     # Momentum
     gamma <- 0.9
@@ -29,7 +42,7 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
     if(modelResults@current.iteration == 1){
       update.vec <- modelResults@learning.rate * modelResults@current.gradient
     }
-    modelResults@current.importance.weights <- modelResults@previous.importance.weights - update.vec
+    modelResults@current.importance.weights <- prevWeights - update.vec
     modelResults@previous.update.vector <- update.vec
   }else if(modelResults@optimization.type == "adagrad"){
     # Adagrad
@@ -39,7 +52,7 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
     if(modelResults@current.iteration == 1){
       update.vec <- modelResults@learning.rate * modelResults@current.gradient
     }
-    modelResults@current.importance.weights <- modelResults@previous.importance.weights - update.vec
+    modelResults@current.importance.weights <- prevWeights - update.vec
     modelResults@sum.square.gradients <- modelResults@sum.square.gradients +
       (modelResults@current.gradient^2)
   }else if(modelResults@optimization.type == "adam"){
@@ -54,20 +67,16 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
     m.hat <- m / (1 - (beta1)^modelResults@current.iteration)
     v.hat <- v / (1 - (beta2)^modelResults@current.iteration)
     update.vec <- (modelResults@learning.rate * m.hat) / (sqrt(v.hat)+epsilon)
-    modelResults@current.importance.weights <- modelResults@previous.importance.weights - update.vec
+    modelResults@current.importance.weights <- prevWeights - update.vec
     modelResults@previous.momentum <- m
     modelResults@previous.update.vector <- v
   }else if(modelResults@optimization.type == "newton"){
     # Calculate Hessian and update weights.
     hessian <- computeHessianSingleLayer(modelResults, convolution, pooling)
     update <- MASS::ginv(hessian) %*% modelResults@current.gradient
-    modelResults@current.importance.weights <- modelResults@previous.importance.weights - 
+    modelResults@current.importance.weights <- prevWeights - 
       (modelResults@learning.rate * update)
   }
-  
-  # Clip the weights to be between 0 and 1.
-  modelResults@current.importance.weights[which(modelResults@current.importance.weights < 0)] <- 0
-  modelResults@current.importance.weights[which(modelResults@current.importance.weights > 1)] <- 1
   
   # Update the weights for this iteration.
   modelResults@iteration.tracking[modelResults@current.iteration+1,
@@ -270,11 +279,11 @@ computeGradient <- function(modelResults, prunedModels){
     return(PhatDeriv * derivPredByAct * derivOverSubgraphs)
   })
   sampGradientsDF <- do.call(rbind, sampGradients)
-  gradientsUnscaled <- colSums(sampGradientsDF)
+  gradients <- colSums(sampGradientsDF)
   
   # Scale the gradients to be unitary.
-  magnitude <- sqrt(sum(gradientsUnscaled ^ 2))
-  gradients <- gradientsUnscaled / magnitude
+  #magnitude <- sqrt(sum(gradientsUnscaled ^ 2))
+  #gradients <- gradientsUnscaled / magnitude
   
   # Return the derivative.
   return(-1 * gradients)

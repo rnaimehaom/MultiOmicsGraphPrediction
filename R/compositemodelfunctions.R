@@ -102,6 +102,8 @@ CompositePrediction <- function(pairs, modelResults){
   denom <- weighted_sum_b2 + weighted_sum_b3
   denom[which(denom == 0)] <- 0.0001
   final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
+  names(final_val) <- colnames(analyte1Vals)
+
   return(final_val)
 }
 
@@ -387,11 +389,12 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
 #' @return A weight matrix for each sample and each predictor.
 #' @export
 ComputeImportanceWeights <- function(modelResults){
-  importanceWeights <- modelResults@current.importance.weights
   weights <- lapply(1:length(modelResults@model.input@importance), function(i){
     imp <- modelResults@model.input@importance[[i]] * modelResults@current.importance.weights[i]
     return(as.matrix(imp))
   })
   weights_all <- Reduce("+",weights)
+  #sum_weights_all <- matrix(rep(rowSums(weights_all), ncol(weights_all)), ncol = ncol(weights_all))
+  #weights_all <- weights_all / sum_weights_all
   return(weights_all)
 }

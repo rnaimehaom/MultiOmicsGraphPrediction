@@ -97,13 +97,19 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
     perm_samples <- sample(1:nrow(modelResults@model.input@node.wise.prediction),
                            nrow(modelResults@model.input@node.wise.prediction))
 
+    # Initialize previous weight vector.
+    modelResults@previous.importance.weights <- modelResults@current.importance.weights
+    
     for(i in perm_samples){
-      # Do training iteration for each sample.
+      # Extract data for each sample.
       newModelResults <- modelResults
       newModelResults@model.input@node.wise.prediction <- 
         as.matrix(modelResults@model.input@node.wise.prediction[i,])
       newModelResults@model.input@true.phenotypes <- 
         modelResults@model.input@true.phenotypes[i]
+      newModelResults@model.input@input.data@analyteType1 <- as.matrix(modelResults@model.input@input.data@analyteType1[,i])
+      newModelResults@model.input@input.data@analyteType2 <- as.matrix(modelResults@model.input@input.data@analyteType2[,i])
+      newModelResults@model.input@input.data@sampleMetaData <- as.data.frame(modelResults@model.input@input.data@sampleMetaData[i,])
       importanceSamp <- lapply(1:length(modelResults@model.input@importance), function(imp){
         df <- t(as.data.frame(modelResults@model.input@importance[[imp]][i,]))
         rownames(df) <- rownames(modelResults@model.input@node.wise.prediction)[i]
@@ -112,6 +118,8 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
       })
       names(importanceSamp) <- names(modelResults@model.input@importance)
       newModelResults@model.input@importance <- importanceSamp
+      
+      # Do training iteration.
       newModelResults <- DoSingleTrainingIteration(modelResults = newModelResults,
                                                    prunedModels = prunedModels)
       
@@ -124,10 +132,10 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
       modelResults@previous.momentum <- newModelResults@previous.momentum
       modelResults@previous.update.vector <- newModelResults@previous.update.vector
       modelResults@iteration.tracking <- newModelResults@iteration.tracking
-      
-      # Fill in the prediction for error calculation.
-      Y.pred <- DoPrediction(modelResults = newModelResults, prunedModels = prunedModels)
     }
+    # Fill in the prediction for error calculation.
+    Y.pred <- DoPrediction(modelResults = modelResults, prunedModels = prunedModels)
+
     # Compute the prediction error over all samples.
     if(modelResults@model.input@outcome.type == "categorical"){
       modelResults@iteration.tracking$Error[modelResults@current.iteration] <- 
@@ -144,8 +152,8 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
       modelResults@current.iteration
     
     # Get the new pruned models.
-    prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                                                         verbose = FALSE, makePlots = FALSE)
+    #prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+    #                                                                     verbose = FALSE, makePlots = FALSE)
     prunedModelSizes <- lapply(prunedModels, function(model){return(length(model))})
     
     # Print the weight delta and error.
