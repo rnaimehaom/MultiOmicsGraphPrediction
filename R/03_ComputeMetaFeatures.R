@@ -31,7 +31,6 @@
 #' independent variable. If blank, then the existing ID's are used.
 #' @param colIdOut The ID of the column that has the analyte ID's for the
 #' outcome variable. If blank, then the existing ID's are used.
-#' @param password The MySQL password for the user.
 #' @return A list of data frames (one for each sample) with predictor importance
 #' measured according to the listed criteria (one column per metric, one row
 #' per predictor).
@@ -53,8 +52,7 @@ GetAllImportanceMetrics <- function(predictions, inputData,
                                        analyteNamesInd = "",
                                     stype = "",
                                     colIdInd = "",
-                                    colIdOut = "",
-                                    password = ""){
+                                    colIdOut = ""){
   # Find all outliers.
   outliers <- FindDistributionalOutliers(predictions = predictions, 
                                          lowerPercentileLimit = lowerPercentileLimit,
@@ -90,16 +88,14 @@ GetAllImportanceMetrics <- function(predictions, inputData,
     metrics$pathway <- ComputePathwayImportance(predictions = predictions, 
                                                 inputData = inputData,
                                                 colIdInd = colIdInd,
-                                                colIdOut = colIdOut, 
-                                                password = password)
+                                                colIdOut = colIdOut)
   }
   if("reaction" %in% metricList){
     print("Computing Reaction importance")
     metrics$reaction <- ComputeReactionImportance(predictions = predictions, 
                                                   inputData = inputData,
                                                   colIdInd = colIdInd,
-                                                  colIdOut = colIdOut, 
-                                                  password = password)
+                                                  colIdOut = colIdOut)
   }
   if("interactionpval" %in% metricList){
     print("Computing Interaction Term p-Value importance")
@@ -234,17 +230,14 @@ GetPredictorIDs <- function(preds, inputData, colIdInd, colIdOut){
 #' independent variable. If blank, then the existing ID's are used.
 #' @param colIdOut The ID of the column that has the analyte ID's for the
 #' outcome variable. If blank, then the existing ID's are used.
-#' @param password The MySQL password for the user.
 #' @return A list of vectors (one for each sample) with an importance metric.
 ComputePathwayImportance <- function(predictions, inputData, colIdInd,
-                                     colIdOut, password){
+                                     colIdOut){
   
   # Obtain names of predictors.
   predNames <- GetPredictorIDs(predictions, inputData, colIdInd, colIdOut)
 
   # Find which pairs share pathways.
-  pkg.globals <- RaMP::setConnectionToRaMP(dbname = "ramp", username = "root", conpass = password,
-                                     host = "localhost")
   sharesPathway <- unlist(lapply(1:nrow(predNames), function(i){
     shares <- FALSE
     pwayResult <- RaMP::getPathwayFromAnalyte(c(predNames[i,"indId"], predNames[i,"outId"]))
@@ -277,17 +270,13 @@ ComputePathwayImportance <- function(predictions, inputData, colIdInd,
 #' independent variable. If blank, then the existing ID's are used.
 #' @param colIdOut The ID of the column that has the analyte ID's for the
 #' outcome variable. If blank, then the existing ID's are used.
-#' @param password The MySQL password for the user.
-#' @return A list of vectors (one for each sample) with an importance metric.
 #' @return A list of vectors (one for each sample) with an importance metric.
 ComputeReactionImportance <- function(predictions, inputData, colIdInd,
-                                      colIdOut, password){
+                                      colIdOut){
   # Obtain names of predictors.
   predNames <- GetPredictorIDs(predictions, inputData, colIdInd, colIdOut)
   
   # Find which pairs share reactions.
-  pkg.globals <- RaMP::setConnectionToRaMP(dbname = "ramp", username = "root", conpass = password,
-                                           host = "localhost")
   sharesRxn <- unlist(lapply(1:nrow(predNames), function(i){
     shares <- FALSE
     tryCatch({

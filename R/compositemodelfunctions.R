@@ -45,26 +45,36 @@ CompositePrediction <- function(pairs, modelResults){
   analyte2Vals <- modelResults@model.input@input.data@analyteType2
   covariateVals <- modelResults@model.input@input.data@sampleMetaData
   weights <- ComputeImportanceWeights(modelResults)
+  mask <- modelResults@model.input@mask
+  if(nrow(weights) == 1){mask <- t(mask)}
+  
+  # Scale weights to sum to 1.
+  #if(nrow(weights) > 1 && length(pairs) > 1){
+  #  weights[,pairs] <- weights[,pairs] / matrix(rep(rowSums(weights[,pairs]), length(pairs)), ncol = length(pairs))
+  #}else{
+  #  weights[,pairs] <- weights[,pairs] / sum(weights[,pairs])
+  #}
+  
 
   # Analyte 1
   weighted_a1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_a1 <- weighted_a1 + weights[,pair] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
+    weighted_a1 <- weighted_a1 + weights[,pair] * mask[,pair] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
   }
   
   # beta0
   weighted_sum_b0 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b0 <- weighted_sum_b0 + weights[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
+    weighted_sum_b0 <- weighted_sum_b0 + weights[,pair] * mask[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
   }
   
   # beta1
   weighted_sum_b1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
+    weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * mask[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
       analyte2Vals[strsplit(pair, "__")[[1]][2],]
   }
   
@@ -72,14 +82,14 @@ CompositePrediction <- function(pairs, modelResults){
   weighted_sum_b2 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b2 <- weighted_sum_b2 + weights[,pair] * rep(covariates[pair, "type"], nrow(weights))
+    weighted_sum_b2 <- weighted_sum_b2 + weights[,pair] * mask[,pair] * rep(covariates[pair, "type"], nrow(weights))
   }
   
   # beta3
   weighted_sum_b3 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
+    weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * mask[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
       analyte2Vals[strsplit(pair, "__")[[1]][2],]
   }
   
@@ -90,7 +100,7 @@ CompositePrediction <- function(pairs, modelResults){
       weighted_sum <- rep(0, nrow(weights))
       for(i in 1:length(pairs)){
         pair <- pairs[[i]]
-        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
+        weighted_sum <- weighted_sum + weights[,pair] * mask[,pair] * rep(covariates[pair, c], nrow(weights)) *
           covariateVals[,c]
       }
       return(weighted_sum)
@@ -98,83 +108,160 @@ CompositePrediction <- function(pairs, modelResults){
     weighted_sum_covars <- Reduce('+', weighted_sum_each)
   }
   
+  # Analyte 1
+  weighted_a1_nomask <- rep(0, nrow(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    weighted_a1_nomask <- weighted_a1_nomask + weights[,pair] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
+  }
+  
+  # beta0
+  weighted_sum_b0_nomask <- rep(0, nrow(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    weighted_sum_b0_nomask <- weighted_sum_b0_nomask + weights[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
+  }
+  
+  # beta1
+  weighted_sum_b1_nomask <- rep(0, nrow(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    weighted_sum_b1_nomask <- weighted_sum_b1_nomask + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
+      analyte2Vals[strsplit(pair, "__")[[1]][2],]
+  }
+  
+  # beta2
+  weighted_sum_b2_nomask <- rep(0, nrow(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    weighted_sum_b2_nomask <- weighted_sum_b2_nomask + weights[,pair] * rep(covariates[pair, "type"], nrow(weights))
+  }
+  
+  # beta3
+  weighted_sum_b3_nomask <- rep(0, nrow(weights))
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
+    weighted_sum_b3_nomask <- weighted_sum_b3_nomask + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
+      analyte2Vals[strsplit(pair, "__")[[1]][2],]
+  }
+  
+  # covariates
+  weighted_sum_covars_nomask <- rep(0, nrow(weights))
+  if(!is.null(covar)){
+    weighted_sum_each <- lapply(covar, function(c){
+      weighted_sum <- rep(0, nrow(weights))
+      for(i in 1:length(pairs)){
+        pair <- pairs[[i]]
+        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
+          covariateVals[,c]
+      }
+      return(weighted_sum)
+    })
+    weighted_sum_covars_nomask <- Reduce('+', weighted_sum_each)
+  }
+  
   # Final value.
   denom <- weighted_sum_b2 + weighted_sum_b3
   denom[which(denom == 0)] <- 0.0001
   final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
-  names(final_val) <- colnames(analyte1Vals)
+  
+  denom_nomask <- weighted_sum_b2_nomask + weighted_sum_b3_nomask
+  denom_nomask[which(denom_nomask == 0)] <- 0.0001
+  final_val_nomask <- (weighted_a1_nomask - weighted_sum_b0_nomask - weighted_sum_b1_nomask - weighted_sum_covars_nomask) / denom_nomask
+  #print(paste(weighted_a1_nomask - weighted_sum_b0_nomask - weighted_sum_b1_nomask - weighted_sum_covars_nomask, denom_nomask))
+  #print(sum(weights[,pairs]))
+  #print(paste(weighted_sum_b2_nomask[which(final_val_nomask < -5)], weighted_sum_b3_nomask[which(final_val_nomask < -5)],
+  #            (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars)[which(final_val_nomask < -5)]))
+  # print(paste(weighted_sum_b2_nomask[which(final_val_nomask > 5)], weighted_sum_b3_nomask[which(final_val_nomask > 5)],
+  #             (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars)[which(final_val_nomask > 5)]))
+  #print(paste(weighted_sum_b2[which(final_val > 5)], weighted_sum_b3[which(final_val > 5)],
+  #            (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars)[which(final_val > 5)]))
+  #print(final_val)
+  #final_val_nomask[which(final_val_nomask < -5)] <- -5
+  #final_val_nomask[which(final_val_nomask > 5)] <- 5
+  return(final_val_nomask)
+}
 
-  return(final_val)
+#' Compute the significance value for a given prediction. You may use information
+#' gain, odds ratio, or t-statistic.
+#' @param pairs A list of pairs to include in the composite model.
+#' @param trueVal The true values (predictions or outcomes) of the input data.
+#' @param pruningMethod Set to "information.gain", "odds.ratio", or "error.t.test"
+#' @export
+ComputeSignificance <- function(pred, trueVal, pruningMethod = "information.gain"){
+  if(pruningMethod == "information.gain"){
+    return(ComputeInfoGain(pred = pred, trueVal = trueVal))
+  }else if(pruningMethod == "odds.ratio"){
+    return(ComputeOddsRatio(pred = pred, trueVal = trueVal))
+  }else if(pruningMethod == "error.t.test"){
+    return(ComputeTStatistic(pred = pred, trueVal = trueVal))
+  }
 }
 
 #' Compute the information gain for a given prediction. The information gain
 #' is computed as the difference between the entropy of the true values and the
-#' conditional entropy of the true value given the prediction. Here, entropy
-#' is defined using the probability that a value is greater than a selected
-#' summary statistic of true values for the input data.
+#' conditional entropy of the true value given the prediction. 
 #' @param pairs A list of pairs to include in the composite model.
 #' @param trueVal The true values (predictions or outcomes) of the input data.
-#' @param summaryStatistic The summary statistic of interest. May be "mean",
-#' "median", or "midrange".
+#' @param binCount The number of bins to divide your original data into. Default is 10.
 #' @export
-ComputeInfoGain <- function(pred, trueVal, summaryStatistic = "mean"){
+ComputeInfoGain <- function(pred, trueVal, binCount = 10){
   trueVal <- trueVal[which(!is.nan(pred))]
   pred <- pred[which(!is.nan(pred))]
-  originalIG <- NULL
+  IG <- NULL
   
   if(length(trueVal)>0 && length(pred)>0){
-    middle <- mean(trueVal)
-    if(summaryStatistic == "midrange"){
-      middle <- min(trueVal) + (max(trueVal) - min(trueVal)) / 2
-    }else if(summaryStatistic == "median"){
-      middle <- median(trueVal)
-    }
     
-    # Compute original entropy. Note that, if the probability of one event is 0,
-    # then the entropy is 0 but will be calculated as NAN.
-    originalProb <- length(which(trueVal > middle)) / length(trueVal)
-    originalEntropy <- -1 * (originalProb * log2(originalProb) + (1 - originalProb) * log2(1 - originalProb))
-    if(is.nan(originalEntropy) && originalProb == 0){
-      originalEntropy <- 0
-    }
+    # Get bin size of true values given bin count. Split into bins.
+    binSize <- (max(trueVals) - min(trueVals)) / binCount
+    trueBins <- seq(min(trueVals), max(trueVals) + binSize, binSize)
     
-    # Compute entropy given prediction.
-    predGreaterProb <- length(which(pred > middle)) / length(pred)
-    origGreaterPredGreaterProb <- length(intersect(which(trueVal > middle), which(pred > middle))) / 
-      length(pred)
-    origGreaterPredGreaterTerm <- -1 * origGreaterPredGreaterProb * log2(origGreaterPredGreaterProb / predGreaterProb)
-    if(is.nan(origGreaterPredGreaterTerm) == TRUE){
-      origGreaterPredGreaterTerm <- 0
-    }
+    # Compute probability of true value taking each possible bin value.
+    trueProbs <- hist(trueVals, breaks = trueBins, plot = FALSE)$density
+    trueProbs <- trueProbs / sum(trueProbs)
     
-    origGreaterPredLessProb <- length(intersect(which(trueVal > middle), which(pred <= middle))) / 
-      length(pred)
-    origGreaterPredLessTerm <- -1 * origGreaterPredLessProb * log2(origGreaterPredLessProb / (1 - predGreaterProb))
-    if(is.nan(origGreaterPredLessTerm) == TRUE){
-      origGreaterPredLessTerm <- 0
-    }
+    # Compute original entropy. Zero probability terms will be NA.
+    entropyTerms <- unlist(lapply(trueProbs, function(p){
+      return(-1 * p * log2(p))
+    }))
+    originalEntropy <- sum(entropyTerms, na.rm = TRUE)
     
-    origLessPredGreaterProb <- length(intersect(which(trueVal <= middle), which(pred > middle))) /
-      length(pred)
-    origLessPredGreaterTerm <- -1 * origLessPredGreaterProb * log2(origLessPredGreaterProb / predGreaterProb)
-    if(is.nan(origLessPredGreaterTerm) == TRUE){
-      origLessPredGreaterTerm <- 0
-    }
+    # Split the predictions into bins and find the probability of the prediction
+    # taking each possible bin value.
+    predBins <- seq(min(pred), max(pred) + binSize, binSize)
+    predProbs <- hist(pred, breaks = predBins, plot = FALSE)$density
+    predProbs <- predProbs / sum(predProbs)
+
+    # Find the joint probability of each true and predicted bin value combination.
+    jointProbs <- as.matrix(do.call(cbind, lapply(1:(length(trueBins)-1), function(tb){
+      
+      # Find the joint probability with each predicted bin, given the true bin.
+      whichInBin <- intersect(which(trueVals >= trueBins[tb]), which(trueVals < trueBins[tb + 1]))
+      predProbPerBin <- unlist(lapply(1:(length(predBins)-1), function(pb){
+        whichInProbBin <- intersect(which(pred >= predBins[pb]), which(pred < predBins[pb + 1]))
+        probInBothBins <- length(intersect(whichInBin, whichInProbBin)) / length(pred)
+        return(probInBothBins)
+      }))
+      return(as.data.frame(predProbPerBin))
+    })))
     
-    origLessPredLessProb <- length(intersect(which(trueVal <= middle), which(pred <= middle))) /
-      length(pred)
-    origLessPredLessTerm <- -1 * origLessPredLessProb * log2(origLessPredLessProb / (1 - predGreaterProb))
-    if(is.nan(origLessPredLessTerm) == TRUE){
-      origLessPredLessTerm <- 0
-    }
-    conditionalEntropy <- origGreaterPredGreaterTerm + origGreaterPredLessTerm + origLessPredGreaterTerm + origLessPredLessTerm
-    originalIG <- originalEntropy - conditionalEntropy
+    # Compute joint entropy.
+    predProbVec <- matrix(rep(predProbs, length(trueProbs)), ncol = length(trueProbs))
+    # Due to rounding errors, we may occasionally get values > 0. This is fixed by clipping at 0.
+    logTerm <- pmin(0, log2(jointProbs / predProbVec))
+    entropyTerms <- -1 * jointProbs * logTerm
+    positionsOfInterest <- intersect(which(!is.nan(entropyTerms)), which(!is.infinite(entropyTerms)))
+    entropyTermsToAdd <- entropyTerms[positionsOfInterest]
+    conditionalEntropy <- sum(entropyTermsToAdd, na.rm = TRUE)
+
+    # Compute information gain.
+    IG <- originalEntropy - conditionalEntropy
   }
   # If all terms are NA, then categorize this as an information loss.
   else{
-    originalIG <- -1
+    IG <- -1
   }
-  return(originalIG)
+  return(IG)
 }
 
 #' Obtain the list of pairs in a composite model.
@@ -288,9 +375,11 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantPairs){
 #' @param modelResults A ModelResults object.
 #' @param verbose Whether or not to print out each step.
 #' @param makePlots Whether or not to plot the pruned model at each step.
+#' @param pruningMethod Set to "information.gain", "odds.ratio", or "error.t.test"
 #' @return A list of informative pairs
 #' @export
-PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE){
+PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE,
+                            pruningMethod = "information.gain"){
   # Extract relevant information.
   pairs <- compositeSubgraphs$compositeModels
   mapping <- compositeSubgraphs$mapping
@@ -305,15 +394,16 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     importantPairs <- pairs[[i]]
     compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = importantPairs, 
                                                                      modelResults = modelResults)
-    infoGain <- MultiOmicsGraphPrediction::ComputeInfoGain(pred = unlist(compositeModel), 
-                                                           trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype])
+    significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel), 
+                                                           trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
+                                                           pruningMethod = pruningMethod)
     if(verbose == TRUE){
-      print(paste(list("Original information gain is", infoGain), collapse = " "))
+      print(paste(list("Original", pruningMethod, "is", significance), collapse = " "))
     }
     
     removedLastTime <- FALSE
     compositeModelFull <- compositeModel
-    infoGainFull <- infoGain
+    significanceFull <- significance
     
     # Figure out which of the previous models mapped to this one.
     previousModelsMapped <- mapping$from[which(mapping$to == i)]
@@ -328,7 +418,7 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       # Save the information gain for the full model.
       if(removedLastTime == TRUE){
         compositeModelFull <- compositeModel
-        infoGainFull <- infoGain
+        significanceFull <- significance
       }
       
       # Compute the information gain for the new model.
@@ -337,16 +427,18 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       if(length(pairsToInclude) > 0){
         compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsToInclude,
                                                                          modelResults = modelResults)
-        infoGain <- MultiOmicsGraphPrediction::ComputeInfoGain(pred = unlist(compositeModel),
-                                                               trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype])
+        significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
+                                                               trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
+                                                               pruningMethod = pruningMethod)
       }
       
       # If the information gain for the new model is greater than for the full model, remove the pair.
       removedLastTime <- FALSE
-      if(infoGain >= infoGainFull && length(pairsToInclude) > 0){
+      if(significance >= significanceFull && length(pairsToInclude) > 0){
         # Print the increase in information gain.
         if(verbose == TRUE){
-          print(paste(list("Removed model. Information gain after removing", model, "is", infoGain - infoGainFull), collapse = " "))
+          print(paste(list("Removed model.", pruningMethod, "after removing", model, "is", significance, ", an improvement over",
+                           significanceFull), collapse = " "))
         }
         
         importantPairs <- pairsToInclude
@@ -374,7 +466,8 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       }else{
         # Print the decrease in information gain.
         if(verbose == TRUE){
-          print(paste(list("Kept model. Information loss after removing", model, "is", infoGainFull - infoGain), collapse = " "))
+          print(paste(list("Kept model.", pruningMethod, "after removing", model, "is", significance, ", not an improvement over",
+                           significanceFull), collapse = " "))
         }
       }
     }

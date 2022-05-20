@@ -21,8 +21,7 @@ GetAllImportanceMetrics(
   analyteNamesInd = "",
   stype = "",
   colIdInd = "",
-  colIdOut = "",
-  password = ""
+  colIdOut = ""
 )
 }
 \arguments{
@@ -73,8 +72,6 @@ independent variable. If blank, then the existing ID's are used.}
 
 \item{colIdOut}{The ID of the column that has the analyte ID's for the
 outcome variable. If blank, then the existing ID's are used.}
-
-\item{password}{The MySQL password for the user.}
 }
 \value{
 A list of data frames (one for each sample) with predictor importance

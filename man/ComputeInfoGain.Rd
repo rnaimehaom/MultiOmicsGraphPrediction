@@ -4,24 +4,19 @@
 \alias{ComputeInfoGain}
 \title{Compute the information gain for a given prediction. The information gain
 is computed as the difference between the entropy of the true values and the
-conditional entropy of the true value given the prediction. Here, entropy
-is defined using the probability that a value is greater than a selected
-summary statistic of true values for the input data.}
+conditional entropy of the true value given the prediction.}
 \usage{
-ComputeInfoGain(pred, trueVal, summaryStatistic = "mean")
+ComputeInfoGain(pred, trueVal, binCount = 10)
 }
 \arguments{
 \item{trueVal}{The true values (predictions or outcomes) of the input data.}
 
-\item{summaryStatistic}{The summary statistic of interest. May be "mean",
-"median", or "midrange".}
+\item{binCount}{The number of bins to divide your original data into. Default is 10.}
 
 \item{pairs}{A list of pairs to include in the composite model.}
 }
 \description{
 Compute the information gain for a given prediction. The information gain
 is computed as the difference between the entropy of the true values and the
-conditional entropy of the true value given the prediction. Here, entropy
-is defined using the probability that a value is greater than a selected
-summary statistic of true values for the input data.
+conditional entropy of the true value given the prediction.
 }

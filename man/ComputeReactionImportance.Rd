@@ -6,7 +6,7 @@
 at least one reaction have an importance of 1, and all others have an 
 importance of 0. Outliers are also set to 0.}
 \usage{
-ComputeReactionImportance(predictions, inputData, colIdInd, colIdOut, password)
+ComputeReactionImportance(predictions, inputData, colIdInd, colIdOut)
 }
 \arguments{
 \item{predictions}{Prediction data frame, where rows are samples, and
@@ -20,12 +20,8 @@ independent variable. If blank, then the existing ID's are used.}
 
 \item{colIdOut}{The ID of the column that has the analyte ID's for the
 outcome variable. If blank, then the existing ID's are used.}
-
-\item{password}{The MySQL password for the user.}
 }
 \value{
-A list of vectors (one for each sample) with an importance metric.
-
 A list of vectors (one for each sample) with an importance metric.
 }
 \description{

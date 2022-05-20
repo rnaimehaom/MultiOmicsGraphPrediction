@@ -9,7 +9,8 @@ PrunePredictors(
   previousModels,
   modelResults,
   verbose = FALSE,
-  makePlots = FALSE
+  makePlots = FALSE,
+  pruningMethod = "information.gain"
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ PrunePredictors(
 \item{verbose}{Whether or not to print out each step.}
 
 \item{makePlots}{Whether or not to plot the pruned model at each step.}
+
+\item{pruningMethod}{Set to "information.gain", "odds.ratio", or "error.t.test"}
 }
 \value{
 A list of informative pairs
