@@ -10,7 +10,9 @@ PrunePredictors(
   modelResults,
   verbose = FALSE,
   makePlots = FALSE,
-  pruningMethod = "information.gain"
+  pruningMethod = "information.gain",
+  binCount = 10,
+  margin = 0.1
 )
 }
 \arguments{
@@ -25,6 +27,12 @@ PrunePredictors(
 \item{makePlots}{Whether or not to plot the pruned model at each step.}
 
 \item{pruningMethod}{Set to "information.gain", "odds.ratio", or "error.t.test"}
+
+\item{binCount}{The number of bins to divide your original data into. Default is 10.
+Used in information gain pruning only.}
+
+\item{margin}{The margin of error for a prediction to be considered "correct".
+Default is 0.1. Used in odds ratio pruning only.}
 }
 \value{
 A list of informative pairs

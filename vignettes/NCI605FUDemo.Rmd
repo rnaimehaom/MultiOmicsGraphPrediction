@@ -54,20 +54,20 @@ inputDataTest <- IntLIM::ReadData(csvfileTest, class.feat = list(drugscore = "nu
 ```{r}
 myres <- IntLIM::RunIntLim(inputData = inputDataTrain,stype="drug5FU",
                                  save.covar.pvals = TRUE, 
-                                 outcome = 2, 
+                                 outcome = 2, suppressWarnings = TRUE,
                                  independent.var.type = 1, 
                                  continuous = TRUE, covar = "cancertype")
-IntLIM::DistPvalues(myres, adjusted = FALSE)
-IntLIM::DistRSquared(myres)
-IntLIM::InteractionCoefficientGraph(inputResults = myres, 
-                                    interactionCoeffPercentile = 0.9,
-                                    percentageToPlot = 1)
-IntLIM::pvalCoefVolcano(inputResults = myres, inputData = inputDataTrain,
-                        pvalcutoff = 0.99)
-plot(density(myres@interaction.pvalues), xlab = "Interaction Term Unadjusted p-value", main = "")
-plot(density(myres@interaction.adj.pvalues), xlab = "Interaction Term Adjusted p-value", main = "")
-plot(density(myres@interaction.coefficients), xlab = "Interaction Term Coefficient", main = "")
-plot(density(myres@model.rsquared), xlab = "Model R-squared", main = "")
+# IntLIM::DistPvalues(myres, adjusted = FALSE)
+# IntLIM::DistRSquared(myres)
+# IntLIM::InteractionCoefficientGraph(inputResults = myres, 
+#                                     interactionCoeffPercentile = 0.9,
+#                                     percentageToPlot = 1)
+# IntLIM::pvalCoefVolcano(inputResults = myres, inputData = inputDataTrain,
+#                         pvalcutoff = 0.99)
+# plot(density(myres@interaction.pvalues), xlab = "Interaction Term Unadjusted p-value", main = "")
+# plot(density(myres@interaction.adj.pvalues), xlab = "Interaction Term Adjusted p-value", main = "")
+# plot(density(myres@interaction.coefficients), xlab = "Interaction Term Coefficient", main = "")
+# plot(density(myres@model.rsquared), xlab = "Model R-squared", main = "")
 ```
 
 # Filter Results and Create Co-Regulation Graph
@@ -102,7 +102,7 @@ colnames(countMatrix) <- seq(0,90,by=10)
 rownames(countMatrix) <- R2cutoffs
 
 # Save file.
-write.csv(countMatrix, file=paste(getwd(), "countMatrix.csv", sep = "/"))
+#write.csv(countMatrix, file=paste(getwd(), "countMatrix.csv", sep = "/"))
 ```
 
 # Filter Results and Create Co-Regulation Graph
@@ -114,29 +114,29 @@ myres.r2 <- IntLIM::ProcessResults(inputResults = myres, inputData = inputDataTr
                                        pvalcutoff = 1, rsquaredCutoff = peak.r2)
 # Build graph.
 coreg.r2 <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2)
-MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2, "", saveInFile = NULL, vertices = NULL)
+#MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2, "", saveInFile = NULL, vertices = NULL)
 ```
 
 # Check Stats of "Positive Control" Pairs.
 ```{r}
-metabolites_of_interest <- make.names(c(rep("2'-deoxyuridine 5'-triphosphate", 7), rep("citric acid", 11),
-                             rep("malic acid", 6), rep("succinate", 9)))
-genes_of_interest <- make.names(c(c("FURIN", "UMPS", "UPP1", "UPP2", "UCK1", "RRM2", "TYMS"),
-                       c("CNDP1", "APRT", "SLCO2B1", "CLYBL", "BHMT", "PDE5A", "IL4I1", "HS3ST3A1", "HS3ST3B1", "OR10H3"),
-                       c("MDH2", "FH", "ME2", "ME1", "ME3", "MDH1"),
-                       c("TMLHE", "ALKBH2", "PHYH", "P4HA2", "P4HA1", "BBOX1", "PLOD1", "PLOD2", "PLOD3", "P3H1")))
-pairs_of_interest <- paste(genes_of_interest, metabolites_of_interest, sep = "__")
-myres.all <- IntLIM::ProcessResults(inputResults = myres, inputData = inputDataTrain, 
-                                       pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
-myres.pairs <- myres.all[pairs_of_interest,]
-plot(density(myres.pairs$interaction_coeff))
-lines(density(myres.all$interaction_coeff), col = "red")
-
-plot(density(myres.pairs$Pval))
-lines(density(myres.all$Pval, col = "red"), col = "red")
-
-plot(density(myres.pairs$rsquared))
-lines(density(myres.all$rsquared, col = "red"), col = "red")
+# metabolites_of_interest <- make.names(c(rep("2'-deoxyuridine 5'-triphosphate", 7), rep("citric acid", 11),
+#                              rep("malic acid", 6), rep("succinate", 9)))
+# genes_of_interest <- make.names(c(c("FURIN", "UMPS", "UPP1", "UPP2", "UCK1", "RRM2", "TYMS"),
+#                        c("CNDP1", "APRT", "SLCO2B1", "CLYBL", "BHMT", "PDE5A", "IL4I1", "HS3ST3A1", "HS3ST3B1", "OR10H3"),
+#                        c("MDH2", "FH", "ME2", "ME1", "ME3", "MDH1"),
+#                        c("TMLHE", "ALKBH2", "PHYH", "P4HA2", "P4HA1", "BBOX1", "PLOD1", "PLOD2", "PLOD3", "P3H1")))
+# pairs_of_interest <- paste(genes_of_interest, metabolites_of_interest, sep = "__")
+# myres.all <- IntLIM::ProcessResults(inputResults = myres, inputData = inputDataTrain, 
+#                                        pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
+# myres.pairs <- myres.all[pairs_of_interest,]
+# plot(density(myres.pairs$interaction_coeff))
+# lines(density(myres.all$interaction_coeff), col = "red")
+# 
+# plot(density(myres.pairs$Pval))
+# lines(density(myres.all$Pval, col = "red"), col = "red")
+# 
+# plot(density(myres.pairs$rsquared))
+# lines(density(myres.all$rsquared, col = "red"), col = "red")
 ```
 
 # Perform One-Hot Encoding on Categorical Variables.
@@ -156,8 +156,8 @@ pred <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2
                                                          covar = covar,
                                                          independentVarType = 1,
                                                          outcomeType = 2)
-write.csv(pred,file=paste(result_dir, paste0("nci60_5FUPairPredictions.csv"), sep = "\\"))
-hist(pred, breaks = 100)
+#write.csv(pred,file=paste(result_dir, paste0("nci60_5FUPairPredictions.csv"), sep = "\\"))
+#hist(pred, breaks = 100)
 ```
 
 ## Project Predictions
@@ -165,9 +165,9 @@ hist(pred, breaks = 100)
 # Project graph.
 projectedGraph <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg.r2,
                                                                          predictions = pred)
-MultiOmicsGraphPrediction::PlotGraphPredictions(graph = projectedGraph, 
-                                                inputData = inputDataTrain,
-                                                stype = "drug5FU")
+# MultiOmicsGraphPrediction::PlotGraphPredictions(graph = projectedGraph, 
+#                                                 inputData = inputDataTrain,
+#                                                 stype = "drug5FU")
 ```
 
 ## Compute Importance Metrics.
@@ -176,13 +176,11 @@ Future considerations: outcome coefficient, intercept term (we want this to be l
 We assume RaMP has already been installed and that a MySQL version of the RaMP package exists on the user's machine.
 __colIdInd__ and __colIdOut__ denote the columns of the analyte metadata that contain the source ID's to input to RaMP.
 ```{r importance}
-# Format the pathway-related files appropriately.
-colnames(analytehaspathway) <- c("RaMPID", "PathID", "database")
-#colnames(reaction) <- c("srcId", "tgtId")
-colnames(source) <- c("SourceID", "RaMPID", "source", "type", "commonName", "HMDB_status", "source2")
 #MultiOmicsGraphPrediction::PlotSubspaceClusteringDendrogram(inputData = inputDataTrain, eigStep = 1)
 #MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputDataTrain, eigStep = 1)
 mysql_password <- unlist(unname(read.csv("mysql_pw.txt", header = FALSE)))
+pkg.globals <- RaMP::setConnectionToRaMP(dbname = "ramp", username = "root", conpass = mysql_password,
+                                     host = "localhost")
 importance <- MultiOmicsGraphPrediction::GetAllImportanceMetrics(predictions = pred, 
                                                                  stype = "drug5FU",
                                                                  inputData = inputDataTrain, 
@@ -205,35 +203,74 @@ modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projecte
                                                      importance = importance,
                                                      modelProperties = myres.r2,
                                                      covariates = covar)
-saveRDS(modelInput,file=paste(result_dir, paste0("nci60_5FUmodelInput.RDS"), sep = "\\"))
-modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput)
-MultiOmicsGraphPrediction::PlotWeightHeatmap(modelResults = modelResults)
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = FALSE, stype = "drug5FU", includeLabels = FALSE)
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = TRUE, stype = "drug5FU", includeLabels = FALSE)
+#saveRDS(modelInput,file=paste(result_dir, paste0("nci60_5FUmodelInput.RDS"), sep = "\\"))
+#MultiOmicsGraphPrediction::PlotWeightHeatmap(modelResults = modelResults)
+#MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = FALSE, stype = "drug5FU", includeLabels = FALSE)
+#MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = TRUE, stype = "drug5FU", includeLabels = FALSE)
+```
+
+# Look at a predictive model.
+## Odds Ratio
+(2) The final prediction needs to also be a combination of the final subgraphs. We shouldn't be averaging them.
+```{r}
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2)
+pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
+propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "odds.ratio")
+print(propagatedGraph)
+print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
+print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[2]]))
+print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[3]]))
+```
+
+## T-Test
+(2) The final prediction needs to also be a combination of the final subgraphs. We shouldn't be averaging them.
+```{r}
+pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
+propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test")
+print(propagatedGraph)
+print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
+```
+
+# Learn Weights.
+```{r}
+modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+                                                     coregulationGraph = coreg.r2,
+                                                     inputData = inputDataTrain, 
+                                                     stype.class = "numeric",
+                                                     stype = "drug5FU",
+                                                     edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
+                                                     importance = importance,
+                                                     modelProperties = myres.r2,
+                                                     covariates = covar,
+                                                     predictorBounds = c(-5,5))
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2)
+optimalModel <- MultiOmicsGraphPrediction::OptimizeImportanceCombo(modelResults = modelResults, verbose = TRUE)
 ```
 
 ## Calculate information gain for when all terms are included in a composite predictor.
 Run the first iteration of composite prediction.
 ```{r}
-pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
-propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                                verbose = TRUE, makePlots = TRUE)
+# pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
+# propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+#                                                 verbose = TRUE, makePlots = TRUE)
 ```
 # Line Graphs (Before and After)
 ```{r}
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = FALSE, stype = "drug5FU", includeLabels = FALSE)
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = unlist(propagatedGraph), sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = FALSE, stype = "drug5FU", includeLabels = FALSE)
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = TRUE, stype = "drug5FU", includeLabels = FALSE)
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = unlist(propagatedGraph), sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = TRUE, stype = "drug5FU", includeLabels = FALSE)
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = "NCI.ADR.RES", weights = TRUE, stype = "drug5FU")
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = unlist(propagatedGraph), sampSubset = "NCI.ADR.RES", weights = TRUE, stype = "drug5FU")
-
-png(paste(getwd(), "NCI.ADR.RES.full.png", sep = "/"), res = 300, width = 5, height = 4, units = "in")
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = "NCI.ADR.RES", weights = FALSE, stype = "drug5FU", includeLabels = FALSE)
-dev.off()
-png(paste(getwd(), "NCI.ADR.RES.pruned.png", sep = "/"), res = 300, width = 5, height = 4, units = "in")
-MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = unlist(propagatedGraph), sampSubset = "NCI.ADR.RES", weights = TRUE, stype = "drug5FU", includeLabels = FALSE)
-dev.off()
+# MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = FALSE, stype = "drug5FU", includeLabels = FALSE)
+# MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = unlist(propagatedGraph), sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = FALSE, stype = "drug5FU", includeLabels = FALSE)
+# MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = TRUE, stype = "drug5FU", includeLabels = FALSE)
+# MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = unlist(propagatedGraph), sampSubset = c("UACC.62", "NCI.ADR.RES", "HL.60.TB.", "UACC.257"), weights = TRUE, stype = "drug5FU", includeLabels = FALSE)
+# MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = "NCI.ADR.RES", weights = TRUE, stype = "drug5FU")
+# MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = unlist(propagatedGraph), sampSubset = "NCI.ADR.RES", weights = TRUE, stype = "drug5FU")
+# 
+# png(paste(getwd(), "NCI.ADR.RES.full.png", sep = "/"), res = 300, width = 5, height = 4, units = "in")
+# MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, sampSubset = "NCI.ADR.RES", weights = FALSE, stype = "drug5FU", includeLabels = FALSE)
+# dev.off()
+# png(paste(getwd(), "NCI.ADR.RES.pruned.png", sep = "/"), res = 300, width = 5, height = 4, units = "in")
+# MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResults, subset = unlist(propagatedGraph), sampSubset = "NCI.ADR.RES", weights = TRUE, stype = "drug5FU", includeLabels = FALSE)
+# dev.off()
 ```
 
 # Plot Results
@@ -254,9 +291,4 @@ dev.off()
 # plot(inputDataTrain@sampleMetaData$drug5FU, predPairs1, xlab = "True Value", ylab = "Predicted Value (Composite Model 1)", ylim = c(0,10))
 # plot(inputDataTrain@sampleMetaData$drug5FU, predPairs2, xlab = "True Value", ylab = "Predicted Value (Composite Model 2)", ylim = c(0,10))
 # plot(inputDataTrain@sampleMetaData$drug5FU, (predPairs2 + predPairs1) / 2, xlab = "True Value", ylab = "Predicted Value (Composite Model 2)", ylim = c(0,10))
-```
-
-# Learn Weights.
-```{r}
-optimalModel <- MultiOmicsGraphPrediction::OptimizeImportanceCombo(modelResults = modelResults, verbose = TRUE)
 ```

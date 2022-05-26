@@ -18,7 +18,8 @@ FormatInput(
   edgeTypeList,
   stype,
   verbose = FALSE,
-  covariates = list()
+  covariates = list(),
+  predictorBounds = c(NA, NA)
 )
 }
 \arguments{
@@ -39,6 +40,13 @@ in the line graph:
 
 \item{verbose}{Whether to print the number of predictions replaced in each sample.
 TRUE or FALSE. Default is FALSE.}
+
+\item{covariates}{A list of covariates to include in the model. These will be in the
+sampleMetaData slot of the inputData variable.}
+
+\item{predictorBounds}{Upper and lower bounds for predictors. Predictors outside
+of these bounds for a sample will not be included in the final prediction for that sample. 
+Defaults to c(NA,NA), meaning that no predictors will be removed.}
 }
 \description{
 Format the input for graph-based learning. This input consists of:
