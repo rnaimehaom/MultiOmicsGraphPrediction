@@ -33,6 +33,21 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
     prevModels <- prunedPairs
   }
   
+  # If number of composite models > 1, then concatenate all models and prune.
+  if(length(consolidated$compositeModels) > 1){
+    consolidated$compositeModels <- list(unlist(consolidated$compositeModels))
+    consolidated$expandedCompositeModels <- list(unlist(consolidated$expandedCompositeModels))
+    consolidated$mapping$to <- rep(1, nrow(consolidated$mapping))
+    prunedPairs <- MultiOmicsGraphPrediction::PrunePredictors(compositeSubgraphs = consolidated,
+                                                              previousModels = prevModels,
+                                                              modelResults = modelResults, 
+                                                              verbose = verbose,
+                                                              makePlots = makePlots,
+                                                              pruningMethod = pruningMethod,
+                                                              binCount = binCount,
+                                                              margin = margin)
+  }
+  
   # Return consolidated pairs.
   return(prunedPairs)
 }
@@ -231,6 +246,7 @@ ComputeTScore <- function(pred, trueVal){
     predAbsError <- abs(trueVal - pred)
     
     # Find the difference between mean errors and prediction errors.
+    # https://www.cuemath.com/data/paired-t-test/
     errorDiff <- meanAbsError - predAbsError
     n <- length(errorDiff)
     nSse <- n * sum(errorDiff ^ 2)
