@@ -265,10 +265,6 @@ computeGradient <- function(modelResults, prunedModels){
   sampGradientsDF <- do.call(rbind, sampGradients)
   gradients <- colSums(sampGradientsDF)
   
-  # Scale the gradients to be unitary.
-  #magnitude <- sqrt(sum(gradientsUnscaled ^ 2))
-  #gradients <- gradientsUnscaled / magnitude
-  
   # Return the derivative.
   return(-1 * gradients)
 }

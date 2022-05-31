@@ -119,7 +119,6 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
       newModelResults@model.input@input.data@analyteType1 <- as.matrix(modelResults@model.input@input.data@analyteType1[,i])
       newModelResults@model.input@input.data@analyteType2 <- as.matrix(modelResults@model.input@input.data@analyteType2[,i])
       newModelResults@model.input@input.data@sampleMetaData <- as.data.frame(modelResults@model.input@input.data@sampleMetaData[i,])
-      newModelResults@model.input@mask <- as.matrix(modelResults@model.input@mask[i,])
       importanceSamp <- lapply(1:length(modelResults@model.input@importance), function(imp){
         df <- t(as.data.frame(modelResults@model.input@importance[[imp]][i,]))
         rownames(df) <- rownames(modelResults@model.input@node.wise.prediction)[i]

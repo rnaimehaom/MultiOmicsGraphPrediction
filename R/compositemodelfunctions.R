@@ -69,36 +69,26 @@ CompositePrediction <- function(pairs, modelResults){
   analyte2Vals <- modelResults@model.input@input.data@analyteType2
   covariateVals <- modelResults@model.input@input.data@sampleMetaData
   weights <- ComputeImportanceWeights(modelResults)
-  mask <- modelResults@model.input@mask
-  if(nrow(weights) == 1){mask <- t(mask)}
-  
-  # Scale weights to sum to 1.
-  #if(nrow(weights) > 1 && length(pairs) > 1){
-  #  weights[,pairs] <- weights[,pairs] / matrix(rep(rowSums(weights[,pairs]), length(pairs)), ncol = length(pairs))
-  #}else{
-  #  weights[,pairs] <- weights[,pairs] / sum(weights[,pairs])
-  #}
-  
 
   # Analyte 1
   weighted_a1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_a1 <- weighted_a1 + weights[,pair] * mask[,pair] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
+    weighted_a1 <- weighted_a1 + weights[,pair] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
   }
   
   # beta0
   weighted_sum_b0 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b0 <- weighted_sum_b0 + weights[,pair] * mask[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
+    weighted_sum_b0 <- weighted_sum_b0 + weights[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
   }
   
   # beta1
   weighted_sum_b1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * mask[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
+    weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
       analyte2Vals[strsplit(pair, "__")[[1]][2],]
   }
   
@@ -106,14 +96,14 @@ CompositePrediction <- function(pairs, modelResults){
   weighted_sum_b2 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b2 <- weighted_sum_b2 + weights[,pair] * mask[,pair] * rep(covariates[pair, "type"], nrow(weights))
+    weighted_sum_b2 <- weighted_sum_b2 + weights[,pair] * rep(covariates[pair, "type"], nrow(weights))
   }
   
   # beta3
   weighted_sum_b3 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * mask[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
+    weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
       analyte2Vals[strsplit(pair, "__")[[1]][2],]
   }
   
@@ -124,7 +114,7 @@ CompositePrediction <- function(pairs, modelResults){
       weighted_sum <- rep(0, nrow(weights))
       for(i in 1:length(pairs)){
         pair <- pairs[[i]]
-        weighted_sum <- weighted_sum + weights[,pair] * mask[,pair] * rep(covariates[pair, c], nrow(weights)) *
+        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
           covariateVals[,c]
       }
       return(weighted_sum)
@@ -132,78 +122,15 @@ CompositePrediction <- function(pairs, modelResults){
     weighted_sum_covars <- Reduce('+', weighted_sum_each)
   }
   
-  # Analyte 1
-  weighted_a1_nomask <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_a1_nomask <- weighted_a1_nomask + weights[,pair] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
-  }
-  
-  # beta0
-  weighted_sum_b0_nomask <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b0_nomask <- weighted_sum_b0_nomask + weights[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
-  }
-  
-  # beta1
-  weighted_sum_b1_nomask <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b1_nomask <- weighted_sum_b1_nomask + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
-      analyte2Vals[strsplit(pair, "__")[[1]][2],]
-  }
-  
-  # beta2
-  weighted_sum_b2_nomask <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b2_nomask <- weighted_sum_b2_nomask + weights[,pair] * rep(covariates[pair, "type"], nrow(weights))
-  }
-  
-  # beta3
-  weighted_sum_b3_nomask <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b3_nomask <- weighted_sum_b3_nomask + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
-      analyte2Vals[strsplit(pair, "__")[[1]][2],]
-  }
-  
-  # covariates
-  weighted_sum_covars_nomask <- rep(0, nrow(weights))
-  if(!is.null(covar)){
-    weighted_sum_each <- lapply(covar, function(c){
-      weighted_sum <- rep(0, nrow(weights))
-      for(i in 1:length(pairs)){
-        pair <- pairs[[i]]
-        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
-          covariateVals[,c]
-      }
-      return(weighted_sum)
-    })
-    weighted_sum_covars_nomask <- Reduce('+', weighted_sum_each)
-  }
-  
   # Final value.
   denom <- weighted_sum_b2 + weighted_sum_b3
   denom[which(denom == 0)] <- 0.0001
   final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
   
-  denom_nomask <- weighted_sum_b2_nomask + weighted_sum_b3_nomask
-  denom_nomask[which(denom_nomask == 0)] <- 0.0001
-  final_val_nomask <- (weighted_a1_nomask - weighted_sum_b0_nomask - weighted_sum_b1_nomask - weighted_sum_covars_nomask) / denom_nomask
-  #print(paste(weighted_a1_nomask - weighted_sum_b0_nomask - weighted_sum_b1_nomask - weighted_sum_covars_nomask, denom_nomask))
-  #print(sum(weights[,pairs]))
-  #print(paste(weighted_sum_b2_nomask[which(final_val_nomask < -5)], weighted_sum_b3_nomask[which(final_val_nomask < -5)],
-  #            (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars)[which(final_val_nomask < -5)]))
-  # print(paste(weighted_sum_b2_nomask[which(final_val_nomask > 5)], weighted_sum_b3_nomask[which(final_val_nomask > 5)],
-  #             (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars)[which(final_val_nomask > 5)]))
-  #print(paste(weighted_sum_b2[which(final_val > 5)], weighted_sum_b3[which(final_val > 5)],
-  #            (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars)[which(final_val > 5)]))
-  #print(final_val)
-  #final_val_nomask[which(final_val_nomask < -5)] <- -5
-  #final_val_nomask[which(final_val_nomask > 5)] <- 5
-  return(final_val_nomask)
+  denom <- weighted_sum_b2 + weighted_sum_b3
+  denom[which(denom == 0)] <- 0.0001
+  final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
+  return(final_val)
 }
 
 #' Compute the significance value for a given prediction. You may use information

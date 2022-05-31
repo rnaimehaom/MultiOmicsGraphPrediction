@@ -86,24 +86,12 @@ FormatInput <- function(predictionGraphs, coregulationGraph, importance, modelPr
   }
   names(Y) <- names(predictions_by_node)
   
-  # Create a binary predictor mask. The mask should include a "1" for every predictor
-  # within the specified bounds for a given sample and a "0" for every predictor out of bounds.
-  predictor_mask <- matrix(rep(1, times = ncol(predictions_flattened) * nrow(predictions_flattened)),
-                           ncol = ncol(predictions_flattened))
-  rownames(predictor_mask) <- rownames(predictions_flattened)
-  colnames(predictor_mask) <- colnames(predictions_flattened)
-  if(!is.na(predictorBounds[1]) && !is.na(predictorBounds[2])){
-    predictor_mask[which(predictions_flattened < predictorBounds[1])] <- 0
-    predictor_mask[which(predictions_flattened > predictorBounds[2])] <- 0
-  }
-  
   # Create a ModelInput object and return it.
   newModelInput <- methods::new("ModelInput", A.hat=A_hat, node.wise.prediction=predictions_flattened,
                                 true.phenotypes=Y, outcome.type=stype.class, 
                                 coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
                                 line.graph=as.matrix(A), input.data = inputData, model.properties = modelProperties,
-                                importance = importance, stype = stype, covariates = covariates, stype.class = stype.class,
-                                mask = predictor_mask)
+                                importance = importance, stype = stype, covariates = covariates, stype.class = stype.class)
   return(newModelInput)
 }
 

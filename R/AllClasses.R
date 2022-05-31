@@ -28,7 +28,6 @@ methods::setClass(
                  line.graph="matrix",
                  outcome.type="character",
                  importance="list",
-                 mask="matrix",
                  model.properties = "data.frame",
                  input.data = "IntLimData",
                  covariates = "list",
