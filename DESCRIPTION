@@ -35,7 +35,6 @@ Collate:
     '03_ComputeMetaFeatures.R'
     '05_LearnGraphPredictionModel.R'
     'AllClasses.R'
-    'clusteringfunctions.R'
     'compositemodelfunctions.R'
     'gradientfunctions.R'
     'learningfunctions.R'
