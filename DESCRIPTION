@@ -36,8 +36,7 @@ Collate:
     '05_LearnGraphPredictionModel.R'
     'AllClasses.R'
     'compositemodelfunctions.R'
-    'gradientfunctions.R'
-    'learningfunctions.R'
     'plottingfunctions.R'
+    'trainingfunctions.R'
 VignetteBuilder: knitr
 RoxygenNote: 7.1.2

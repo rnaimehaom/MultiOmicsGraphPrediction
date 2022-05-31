@@ -94,8 +94,8 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
   
   # For discrete phenotypes only, round the value.
   if(!is.numeric(inputData@sampleMetaData[,stype])){
-    pred_phenotype[multi.which(pred_phenotype >= 1)] <- 1
-    pred_phenotype[multi.which(pred_phenotype <= 0)] <- 0
+    pred_phenotype[which(pred_phenotype >= 1)]
+    pred_phenotype[which(pred_phenotype >= 0)]
     pred_phenotype <- round(pred_phenotype,digits=0)
   }
   pred_phenotype = as.data.frame(pred_phenotype)
@@ -104,32 +104,6 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
   rownames(pred_phenotype) <- paste(coefficients$Analyte1, coefficients$Analyte2,
                                     sep = "__")
   return(t(pred_phenotype))
-}
-
-#' Multiply a covariate with its learned coefficients. This is straightforward for
-#' numeric covariates, but requires some conversion for categorical covariates.
-#' @param coefficients The coefficients of the selected covariates.
-#' @param covariates The covariate values.
-#' @param coef_cov_name The covariate name in the coefficient data
-#' @param cov_cov_name The covariate name in the covariate data
-#' @param level1 The level of the vactor which equals "1" in the one-hot encoding.
-multiplyCovariate <- function(coefficients, covariates, coef_cov_name, cov_cov_name, level1){
-  this_coefficient_mat <- matrix(coefficients[,coef_cov_name], 
-                                 nrow=length(coefficients[,coef_cov_name]), 
-                                 ncol=dim(covariates)[1])
-  this_covariate_mat <- t(matrix(covariates[,cov_cov_name], 
-                                 ncol=length(coefficients[,coef_cov_name]), 
-                                 nrow=dim(covariates)[1]))
-  original_mat <- this_covariate_mat
-  this_covariate_df <- as.data.frame(t(this_covariate_mat))
-  for(i in 1:dim(this_covariate_df)[2]){
-    this_covariate_df[,i] <- as.numeric(as.factor(this_covariate_df[,i]))
-  }
-  this_covariate_mat <- as.matrix(t(this_covariate_df))
-  this_covariate_mat[multi.which(original_mat != level1)] <- 0
-  this_covariate_mat[multi.which(original_mat == level1)] <- 1
-  this_covariate_term <- this_coefficient_mat * this_covariate_mat
-  return(this_covariate_term)
 }
 
 #' Given a graph and a phenotype prediction for each significant pair, generate a 
@@ -210,25 +184,4 @@ OneHotEncoding <- function(inputData, covar=NULL){
     stop("The covariates input to OneHotEncoding do not exist or are not factors.")
   }
   return(retVal)
-}
-
-#' A which for multidimensional arrays.
-#' Mark van der Loo 16.09.2011
-#' 
-#' @name multi.which
-#' @param A Boolean function defined over a matrix
-#' @return vector with numeric cutoffs
-multi.which <- function(A){
-  if ( is.vector(A) ) return(which(A))
-  d <- dim(A)
-  T.mat <- which(A) - 1
-  nd <- length(d)
-  t( sapply(T.mat, function(t){
-    I <- integer(nd)
-    I[1] <- t %% d[1]
-    sapply(2:nd, function(j){
-      I[j] <<- (t %/% prod(d[1:(j-1)])) %% d[j]
-    })
-    I
-  }) + 1 )
 }
