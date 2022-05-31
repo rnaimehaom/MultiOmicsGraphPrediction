@@ -17,7 +17,7 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
   weightsAbove <- which(weightsWithFullGradient > 1)
   gradient[weightsBelow] <- prevWeights[weightsBelow]
   gradient[weightsAbove] <- prevWeights[weightsAbove] - 1
-
+  
   # Update gradient.
   modelResults@current.gradient <- as.matrix(gradient)
   modelResults@iteration.tracking[modelResults@current.iteration+1,
@@ -184,13 +184,13 @@ computeGradient <- function(modelResults, prunedModels){
   M <- as.data.frame(do.call(rbind, modelResults@model.input@importance)[,unlist(S)])
   rownames(M) <- names(modelResults@model.input@importance)
   phi <- modelResults@current.importance.weights
-
+  
   # Compute the gradient for each sample.
   sampGradients <- lapply(1:length(P), function(k){
     
     # Compute the derivative of P-hat.
     PhatDeriv <- 2 * (P[k] - P_hat[k])
-
+    
     # Extract the independent, outcome, and covariate values.
     AindLocal <- data.frame(Aind[,k])
     if(length(AindLocal) == ncol(Aind) && ncol(Aind) > 1){
@@ -207,7 +207,7 @@ computeGradient <- function(modelResults, prunedModels){
       CovarLocal <- t(CovarLocal)
       colnames(CovarLocal) <- colnames(C)
     }
-
+    
     # Compute the denominator.
     dhat <- Dhat(Aind = as.matrix(AindLocal), 
                  phi = phi, 
@@ -250,11 +250,11 @@ computeGradient <- function(modelResults, prunedModels){
                              BetaC = Beta[,unlist(modelResults@model.input@covariates)])
       return((dhat * nhatprime - nhat * dhatprime) / (dhat ^ 2))
     })
-
+    
     # Obtain the subgraph derivative.
     subgraphDerivDF <- as.data.frame(phiGradients)
     colnames(subgraphDerivDF) <- colnames(M)
-
+    
     # If data are categorical, compute the derivative of the activation function.
     derivPredByAct <- 1
     if(modelResults@model.input@stype.class == "factor"){
@@ -400,4 +400,60 @@ SigmoidWithCorrection <- function(input){
   exp.input[which(exp.input > 10000000)] <- 100000000
   exp.input[which(exp.input < 0.00000001)] <- 0.000000001
   return(1 + (1 / (1 + exp.input)))
+}
+
+#' Predict Y given current weights.
+#' @param modelResults An object of the ModelResults class.
+#' @param prunedModels The models that remain after pruning. There should only
+#' be one model at the end.
+DoPrediction <- function(modelResults, prunedModels){
+  
+  # Obtain the final prediction.
+  predictions <- CompositePrediction(pairs = prunedModels, modelResults = modelResults)
+  Y.pred <- as.data.frame(predictions)
+  colnames(Y.pred) <- 1
+  rownames(Y.pred) <- names(predictions)
+
+  # Use activation function if output is of a character type. Note that all character
+  # types are converted into factors, and since only binary factors are accepted by
+  # the package, the values will be 1 (for the alphanumerically lowest level) and 2
+  # (for the alphanumerically highest level).
+  if(modelResults@model.input@outcome.type == "factor"){
+    if(modelResults@activation.type == "softmax"){
+      Y.pred <- round(SoftmaxWithCorrection(Y.pred))
+    }else if(modelResults@activation.type == "tanh"){
+      Y.pred <- round(TanhWithCorrection(Y.pred))
+    }else{
+      Y.pred <- round(SigmoidWithCorrection(Y.pred))
+    }
+  }
+  
+  # Return the prediction.
+  return(Y.pred)
+}
+
+#' Train the graph learning model, using the specifications in the ModelResults
+#' class and storing the results in the ModelResults class.
+#' @param modelResults An object of the ModelResults class.
+#' @param prunedModels The models that remain after pruning.
+DoSingleTrainingIteration <- function(modelResults, prunedModels){
+  # Predict Y.
+  Y.pred <- DoPrediction(modelResults, prunedModels)
+  modelResults@outcome.prediction <- as.numeric(Y.pred)
+
+  # Backpropagate and calculate the error.
+  error <- modelResults@iteration.tracking$Error[modelResults@current.iteration-1]
+  modelResults <- Backpropagate(modelResults = modelResults,
+                                prunedModels = prunedModels,
+                                Y.pred = Y.pred)
+  if(modelResults@model.input@outcome.type == "categorical"){
+    modelResults@iteration.tracking$Error[iteration+1] <- 
+      ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
+  }else{
+    modelResults@iteration.tracking$Error[modelResults@current.iteration+1] <- 
+      ComputeRMSE(modelResults@model.input@true.phenotypes, Y.pred)
+  }
+  
+  # Modify the model results and return.
+  return(modelResults)
 }
