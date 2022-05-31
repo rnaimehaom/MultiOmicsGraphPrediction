@@ -68,8 +68,14 @@ InitializeGraphLearningModel <- function(modelInputs,
 #' exclude pooling and combine in a single layer using a linear combination).
 #' @param modelResults An object of the ModelResults class.
 #' @param verbose Whether to print results as you run the model.
+#' @param pruningMethod Set to "information.gain", "odds.ratio", or "error.t.test"
+#' @param binCount The number of bins to divide your original data into. Default is 10.
+#' Used in information gain pruning only.
+#' @param margin The margin of error for a prediction to be considered "correct".
+#' Default is 0.1. Used in odds ratio pruning only.
 #' @export
-OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
+OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
+                                    pruningMethod = "odds.ratio", binCount = 10, margin = 0.1){
   
   # Start the first iteration and calculate a dummy weight delta.
   modelResults@current.iteration <- 1
@@ -81,7 +87,10 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
   # Get the initial pruned models.
   pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
   prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                                                          verbose = FALSE, makePlots = FALSE)
+                                                                          verbose = FALSE, makePlots = FALSE,
+                                                                       pruningMethod = pruningMethod,
+                                                                       binCount = binCount,
+                                                                       margin = margin)
 
   # Placeholder for predictions.
   Y.pred <- rep(0,nrow(modelResults@model.input@node.wise.prediction))
@@ -110,6 +119,7 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
       newModelResults@model.input@input.data@analyteType1 <- as.matrix(modelResults@model.input@input.data@analyteType1[,i])
       newModelResults@model.input@input.data@analyteType2 <- as.matrix(modelResults@model.input@input.data@analyteType2[,i])
       newModelResults@model.input@input.data@sampleMetaData <- as.data.frame(modelResults@model.input@input.data@sampleMetaData[i,])
+      newModelResults@model.input@mask <- as.matrix(modelResults@model.input@mask[i,])
       importanceSamp <- lapply(1:length(modelResults@model.input@importance), function(imp){
         df <- t(as.data.frame(modelResults@model.input@importance[[imp]][i,]))
         rownames(df) <- rownames(modelResults@model.input@node.wise.prediction)[i]
@@ -152,8 +162,11 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE){
       modelResults@current.iteration
     
     # Get the new pruned models.
-    #prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-    #                                                                     verbose = FALSE, makePlots = FALSE)
+    prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                                                        verbose = FALSE, makePlots = FALSE,
+                                                                        pruningMethod = pruningMethod,
+                                                                        binCount = binCount,
+                                                                        margin = margin)
     prunedModelSizes <- lapply(prunedModels, function(model){return(length(model))})
     
     # Print the weight delta and error.

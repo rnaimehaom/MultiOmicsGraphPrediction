@@ -14,6 +14,11 @@
 #' @param coregulationGraph An igraph object containing the coregulation graph.
 #' @param stype.class The class of the outcome ("numeric" or "categorical")
 #' @param stype The phenotype or outcome of interest
+#' @param covariates A list of covariates to include in the model. These will be in the
+#' sampleMetaData slot of the inputData variable.
+#' @param predictorBounds Upper and lower bounds for predictors. Predictors outside
+#' of these bounds for a sample will not be included in the final prediction for that sample. 
+#' Defaults to c(NA,NA), meaning that no predictors will be removed.
 #' @param edgeTypeList List containing one or more of the following to include
 #' in the line graph:
 #' - "shared.outcome.analyte"
@@ -23,7 +28,8 @@
 #' TRUE or FALSE. Default is FALSE.
 #' @export
 FormatInput <- function(predictionGraphs, coregulationGraph, importance, modelProperties,
-                        inputData, stype.class, edgeTypeList, stype, verbose = FALSE, covariates = list()){
+                        inputData, stype.class, edgeTypeList, stype, verbose = FALSE, covariates = list(),
+                        predictorBounds = c(NA,NA)){
   
   # Extract edge-wise predictions.
   predictions_by_node <- lapply(names(predictionGraphs), function(sampName){
@@ -80,12 +86,24 @@ FormatInput <- function(predictionGraphs, coregulationGraph, importance, modelPr
   }
   names(Y) <- names(predictions_by_node)
   
+  # Create a binary predictor mask. The mask should include a "1" for every predictor
+  # within the specified bounds for a given sample and a "0" for every predictor out of bounds.
+  predictor_mask <- matrix(rep(1, times = ncol(predictions_flattened) * nrow(predictions_flattened)),
+                           ncol = ncol(predictions_flattened))
+  rownames(predictor_mask) <- rownames(predictions_flattened)
+  colnames(predictor_mask) <- colnames(predictions_flattened)
+  if(!is.na(predictorBounds[1]) && !is.na(predictorBounds[2])){
+    predictor_mask[which(predictions_flattened < predictorBounds[1])] <- 0
+    predictor_mask[which(predictions_flattened > predictorBounds[2])] <- 0
+  }
+  
   # Create a ModelInput object and return it.
   newModelInput <- methods::new("ModelInput", A.hat=A_hat, node.wise.prediction=predictions_flattened,
                                 true.phenotypes=Y, outcome.type=stype.class, 
                                 coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
                                 line.graph=as.matrix(A), input.data = inputData, model.properties = modelProperties,
-                                importance = importance, stype = stype, covariates = covariates, stype.class = stype.class)
+                                importance = importance, stype = stype, covariates = covariates, stype.class = stype.class,
+                                mask = predictor_mask)
   return(newModelInput)
 }
 
@@ -176,22 +194,15 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
 
 #' Predict Y given current weights.
 #' @param modelResults An object of the ModelResults class.
-#' @param prunedModels The models that remain after pruning.
+#' @param prunedModels The models that remain after pruning. There should only
+#' be one model at the end.
 DoPrediction <- function(modelResults, prunedModels){
   
-  # Obtain prediction for each composite model.
-  predictions <- lapply(1:length(prunedModels), function(i){
-    model <- prunedModels[[i]]
-    composite <- CompositePrediction(pairs = model, modelResults = modelResults)
-    compositeDF <- as.data.frame(composite)
-    colnames(compositeDF) <- i
-    rownames(compositeDF) <- names(composite)
-    return(compositeDF)
-  })
-  predictionsDF <- do.call(cbind, predictions)
-
-  # Average the predictions to obtain the final prediction.
-  Y.pred <- rowMeans(predictionsDF)
+  # Obtain the final prediction.
+  predictions <- CompositePrediction(pairs = prunedModels, modelResults = modelResults)
+  Y.pred <- as.data.frame(predictions)
+  colnames(Y.pred) <- 1
+  rownames(Y.pred) <- names(predictions)
 
   # Use activation function if output is of a character type. Note that all character
   # types are converted into factors, and since only binary factors are accepted by
@@ -218,7 +229,7 @@ DoPrediction <- function(modelResults, prunedModels){
 DoSingleTrainingIteration <- function(modelResults, prunedModels){
   # Predict Y.
   Y.pred <- DoPrediction(modelResults, prunedModels)
-  modelResults@outcome.prediction <- Y.pred
+  modelResults@outcome.prediction <- as.numeric(Y.pred)
 
   # Backpropagate and calculate the error.
   error <- modelResults@iteration.tracking$Error[modelResults@current.iteration-1]

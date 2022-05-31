@@ -5,12 +5,26 @@
 \title{Optimize the combination of predictors by importance alone (in other words,
 exclude pooling and combine in a single layer using a linear combination).}
 \usage{
-OptimizeImportanceCombo(modelResults, verbose = TRUE)
+OptimizeImportanceCombo(
+  modelResults,
+  verbose = TRUE,
+  pruningMethod = "odds.ratio",
+  binCount = 10,
+  margin = 0.1
+)
 }
 \arguments{
 \item{modelResults}{An object of the ModelResults class.}
 
 \item{verbose}{Whether to print results as you run the model.}
+
+\item{pruningMethod}{Set to "information.gain", "odds.ratio", or "error.t.test"}
+
+\item{binCount}{The number of bins to divide your original data into. Default is 10.
+Used in information gain pruning only.}
+
+\item{margin}{The margin of error for a prediction to be considered "correct".
+Default is 0.1. Used in odds ratio pruning only.}
 }
 \description{
 Optimize the combination of predictors by importance alone (in other words,

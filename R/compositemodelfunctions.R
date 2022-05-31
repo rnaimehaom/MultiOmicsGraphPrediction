@@ -11,7 +11,7 @@
 #' @return A final predicted value for each sample in the input data
 #' @export
 DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose = FALSE, makePlots = FALSE,
-                                      pruningMethod = "information.gain", binCount = 10, margin = 0.1){
+                                      pruningMethod = "odds.ratio", binCount = 10, margin = 0.1){
   # Initialize consolidated pairs.
   consolidated <- list(compositeModels = pairs, expandedCompositeModels = pairs, 
                        mapping = data.frame(from = 1:length(unlist(pairsPredAll)),
@@ -215,7 +215,7 @@ CompositePrediction <- function(pairs, modelResults){
 #' @param margin The margin of error for a prediction to be considered "correct".
 #' Default is 0.1
 #' @export
-ComputeSignificance <- function(pred, trueVal, pruningMethod = "information.gain",
+ComputeSignificance <- function(pred, trueVal, pruningMethod = "odds.ratio",
                                 binCount = 10, margin = 0.1){
   if(pruningMethod == "information.gain"){
     return(ComputeInfoGain(pred = pred, trueVal = trueVal, binCount = binCount))
@@ -481,7 +481,7 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantPairs){
 #' @return A list of informative pairs
 #' @export
 PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE,
-                            pruningMethod = "information.gain", binCount = 10, margin = 0.1){
+                            pruningMethod = "odds.ratio", binCount = 10, margin = 0.1){
   # Extract relevant information.
   pairs <- compositeSubgraphs$compositeModels
   mapping <- compositeSubgraphs$mapping

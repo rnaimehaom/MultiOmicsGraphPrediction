@@ -153,32 +153,24 @@ computeGradient <- function(modelResults, prunedModels){
   
   # Extract model components.
   S <- prunedModels
-  S_start <- lapply(S, function(subNet){
-    return(unlist(lapply(subNet, function(pair){
-      return(strsplit(pair, "__")[[1]][1])
-    })))
-  })
-  S_end <- lapply(S, function(subNet){
-    return(unlist(lapply(subNet, function(pair){
-      return(strsplit(pair, "__")[[1]][2])
-    })))
-  })
+  S_start <- unlist(lapply(S, function(pair){
+    return(strsplit(pair, "__")[[1]][1])
+  }))
+  S_end <- unlist(lapply(S, function(pair){
+    return(strsplit(pair, "__")[[1]][2])
+  }))
   
   # Extract analyte types.
   analyteTypeOut <- modelResults@model.input@input.data@analyteType2
   analyteTypeIn <- modelResults@model.input@input.data@analyteType1
-  if(S_start[[1]][1] %in% rownames(modelResults@model.input@input.data@analyteType2)){
+  if(S_start[1] %in% rownames(modelResults@model.input@input.data@analyteType2)){
     analyteTypeIn <- modelResults@model.input@input.data@analyteType2
   }
-  if(S_end[[1]][1] %in% rownames(modelResults@model.input@input.data@analyteType1)){
+  if(S_end[1] %in% rownames(modelResults@model.input@input.data@analyteType1)){
     analyteTypeOut <- modelResults@model.input@input.data@analyteType1
   }
-  Aind <- lapply(S_start, function(subNet){
-    return(data.frame(analyteTypeIn[subNet,]))
-  })
-  Aout <- lapply(S_end, function(subNet){
-    return(data.frame(analyteTypeOut[subNet,]))
-  })
+  Aind <- data.frame(analyteTypeIn[S_start,])
+  Aout <- data.frame(analyteTypeOut[S_end,])
   
   # Extract covariates
   C <- do.call(cbind, lapply(modelResults@model.input@covariates, function(c){
@@ -186,18 +178,11 @@ computeGradient <- function(modelResults, prunedModels){
   }))
   
   # Extract other components for gradient.
-  P_hat <- mean(unlist(lapply(S, function(subNet){
-    return(CompositePrediction(pairs = subNet, modelResults = modelResults))
-  })))
+  P_hat <- CompositePrediction(pairs = S, modelResults = modelResults)
   P <- modelResults@model.input@true.phenotypes
-  Beta <- lapply(S, function(subNet){
-    return(modelResults@model.input@model.properties[subNet,])
-  })
-  importance <- do.call(rbind, modelResults@model.input@importance)
-  rownames(importance) <- names(modelResults@model.input@importance)
-  M <- lapply(S, function(subNet){
-    return(importance[,subNet])
-  })
+  Beta <- modelResults@model.input@model.properties[unlist(S),]
+  M <- as.data.frame(do.call(rbind, modelResults@model.input@importance)[,unlist(S)])
+  rownames(M) <- names(modelResults@model.input@importance)
   phi <- modelResults@current.importance.weights
 
   # Compute the gradient for each sample.
@@ -205,78 +190,77 @@ computeGradient <- function(modelResults, prunedModels){
     
     # Compute the derivative of P-hat.
     PhatDeriv <- 2 * (P[k] - P_hat[k])
-      
-    # Compute the derivative over multiple subgraphs.
-    subgraphDeriv <- lapply(1:length(S), function(lambda){
-      
-      # Extract the independent, outcome, and covariate values.
-      AindLocal <- data.frame(Aind[[lambda]][,k])
-      if(length(AindLocal) == ncol(Aind[[lambda]]) && ncol(Aind[[lambda]]) > 1){
-        AindLocal <- t(AindLocal)
-        colnames(AindLocal) <- colnames(Aind[[lambda]])
-      }
-      AoutLocal <- data.frame(Aout[[lambda]][,k])
-      if(length(AoutLocal) == ncol(Aout[[lambda]]) && ncol(Aout[[lambda]]) > 1){
-        AoutLocal <- t(AoutLocal)
-        colnames(AoutLocal) <- colnames(Aout[[lambda]])
-      }
-      CovarLocal <- data.frame(C[k,])
-      if(length(CovarLocal) == ncol(C)){
-        CovarLocal <- t(CovarLocal)
-        colnames(CovarLocal) <- colnames(C)
-      }
-      M[[lambda]] <- as.data.frame(M[[lambda]])
-      
-      # Compute the denominator.
-      dhat <- Dhat(Aind = as.matrix(AindLocal), 
-                   phi = phi, 
-                   M = M[[lambda]], 
-                   Beta2 = Beta[[lambda]][,"type"],
-                   Beta3 = Beta[[lambda]][,"a:type"])
-      
-      # Compute the numerator.
-      nhat <- Nhat(Aind = as.matrix(AindLocal),
-                   Aout = as.matrix(AoutLocal),
-                   C = CovarLocal,
-                   phi = phi, 
-                   M = M[[lambda]], 
-                   Beta0 = Beta[[lambda]][,"(Intercept)"],
-                   Beta1 = Beta[[lambda]][,"a"],
-                   BetaC = Beta[[lambda]][,unlist(modelResults@model.input@covariates)])
-      
-      # Compute the derivative for each value of phi.
-      phiGradients <- lapply(1:length(phi), function(gamma){
-        # Compute the derivative of P-hat with respect to the denominator.
-        dhatprime <- DhatPrime(Aind = as.matrix(AindLocal), 
-                               M = M[[lambda]][gamma,], 
-                               Beta2 = Beta[[lambda]][,"type"],
-                               Beta3 = Beta[[lambda]][,"a:type"])
-        
-        # Compute the derivative of P-hat with respect to the numerator.
-        nhatprime <- NhatPrime(Aind = as.matrix(AindLocal),
-                               Aout = as.matrix(AoutLocal),
-                               C = CovarLocal,
-                               M = M[[lambda]][gamma,], 
-                               Beta0 = Beta[[lambda]][,"(Intercept)"],
-                               Beta1 = Beta[[lambda]][,"a"],
-                               BetaC = Beta[[lambda]][,unlist(modelResults@model.input@covariates)])
-        return((dhat * nhatprime - nhat * dhatprime) / (dhat ^ 2))
-      })
-      MDF <- t(as.data.frame(M))
-      phiGradientsDF <- as.data.frame(phiGradients)
-      colnames(phiGradientsDF) <- colnames(MDF)
-      return(phiGradientsDF)
-    })
-    subgraphDerivDF <- do.call(rbind, subgraphDeriv)
-    derivOverSubgraphs <- colMeans(subgraphDerivDF)
+
+    # Extract the independent, outcome, and covariate values.
+    AindLocal <- data.frame(Aind[,k])
+    if(length(AindLocal) == ncol(Aind) && ncol(Aind) > 1){
+      AindLocal <- t(AindLocal)
+      colnames(AindLocal) <- colnames(Aind)
+    }
+    AoutLocal <- data.frame(Aout[,k])
+    if(length(AoutLocal) == ncol(Aout) && ncol(Aout) > 1){
+      AoutLocal <- t(AoutLocal)
+      colnames(AoutLocal) <- colnames(Aout)
+    }
+    CovarLocal <- data.frame(C[k,])
+    if(length(CovarLocal) == ncol(C)){
+      CovarLocal <- t(CovarLocal)
+      colnames(CovarLocal) <- colnames(C)
+    }
+
+    # Compute the denominator.
+    dhat <- Dhat(Aind = as.matrix(AindLocal), 
+                 phi = phi, 
+                 M = M, 
+                 Beta2 = Beta[,"type"],
+                 Beta3 = Beta[,"a:type"])
     
+    # Compute the numerator.
+    nhat <- Nhat(Aind = as.matrix(AindLocal),
+                 Aout = as.matrix(AoutLocal),
+                 C = CovarLocal,
+                 phi = phi, 
+                 M = M, 
+                 Beta0 = Beta[,"(Intercept)"],
+                 Beta1 = Beta[,"a"],
+                 BetaC = Beta[,unlist(modelResults@model.input@covariates)])
+    
+    # Compute the derivative for each value of phi.
+    phiGradients <- lapply(1:length(phi), function(gamma){
+      # Extract the relevant component of M.
+      Mgamma <- NULL
+      if(ncol(M) > 1){
+        Mgamma <- M[,gamma]
+      }else{
+        Mgamma <- M[gamma,]
+      }
+      # Compute the derivative of P-hat with respect to the denominator.
+      dhatprime <- DhatPrime(Aind = as.matrix(AindLocal), 
+                             M = Mgamma, 
+                             Beta2 = Beta[,"type"],
+                             Beta3 = Beta[,"a:type"])
+      
+      # Compute the derivative of P-hat with respect to the numerator.
+      nhatprime <- NhatPrime(Aind = as.matrix(AindLocal),
+                             Aout = as.matrix(AoutLocal),
+                             C = CovarLocal,
+                             M = Mgamma, 
+                             Beta0 = Beta[,"(Intercept)"],
+                             Beta1 = Beta[,"a"],
+                             BetaC = Beta[,unlist(modelResults@model.input@covariates)])
+      return((dhat * nhatprime - nhat * dhatprime) / (dhat ^ 2))
+    })
+
+    # Obtain the subgraph derivative.
+    subgraphDerivDF <- as.data.frame(phiGradients)
+    colnames(subgraphDerivDF) <- colnames(M)
 
     # If data are categorical, compute the derivative of the activation function.
     derivPredByAct <- 1
     if(modelResults@model.input@stype.class == "factor"){
       derivPredByAct <- DerivativeOfActivation(modelResults@activation.type, P_hat)
     }
-    return(PhatDeriv * derivPredByAct * derivOverSubgraphs)
+    return(PhatDeriv * derivPredByAct * subgraphDerivDF)
   })
   sampGradientsDF <- do.call(rbind, sampGradients)
   gradients <- colSums(sampGradientsDF)

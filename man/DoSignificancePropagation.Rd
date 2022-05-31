@@ -10,7 +10,7 @@ DoSignificancePropagation(
   covar = NULL,
   verbose = FALSE,
   makePlots = FALSE,
-  pruningMethod = "information.gain",
+  pruningMethod = "odds.ratio",
   binCount = 10,
   margin = 0.1
 )

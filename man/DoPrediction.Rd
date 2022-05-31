@@ -9,7 +9,8 @@ DoPrediction(modelResults, prunedModels)
 \arguments{
 \item{modelResults}{An object of the ModelResults class.}
 
-\item{prunedModels}{The models that remain after pruning.}
+\item{prunedModels}{The models that remain after pruning. There should only
+be one model at the end.}
 }
 \description{
 Predict Y given current weights.
