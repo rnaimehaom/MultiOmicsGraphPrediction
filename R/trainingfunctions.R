@@ -7,16 +7,9 @@
 Backpropagate <- function(modelResults, prunedModels, Y.pred){
   # Calculate gradient.
   gradient <- computeGradient(modelResults = modelResults, prunedModels = prunedModels)
-  
+
   # Set previous weights.
   prevWeights <- modelResults@current.importance.weights
-  
-  # Clip the gradient so that weights range between 0 and 1 even if full gradient is used.
-  weightsWithFullGradient <- prevWeights - gradient
-  weightsBelow <- which(weightsWithFullGradient < 0)
-  weightsAbove <- which(weightsWithFullGradient > 1)
-  gradient[weightsBelow] <- prevWeights[weightsBelow]
-  gradient[weightsAbove] <- prevWeights[weightsAbove] - 1
   
   # Update gradient.
   modelResults@current.gradient <- as.matrix(gradient)
@@ -152,14 +145,14 @@ computeHessianSingleLayer <- function(modelResults, convolution, pooling){
 computeGradient <- function(modelResults, prunedModels){
   
   # Extract model components.
-  S <- prunedModels
+  S <- unlist(prunedModels)
   S_start <- unlist(lapply(S, function(pair){
     return(strsplit(pair, "__")[[1]][1])
   }))
   S_end <- unlist(lapply(S, function(pair){
     return(strsplit(pair, "__")[[1]][2])
   }))
-  
+
   # Extract analyte types.
   analyteTypeOut <- modelResults@model.input@input.data@analyteType2
   analyteTypeIn <- modelResults@model.input@input.data@analyteType1
@@ -171,26 +164,26 @@ computeGradient <- function(modelResults, prunedModels){
   }
   Aind <- data.frame(analyteTypeIn[S_start,])
   Aout <- data.frame(analyteTypeOut[S_end,])
-  
+
   # Extract covariates
   C <- do.call(cbind, lapply(modelResults@model.input@covariates, function(c){
     return(modelResults@model.input@input.data@sampleMetaData[,c])
   }))
-  
+
   # Extract other components for gradient.
   P_hat <- CompositePrediction(pairs = S, modelResults = modelResults)
   P <- modelResults@model.input@true.phenotypes
-  Beta <- modelResults@model.input@model.properties[unlist(S),]
-  M <- as.data.frame(do.call(rbind, modelResults@model.input@importance)[,unlist(S)])
+  Beta <- modelResults@model.input@model.properties[S,]
+  M <- as.data.frame(do.call(rbind, modelResults@model.input@importance)[,S])
   rownames(M) <- names(modelResults@model.input@importance)
   phi <- modelResults@current.importance.weights
-  
+
   # Compute the gradient for each sample.
   sampGradients <- lapply(1:length(P), function(k){
     
     # Compute the derivative of P-hat.
     PhatDeriv <- 2 * (P[k] - P_hat[k])
-    
+
     # Extract the independent, outcome, and covariate values.
     AindLocal <- data.frame(Aind[,k])
     if(length(AindLocal) == ncol(Aind) && ncol(Aind) > 1){
@@ -207,7 +200,7 @@ computeGradient <- function(modelResults, prunedModels){
       CovarLocal <- t(CovarLocal)
       colnames(CovarLocal) <- colnames(C)
     }
-    
+
     # Compute the denominator.
     dhat <- Dhat(Aind = as.matrix(AindLocal), 
                  phi = phi, 
@@ -224,16 +217,12 @@ computeGradient <- function(modelResults, prunedModels){
                  Beta0 = Beta[,"(Intercept)"],
                  Beta1 = Beta[,"a"],
                  BetaC = Beta[,unlist(modelResults@model.input@covariates)])
-    
+
     # Compute the derivative for each value of phi.
     phiGradients <- lapply(1:length(phi), function(gamma){
       # Extract the relevant component of M.
-      Mgamma <- NULL
-      if(ncol(M) > 1){
-        Mgamma <- M[,gamma]
-      }else{
-        Mgamma <- M[gamma,]
-      }
+      Mgamma <- M[gamma,]
+
       # Compute the derivative of P-hat with respect to the denominator.
       dhatprime <- DhatPrime(Aind = as.matrix(AindLocal), 
                              M = Mgamma, 
@@ -250,11 +239,11 @@ computeGradient <- function(modelResults, prunedModels){
                              BetaC = Beta[,unlist(modelResults@model.input@covariates)])
       return((dhat * nhatprime - nhat * dhatprime) / (dhat ^ 2))
     })
-    
+
     # Obtain the subgraph derivative.
     subgraphDerivDF <- as.data.frame(phiGradients)
-    colnames(subgraphDerivDF) <- colnames(M)
-    
+    colnames(subgraphDerivDF) <- names(modelResults@model.input@importance)
+
     # If data are categorical, compute the derivative of the activation function.
     derivPredByAct <- 1
     if(modelResults@model.input@stype.class == "factor"){
@@ -409,7 +398,7 @@ SigmoidWithCorrection <- function(input){
 DoPrediction <- function(modelResults, prunedModels){
   
   # Obtain the final prediction.
-  predictions <- CompositePrediction(pairs = prunedModels, modelResults = modelResults)
+  predictions <- CompositePrediction(pairs = unlist(prunedModels), modelResults = modelResults)
   Y.pred <- as.data.frame(predictions)
   colnames(Y.pred) <- 1
   rownames(Y.pred) <- names(predictions)
@@ -439,21 +428,21 @@ DoPrediction <- function(modelResults, prunedModels){
 DoSingleTrainingIteration <- function(modelResults, prunedModels){
   # Predict Y.
   Y.pred <- DoPrediction(modelResults, prunedModels)
-  modelResults@outcome.prediction <- as.numeric(Y.pred)
+  modelResults@outcome.prediction <- as.numeric(as.matrix(Y.pred))
 
   # Backpropagate and calculate the error.
-  error <- modelResults@iteration.tracking$Error[modelResults@current.iteration-1]
+  error <- modelResults@iteration.tracking$Error[modelResults@current.iteration]
   modelResults <- Backpropagate(modelResults = modelResults,
                                 prunedModels = prunedModels,
                                 Y.pred = Y.pred)
   if(modelResults@model.input@outcome.type == "categorical"){
-    modelResults@iteration.tracking$Error[iteration+1] <- 
+    modelResults@iteration.tracking$Error[iteration] <- 
       ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
   }else{
-    modelResults@iteration.tracking$Error[modelResults@current.iteration+1] <- 
+    modelResults@iteration.tracking$Error[modelResults@current.iteration] <- 
       ComputeRMSE(modelResults@model.input@true.phenotypes, Y.pred)
   }
-  
+
   # Modify the model results and return.
   return(modelResults)
 }
