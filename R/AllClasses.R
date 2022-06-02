@@ -34,23 +34,7 @@ methods::setClass(
                  stype = "character",
                  stype.class = "character")
 )
-#' PoolingFilter class
-#'
-#' @name PoolingFilter-class
-#' @rdname PoolingFilter-class
-#' @exportClass PoolingFilter
-#' @slot filter The filter that maps each dimension of the input to one of k clusters.
-#' @slot filter.type One of "mean", "min", "median", or "max".
-#' @slot cluster.sizes A vector of cluster sizes (by number of dimensions mapping
-#' @slot individual.filters A list of filters corresponding to each individual sample.
-#' to the cluster)
-methods::setClass(
-  Class="PoolingFilter",
-  representation(filter="matrix",
-                 filter.type="character",
-                 cluster.sizes="matrix",
-                 individual.filters="list")
-)
+
 #' ModelResults class
 #'
 #' @name ModelResults-class
@@ -93,7 +77,8 @@ methods::setClass(
                  outcome.prediction="numeric",
                  optimization.type="character",
                  sum.square.gradients="matrix",
-                 previous.momentum="matrix")
+                 previous.momentum="matrix",
+                 pairs="character")
 )
 
 

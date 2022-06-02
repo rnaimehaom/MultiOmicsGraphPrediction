@@ -61,7 +61,8 @@ InitializeGraphLearningModel <- function(modelInputs,
                         previous.update.vector=as.matrix(rep(0,length(weights))),
                         sum.square.gradients=as.matrix(rep(0,length(weights))),
                         current.iteration=0, activation.type=activationType,
-                        optimization.type=optimizationType)
+                        optimization.type=optimizationType,
+                        pairs = "")
   return(newModelResults)
 }
 
@@ -350,6 +351,7 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     #                                                                     binCount = binCount,
     #                                                                     margin = margin,
     #                                                                     includeVarianceTest = includeVarianceTest)
+    modelResults@pairs <- unlist(prunedModels)
     prunedModelSizes <- lapply(prunedModels, function(model){return(length(model))})
     
     # Print the weight delta and error.
@@ -369,6 +371,7 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     modelResults@current.iteration <- modelResults@current.iteration + 1
     modelResults@iteration.tracking$Iteration[modelResults@current.iteration+1]<-
       modelResults@current.iteration
+    modelResults@pairs <- unlist(prunedModels)
     
     # Increment the number of convergent iterations if applicable.
     if(weight.delta < modelResults@convergence.cutoff){
@@ -379,8 +382,8 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
   }
   # If we exited before the maximum number of iterations, remove the rest of the
   # tracking data.
-  if(modelResults@current.iteration < modelResults@max.iterations){
-    modelResults@iteration.tracking <- modelResults@iteration.tracking[1:modelResults@current.iteration,]
+  if((modelResults@current.iteration-1) < modelResults@max.iterations){
+    modelResults@iteration.tracking <- modelResults@iteration.tracking[1:(modelResults@current.iteration-1),]
   }
   return(modelResults)
 }
