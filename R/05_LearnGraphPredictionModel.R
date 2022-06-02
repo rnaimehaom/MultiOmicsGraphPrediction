@@ -37,7 +37,6 @@ InitializeGraphLearningModel <- function(modelInputs,
   tracking.frame.cnames <- c(tracking.frame.cnames, paste("Gradient", wt_name, sep = "_"))
   colnames(tracking.frame) <- tracking.frame.cnames
   tracking.frame$Error[1] <- .Machine$double.xmax
-  tracking.frame$Iteration[1] <- 0
 
   # Initialize weights with uniform distribution.
   max_phen <- max(modelInputs@true.phenotypes)
@@ -266,8 +265,6 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
   
   # Start the first iteration and calculate a dummy weight delta.
   modelResults@current.iteration <- 1
-  modelResults@iteration.tracking$Iteration[modelResults@current.iteration+1]<-
-    modelResults@current.iteration
   weight.delta <- sqrt(sum((modelResults@current.importance.weights - 
                               modelResults@previous.importance.weights)^2))
   
@@ -287,7 +284,7 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
   # or until convergence.
   sequential_convergence_count <- 0
   sequential_count_limit <- 5
-  while(modelResults@current.iteration < (modelResults@max.iterations - 1)
+  while(modelResults@current.iteration <= modelResults@max.iterations
         && (sequential_convergence_count < sequential_count_limit)){
     # For stochastic training, permute the samples, then compute the gradient one
     # sample at a time.
@@ -369,8 +366,6 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     
     # Update the iteration.
     modelResults@current.iteration <- modelResults@current.iteration + 1
-    modelResults@iteration.tracking$Iteration[modelResults@current.iteration+1]<-
-      modelResults@current.iteration
     modelResults@pairs <- unlist(prunedModels)
     
     # Increment the number of convergent iterations if applicable.
