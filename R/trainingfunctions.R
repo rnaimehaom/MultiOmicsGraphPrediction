@@ -431,17 +431,9 @@ DoSingleTrainingIteration <- function(modelResults, prunedModels){
   modelResults@outcome.prediction <- as.numeric(as.matrix(Y.pred))
 
   # Backpropagate and calculate the error.
-  error <- modelResults@iteration.tracking$Error[modelResults@current.iteration]
   modelResults <- Backpropagate(modelResults = modelResults,
                                 prunedModels = prunedModels,
                                 Y.pred = Y.pred)
-  if(modelResults@model.input@outcome.type == "categorical"){
-    modelResults@iteration.tracking$Error[iteration] <- 
-      ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
-  }else{
-    modelResults@iteration.tracking$Error[modelResults@current.iteration] <- 
-      ComputeRMSE(modelResults@model.input@true.phenotypes, Y.pred)
-  }
 
   # Modify the model results and return.
   return(modelResults)

@@ -37,6 +37,7 @@ InitializeGraphLearningModel <- function(modelInputs,
   tracking.frame.cnames <- c(tracking.frame.cnames, paste("Gradient", wt_name, sep = "_"))
   colnames(tracking.frame) <- tracking.frame.cnames
   tracking.frame$Error[1] <- .Machine$double.xmax
+  tracking.frame$Iteration[1] <- 0
 
   # Initialize weights with uniform distribution.
   max_phen <- max(modelInputs@true.phenotypes)
@@ -276,9 +277,17 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
                                                                        binCount = binCount,
                                                                        margin = margin,
                                                                        includeVarianceTest = includeVarianceTest)
-
-  # Placeholder for predictions.
-  Y.pred <- rep(0,nrow(modelResults@model.input@node.wise.prediction))
+  
+  # Set initial error.
+  Y.pred <- DoPrediction(modelResults = modelResults, prunedModels = prunedModels)
+  if(modelResults@model.input@outcome.type == "categorical"){
+    modelResults@iteration.tracking$Error[1] <- 
+      ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
+  }else{
+    modelResults@iteration.tracking$Error[1] <- 
+      ComputeRMSE(modelResults@model.input@true.phenotypes, Y.pred)
+  }
+  print(paste("Initial error is", modelResults@iteration.tracking$Error[1]))
   
   # Repeat the training process for all iterations, until the maximum is reached
   # or until convergence.
@@ -332,14 +341,15 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     Y.pred <- DoPrediction(modelResults = modelResults, prunedModels = prunedModels)
 
     # Compute the prediction error over all samples.
+    modelResults@iteration.tracking$Iteration[modelResults@current.iteration+1] <- modelResults@current.iteration
     if(modelResults@model.input@outcome.type == "categorical"){
-      modelResults@iteration.tracking$Error[modelResults@current.iteration] <- 
+      modelResults@iteration.tracking$Error[modelResults@current.iteration+1] <- 
         ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
     }else{
-      modelResults@iteration.tracking$Error[modelResults@current.iteration] <- 
+      modelResults@iteration.tracking$Error[modelResults@current.iteration+1] <- 
         ComputeRMSE(modelResults@model.input@true.phenotypes, Y.pred)
     }
-    currentError <- modelResults@iteration.tracking$Error[modelResults@current.iteration]
+    currentError <- modelResults@iteration.tracking$Error[modelResults@current.iteration+1]
     
     # Get the new pruned models.
     # prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
