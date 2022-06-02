@@ -189,6 +189,13 @@ importance <- MultiOmicsGraphPrediction::GetAllImportanceMetrics(predictions = p
                                                                  modelStats = myres.r2,
                                                                  colIdInd = "databaseId",
                                                                  colIdOut = "databaseId")
+hist(importance$pdf)
+hist(importance$localerr)
+hist(importance$pathway)
+hist(importance$reaction)
+hist(importance$interactionpval)
+hist(importance$interactioncoef)
+hist(importance$analytecoef)
 ```
 
 ## Create Model Input
@@ -218,22 +225,24 @@ pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInpu
 propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
                                                verbose = TRUE, makePlots = FALSE, pruningMethod = "odds.ratio")
 print(propagatedGraph)
-print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
-print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[2]]))
-print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[3]]))
+print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph))
 ```
 
 ## T-Test
+(1) Try z-scores instead, or something else. Here, large error values are being de-emphasized due to the denominator term in the t-score.
 (2) The final prediction needs to also be a combination of the final subgraphs. We shouldn't be averaging them.
 ```{r}
 pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
 propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test")
+                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE)
 print(propagatedGraph)
 print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
 ```
 
 # Learn Weights.
+We need to input the type of pruning and the cutoffs as parameters. This will allow
+us to pass those parameters to the significance propagation step. We also need to take
+out any references to subgraph averaging that were included in the gradient or prediction steps.
 ```{r}
 modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
                                                      coregulationGraph = coreg.r2,
@@ -245,8 +254,9 @@ modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projecte
                                                      modelProperties = myres.r2,
                                                      covariates = covar,
                                                      predictorBounds = c(-5,5))
-modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2)
-optimalModel <- MultiOmicsGraphPrediction::OptimizeImportanceCombo(modelResults = modelResults, verbose = TRUE)
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.9)
+#optimalModel <- MultiOmicsGraphPrediction::OptimizeImportanceCombo(modelResults = modelResults,pruningMethod = "odds.ratio", verbose = TRUE)
+optimalModel <- MultiOmicsGraphPrediction::OptimizeImportanceCombo(modelResults = modelResults,pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE)
 ```
 
 ## Calculate information gain for when all terms are included in a composite predictor.

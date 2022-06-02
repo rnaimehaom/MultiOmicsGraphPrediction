@@ -12,7 +12,8 @@ PrunePredictors(
   makePlots = FALSE,
   pruningMethod = "odds.ratio",
   binCount = 10,
-  margin = 0.1
+  margin = 0.1,
+  includeVarianceTest = includeVarianceTest
 )
 }
 \arguments{
@@ -33,6 +34,9 @@ Used in information gain pruning only.}
 
 \item{margin}{The margin of error for a prediction to be considered "correct".
 Default is 0.1. Used in odds ratio pruning only.}
+
+\item{includeVarianceTest}{Scale the t-score by the f-statistic (the ratio of variances).
+Only applicable when the pruning method is error.t.test. Default is FALSE.}
 }
 \value{
 A list of informative pairs

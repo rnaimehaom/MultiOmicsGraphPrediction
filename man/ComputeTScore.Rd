@@ -5,10 +5,13 @@
 \title{Compute t-score for a prediction using the paired t-test. The t-score
 tells us how far away the prediction errors are from the mean errors.}
 \usage{
-ComputeTScore(pred, trueVal)
+ComputeTScore(pred, trueVal, includeVarianceTest = FALSE)
 }
 \arguments{
 \item{trueVal}{The true values (predictions or outcomes) of the input data.}
+
+\item{includeVarianceTest}{Scale the t-score by the f-statistic (the ratio of variances).
+Default is FALSE.}
 
 \item{pairs}{A list of pairs to include in the composite model.}
 }

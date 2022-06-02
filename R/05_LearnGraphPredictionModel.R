@@ -46,6 +46,7 @@ InitializeGraphLearningModel <- function(modelInputs,
   if(!is.null(initialImportanceWeights)){
     weights <- initialImportanceWeights
   }
+  names(weights) <- names(modelInputs@importance)
   
   tracking.frame[1,3:(2+weights_count)] <- weights
 
@@ -255,9 +256,12 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
 #' Used in information gain pruning only.
 #' @param margin The margin of error for a prediction to be considered "correct".
 #' Default is 0.1. Used in odds ratio pruning only.
+#' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
+#' Only applicable when the pruning method is error.t.test. Default is FALSE.
 #' @export
 OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
-                                    pruningMethod = "odds.ratio", binCount = 10, margin = 0.1){
+                                    pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
+                                    includeVarianceTest = FALSE){
   
   # Start the first iteration and calculate a dummy weight delta.
   modelResults@current.iteration <- 1
@@ -272,7 +276,8 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
                                                                           verbose = FALSE, makePlots = FALSE,
                                                                        pruningMethod = pruningMethod,
                                                                        binCount = binCount,
-                                                                       margin = margin)
+                                                                       margin = margin,
+                                                                       includeVarianceTest = includeVarianceTest)
 
   # Placeholder for predictions.
   Y.pred <- rep(0,nrow(modelResults@model.input@node.wise.prediction))
@@ -286,7 +291,8 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     # For stochastic training, permute the samples, then compute the gradient one
     # sample at a time.
     perm_samples <- sample(1:nrow(modelResults@model.input@node.wise.prediction),
-                           nrow(modelResults@model.input@node.wise.prediction))
+                          nrow(modelResults@model.input@node.wise.prediction))
+    #perm_samples <- 1:nrow(modelResults@model.input@node.wise.prediction)
 
     # Initialize previous weight vector.
     modelResults@previous.importance.weights <- modelResults@current.importance.weights
@@ -337,26 +343,32 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     }
     currentError <- modelResults@iteration.tracking$Error[modelResults@current.iteration]
     
-    # Update the iteration.
-    modelResults@current.iteration <- modelResults@current.iteration + 1
-    modelResults@iteration.tracking$Iteration[modelResults@current.iteration+1]<-
-      modelResults@current.iteration
-    
     # Get the new pruned models.
-    prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                                                        verbose = FALSE, makePlots = FALSE,
-                                                                        pruningMethod = pruningMethod,
-                                                                        binCount = binCount,
-                                                                        margin = margin)
+    # prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+    #                                                                     verbose = FALSE, makePlots = FALSE,
+    #                                                                     pruningMethod = pruningMethod,
+    #                                                                     binCount = binCount,
+    #                                                                     margin = margin,
+    #                                                                     includeVarianceTest = includeVarianceTest)
     prunedModelSizes <- lapply(prunedModels, function(model){return(length(model))})
     
     # Print the weight delta and error.
     weight.delta <- sqrt(sum((modelResults@current.importance.weights - modelResults@previous.importance.weights)^2))
     if(modelResults@current.iteration %% 1 == 0 && verbose == TRUE){
       print(paste("iteration", modelResults@current.iteration, ": weight delta is", weight.delta,
-                  "and error is", paste0(currentError, ". Subgraph sizes are ", 
-                  paste(prunedModelSizes, collapse = ", "))))
+                  "and error is", paste0(currentError, ". Final subgraph has ", prunedModelSizes, " nodes.")))
+      sortedNodes <- sort(unlist(prunedModels))
+      if(prunedModelSizes > 5){
+        sortedNodes <- sortedNodes[1:5]
+      }
+      print(paste0("Nodes include: ", paste(sortedNodes, collapse = ", ")))
+      #plot(unlist(Y.pred), as.vector(modelResults@model.input@true.phenotypes))
     }
+    
+    # Update the iteration.
+    modelResults@current.iteration <- modelResults@current.iteration + 1
+    modelResults@iteration.tracking$Iteration[modelResults@current.iteration+1]<-
+      modelResults@current.iteration
     
     # Increment the number of convergent iterations if applicable.
     if(weight.delta < modelResults@convergence.cutoff){

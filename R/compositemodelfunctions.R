@@ -8,10 +8,13 @@
 #' Used in information gain pruning only.
 #' @param margin The margin of error for a prediction to be considered "correct".
 #' Default is 0.1. Used in odds ratio pruning only.
+#' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
+#' Only applicable when the pruning method is error.t.test. Default is FALSE.
 #' @return A final predicted value for each sample in the input data
 #' @export
 DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose = FALSE, makePlots = FALSE,
-                                      pruningMethod = "odds.ratio", binCount = 10, margin = 0.1){
+                                      pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
+                                      includeVarianceTest = FALSE){
   # Initialize consolidated pairs.
   consolidated <- list(compositeModels = pairs, expandedCompositeModels = pairs, 
                        mapping = data.frame(from = 1:length(unlist(pairsPredAll)),
@@ -27,7 +30,8 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               makePlots = makePlots,
                                                               pruningMethod = pruningMethod,
                                                               binCount = binCount,
-                                                              margin = margin)
+                                                              margin = margin,
+                                                              includeVarianceTest = includeVarianceTest)
     consolidated <- MultiOmicsGraphPrediction::ObtainCompositeModels(pairsInEachPredictor = consolidated$expandedCompositeModels, 
                                                                      importantPairs = prunedPairs)
     prevModels <- prunedPairs
@@ -45,7 +49,8 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               makePlots = makePlots,
                                                               pruningMethod = pruningMethod,
                                                               binCount = binCount,
-                                                              margin = margin)
+                                                              margin = margin,
+                                                              includeVarianceTest = includeVarianceTest)
   }
   
   # Return consolidated pairs.
@@ -130,6 +135,7 @@ CompositePrediction <- function(pairs, modelResults){
   denom <- weighted_sum_b2 + weighted_sum_b3
   denom[which(denom == 0)] <- 0.0001
   final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
+
   return(final_val)
 }
 
@@ -141,15 +147,17 @@ CompositePrediction <- function(pairs, modelResults){
 #' @param binCount The number of bins to divide your original data into. Default is 10.
 #' @param margin The margin of error for a prediction to be considered "correct".
 #' Default is 0.1
+#' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
+#' Only applicable when the pruning method is error.t.test. Default is FALSE.
 #' @export
 ComputeSignificance <- function(pred, trueVal, pruningMethod = "odds.ratio",
-                                binCount = 10, margin = 0.1){
+                                binCount = 10, margin = 0.1, includeVarianceTest = FALSE){
   if(pruningMethod == "information.gain"){
     return(ComputeInfoGain(pred = pred, trueVal = trueVal, binCount = binCount))
   }else if(pruningMethod == "odds.ratio"){
     return(ComputeOddsRatio(pred = pred, trueVal = trueVal, margin = margin))
   }else if(pruningMethod == "error.t.test"){
-    return(ComputeTScore(pred = pred, trueVal = trueVal))
+    return(ComputeTScore(pred = pred, trueVal = trueVal, includeVarianceTest = includeVarianceTest))
   }else{
     stop(paste(pruningMethod, "is not a valid pruning method."))
   }
@@ -159,8 +167,10 @@ ComputeSignificance <- function(pred, trueVal, pruningMethod = "odds.ratio",
 #' tells us how far away the prediction errors are from the mean errors.
 #' @param pairs A list of pairs to include in the composite model.
 #' @param trueVal The true values (predictions or outcomes) of the input data.
+#' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
+#' Default is FALSE.
 #' @export
-ComputeTScore <- function(pred, trueVal){
+ComputeTScore <- function(pred, trueVal, includeVarianceTest = FALSE){
   trueVal <- trueVal[which(!is.nan(pred))]
   pred <- pred[which(!is.nan(pred))]
   tScore <- NA
@@ -184,8 +194,13 @@ ComputeTScore <- function(pred, trueVal){
   else{
     tScore <- -1000
   }
-  print(sum(errorDiff))
-  print(sqrt((nSse - errorDiffSquared) / (n-1)))
+  
+  # If variance test is also included, compute f-statistic and add.
+  if(includeVarianceTest == TRUE){
+    fScore <- var(predAbsError) / var(meanAbsError)
+    tScore <- tScore - fScore
+  }
+  
   return(tScore)
 }
 
@@ -405,10 +420,13 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantPairs){
 #' Used in information gain pruning only.
 #' @param margin The margin of error for a prediction to be considered "correct".
 #' Default is 0.1. Used in odds ratio pruning only.
+#' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
+#' Only applicable when the pruning method is error.t.test. Default is FALSE.
 #' @return A list of informative pairs
 #' @export
 PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE,
-                            pruningMethod = "odds.ratio", binCount = 10, margin = 0.1){
+                            pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
+                            includeVarianceTest = includeVarianceTest){
   # Extract relevant information.
   pairs <- compositeSubgraphs$compositeModels
   mapping <- compositeSubgraphs$mapping
@@ -427,7 +445,8 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
                                                            trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
                                                            pruningMethod = pruningMethod,
                                                            binCount = binCount,
-                                                           margin = margin)
+                                                           margin = margin,
+                                                           includeVarianceTest = includeVarianceTest)
     if(verbose == TRUE){
       print(paste(list("Original", pruningMethod, "is", significance), collapse = " "))
     }
@@ -462,7 +481,8 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
                                                                trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
                                                                pruningMethod = pruningMethod,
                                                                binCount = binCount,
-                                                               margin = margin)
+                                                               margin = margin,
+                                                               includeVarianceTest = includeVarianceTest)
       }
       
       # If the significance of the new model is greater than or equal to the full model, remove the pair.
@@ -535,7 +555,5 @@ ComputeImportanceWeights <- function(modelResults){
     return(as.matrix(imp))
   })
   weights_all <- Reduce("+",weights)
-  #sum_weights_all <- matrix(rep(rowSums(weights_all), ncol(weights_all)), ncol = ncol(weights_all))
-  #weights_all <- weights_all / sum_weights_all
   return(weights_all)
 }
