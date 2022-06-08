@@ -4,7 +4,7 @@
 \alias{ComputeReactionImportance}
 \title{Compute the importance using reaction membership. Predictor pairs that share
 at least one reaction have an importance of 1, and all others have an 
-importance of 0. Outliers are also set to 0.}
+importance of 0.}
 \usage{
 ComputeReactionImportance(predictions, inputData, colIdInd, colIdOut)
 }
@@ -27,5 +27,5 @@ A list of vectors (one for each sample) with an importance metric.
 \description{
 Compute the importance using reaction membership. Predictor pairs that share
 at least one reaction have an importance of 1, and all others have an 
-importance of 0. Outliers are also set to 0.
+importance of 0.
 }

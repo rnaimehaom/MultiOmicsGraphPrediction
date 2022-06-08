@@ -2,7 +2,7 @@
 % Please edit documentation in R/03_ComputeMetaFeatures.R
 \name{GetAllImportanceMetrics}
 \alias{GetAllImportanceMetrics}
-\title{Finds and returns the distributional outliers for each sample.}
+\title{Computes the metafeatures for each sample and model.}
 \usage{
 GetAllImportanceMetrics(
   predictions,
@@ -30,12 +30,6 @@ columns are predictors.}
 
 \item{inputData}{The input data read in using the function IntLIM function
 ReadData.}
-
-\item{lowerPercentileLimit}{Sample-specific percentile below which outliers
-will be removed.}
-
-\item{upperPercentileLimit}{Sample-specific percentile above which outliers
-will be removed.}
 
 \item{metricList}{A list of the valid metrics to include. Valid metrics are
 "pdf", "localerr", "globalerr", and "pathway".}
@@ -79,5 +73,5 @@ measured according to the listed criteria (one column per metric, one row
 per predictor).
 }
 \description{
-Finds and returns the distributional outliers for each sample.
+Computes the metafeatures for each sample and model.
 }

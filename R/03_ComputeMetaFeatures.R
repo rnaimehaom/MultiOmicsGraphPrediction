@@ -1,10 +1,6 @@
-#' Finds and returns the distributional outliers for each sample.
+#' Computes the metafeatures for each sample and model.
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
-#' @param lowerPercentileLimit Sample-specific percentile below which outliers
-#' will be removed.
-#' @param upperPercentileLimit Sample-specific percentile above which outliers
-#' will be removed.
 #' @param metricList A list of the valid metrics to include. Valid metrics are
 #' "pdf", "localerr", "globalerr", and "pathway".
 #' @param k The number of nearest neighbors to consider in localerr.
@@ -53,17 +49,12 @@ GetAllImportanceMetrics <- function(predictions, inputData,
                                     stype = "",
                                     colIdInd = "",
                                     colIdOut = ""){
-  # Find all outliers.
-  outliers <- FindDistributionalOutliers(predictions = predictions, 
-                                         lowerPercentileLimit = lowerPercentileLimit,
-                                         upperPercentileLimit = upperPercentileLimit)
   
   # Compute metrics.
   metrics <- list()
   if("pdf" %in% metricList){
     print("Computing PDF importance")
-    metrics$pdf <- ComputePDFImportance(predictions = predictions, 
-                                        outliers = outliers)
+    metrics$pdf <- ComputePDFImportance(predictions = predictions)
   }
   if("localerr" %in% metricList){
     print("Computing Local Error importance")
@@ -116,57 +107,23 @@ GetAllImportanceMetrics <- function(predictions, inputData,
   return(metrics)
 }
 
-#' Finds and returns the distributional outliers for each sample.
-#' @param predictions Prediction data frame, where rows are samples, and
-#' columns are predictors.
-#' @param lowerPercentileLimit Sample-specific percentile below which outliers
-#' will be removed.
-#' @param upperPercentileLimit Sample-specific percentile above which outliers
-#' will be removed.
-#' @return A list of vectors (one for each sample) where the outliers are masked
-#' with a 1. Non-outliers are labeled as 0.
-FindDistributionalOutliers <- function(predictions,
-                                       lowerPercentileLimit = 0.1, 
-                                       upperPercentileLimit = 0.9){
-  
-  # Compute the mask for each sample.
-  outlier_mask <- lapply(1:nrow(predictions), function(samp){
-    # Prediction
-    pred <- predictions[samp,]
-    
-    # Find quantiles.
-    quantiles <- stats::quantile(pred, c(lowerPercentileLimit, upperPercentileLimit))
-    which_quantile <- union(which(pred < quantiles[1]),
-                                which(pred > quantiles[2]))
-    mask <- rep(0, length(pred))
-    mask[which_quantile] <- 1
-    return(mask)
-  })
-  return(outlier_mask)
-}
-
 #' Computes the importance as the density in the probability density function,
-#' normalized over all densities. Outliers are set to 0.
+#' normalized over all densities.
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
-#' @param outliers A vector of outliers for each sample. Generated using 
-#' FindDistributionalOutliers().
 #' @return A list of vectors (one for each sample) with an importance metric.
 #' @export
-ComputePDFImportance <- function(predictions, outliers){
+ComputePDFImportance <- function(predictions){
   
   # Compute the importance for each sample.
   importanceAll <- lapply(1:nrow(predictions), function(samp){
     # Prediction
     pred <- predictions[samp,]
-    
-    # Remove outliers.
-    non_outliers <- which(outliers[[samp]] == 0)
 
     # Compute importance based on density.
-    importance <- rep(0, length(outliers[[samp]]))
-    d <- stats::density(pred[non_outliers])
-    importance[non_outliers] <- unlist(lapply(pred[non_outliers], function(pred){
+    importance <- rep(0, length(pred))
+    d <- stats::density(pred)
+    importance <- unlist(lapply(pred, function(pred){
       return(d$y[which.min(abs(d$x - pred))])
     }))
     
@@ -228,7 +185,7 @@ GetPredictorIDs <- function(preds, inputData, colIdInd, colIdOut){
 
 #' Compute the importance using pathway membership. Predictor pairs that share
 #' at least one pathway have an importance of 1, and all others have an 
-#' importance of 0. Outliers are also set to 0.
+#' importance of 0.
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
 #' @param inputData Input data, which may include database ID mappings for
@@ -268,7 +225,7 @@ ComputePathwayImportance <- function(predictions, inputData, colIdInd,
 
 #' Compute the importance using reaction membership. Predictor pairs that share
 #' at least one reaction have an importance of 1, and all others have an 
-#' importance of 0. Outliers are also set to 0.
+#' importance of 0.
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
 #' @param inputData Input data, which may include database ID mappings for
@@ -564,8 +521,6 @@ ComputeCosineSimilarity <- function(R){
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
 #' @param true Named vector of the true outcome values.
-#' @param outliers A vector of outliers for each sample. Generated using 
-#' FindDistributionalOutliers().
 #' @param k The number of nearest neighbors to consider.
 #' @param inputData The input data read in using the function IntLIM function
 #' ReadData.
@@ -577,7 +532,7 @@ ComputeCosineSimilarity <- function(R){
 #' Default = 0.1.
 #' @return A list of vectors (one for each sample) with an importance metric.
 #' @export
-ComputeLocalErrorImportance <- function(predictions, true, outliers, k,
+ComputeLocalErrorImportance <- function(predictions, true, k,
                                        inputData, eigStep = 10, alphaMin = 0,
                                        alphaMax = 1, alphaStep = 0.1){
   
@@ -637,11 +592,9 @@ ComputeLocalErrorImportance <- function(predictions, true, outliers, k,
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
 #' @param true Named vector of the true outcome values.
-#' @param outliers A vector of outliers for each sample. Generated using 
-#' FindDistributionalOutliers().
 #' @return A list of vectors (one for each sample) with an importance metric.
 #' @export
-ComputeGlobalErrorImportance <- function(predictions, true, outliers){
+ComputeGlobalErrorImportance <- function(predictions, true){
   
   # Compute the importance for each sample.
   importanceAll <- lapply(1:nrow(predictions), function(samp){

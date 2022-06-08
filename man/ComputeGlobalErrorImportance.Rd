@@ -5,16 +5,13 @@
 \title{Computes the importance as the median absolute error for all predictors
 on all samples except the sample in question.}
 \usage{
-ComputeGlobalErrorImportance(predictions, true, outliers)
+ComputeGlobalErrorImportance(predictions, true)
 }
 \arguments{
 \item{predictions}{Prediction data frame, where rows are samples, and
 columns are predictors.}
 
 \item{true}{Named vector of the true outcome values.}
-
-\item{outliers}{A vector of outliers for each sample. Generated using 
-FindDistributionalOutliers().}
 }
 \value{
 A list of vectors (one for each sample) with an importance metric.

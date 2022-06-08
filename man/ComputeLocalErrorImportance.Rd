@@ -8,7 +8,6 @@
 ComputeLocalErrorImportance(
   predictions,
   true,
-  outliers,
   k,
   inputData,
   eigStep = 10,
@@ -22,9 +21,6 @@ ComputeLocalErrorImportance(
 columns are predictors.}
 
 \item{true}{Named vector of the true outcome values.}
-
-\item{outliers}{A vector of outliers for each sample. Generated using 
-FindDistributionalOutliers().}
 
 \item{k}{The number of nearest neighbors to consider.}
 

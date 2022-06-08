@@ -3,21 +3,18 @@
 \name{ComputePDFImportance}
 \alias{ComputePDFImportance}
 \title{Computes the importance as the density in the probability density function,
-normalized over all densities. Outliers are set to 0.}
+normalized over all densities.}
 \usage{
-ComputePDFImportance(predictions, outliers)
+ComputePDFImportance(predictions)
 }
 \arguments{
 \item{predictions}{Prediction data frame, where rows are samples, and
 columns are predictors.}
-
-\item{outliers}{A vector of outliers for each sample. Generated using 
-FindDistributionalOutliers().}
 }
 \value{
 A list of vectors (one for each sample) with an importance metric.
 }
 \description{
 Computes the importance as the density in the probability density function,
-normalized over all densities. Outliers are set to 0.
+normalized over all densities.
 }
