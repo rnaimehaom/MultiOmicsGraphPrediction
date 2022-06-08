@@ -94,10 +94,12 @@ InitializeGraphLearningModel <- function(modelInputs,
 #' - "analyte.chain"
 #' @param verbose Whether to print the number of predictions replaced in each sample.
 #' TRUE or FALSE. Default is FALSE.
+#' @param outcome The outcome used in the IntLIM models.
+#' @param independent.var.type The independent variable type used in the IntLIM models.
 #' @export
 FormatInput <- function(predictionGraphs, coregulationGraph, importance, modelProperties,
                         inputData, stype.class, edgeTypeList, stype, verbose = FALSE, covariates = list(),
-                        predictorBounds = c(NA,NA)){
+                        predictorBounds = c(NA,NA), outcome = 2, independent.var.type = 2){
   
   # Extract edge-wise predictions.
   predictions_by_node <- lapply(names(predictionGraphs), function(sampName){
@@ -159,7 +161,8 @@ FormatInput <- function(predictionGraphs, coregulationGraph, importance, modelPr
                                 true.phenotypes=Y, outcome.type=stype.class, 
                                 coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
                                 line.graph=as.matrix(A), input.data = inputData, model.properties = modelProperties,
-                                importance = importance, stype = stype, covariates = covariates, stype.class = stype.class)
+                                importance = importance, stype = stype, covariates = covariates, stype.class = stype.class,
+                                outcome = outcome, independent.var.type = independent.var.type)
   return(newModelInput)
 }
 
@@ -351,14 +354,19 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     }
     currentError <- modelResults@iteration.tracking$Error[modelResults@current.iteration+1]
     
-    # Get the new pruned models.
-    # prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-    #                                                                     verbose = FALSE, makePlots = FALSE,
-    #                                                                     pruningMethod = pruningMethod,
-    #                                                                     binCount = binCount,
-    #                                                                     margin = margin,
-    #                                                                     includeVarianceTest = includeVarianceTest)
-    modelResults@pairs <- unlist(prunedModels)
+    #Get the new pruned models.
+    prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                                                        verbose = FALSE, makePlots = FALSE,
+                                                                        pruningMethod = pruningMethod,
+                                                                        binCount = binCount,
+                                                                        margin = margin,
+                                                                        includeVarianceTest = includeVarianceTest)
+    tryCatch({
+      modelResults@pairs <- unlist(prunedModels)
+    }, error = function(e){
+      print(e)
+      print(prunedModels)
+    })
     prunedModelSizes <- lapply(prunedModels, function(model){return(length(model))})
     
     # Print the weight delta and error.

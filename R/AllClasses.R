@@ -32,7 +32,9 @@ methods::setClass(
                  input.data = "IntLimData",
                  covariates = "list",
                  stype = "character",
-                 stype.class = "character")
+                 stype.class = "character",
+                 outcome = "numeric",
+                 independent.var.type = "numeric")
 )
 
 #' ModelResults class

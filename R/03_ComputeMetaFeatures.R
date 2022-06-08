@@ -603,6 +603,7 @@ ComputeLocalErrorImportance <- function(predictions, true, outliers, k,
     medErr <- unlist(lapply(1:ncol(err), function(c){
       return(stats::median(err[,c]))
     }))
+    print(medErr)
     importance <- 1 / medErr
 
     # Scale importance to be between 0 and 1

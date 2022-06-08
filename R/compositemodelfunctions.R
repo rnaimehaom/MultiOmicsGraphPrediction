@@ -70,8 +70,14 @@ CompositePrediction <- function(pairs, modelResults){
   # Set variables for further analysis.
   covar <- modelResults@model.input@covariates
   covariates <- modelResults@model.input@model.properties
-  analyte1Vals <- modelResults@model.input@input.data@analyteType1
-  analyte2Vals <- modelResults@model.input@input.data@analyteType2
+  analyteSrcVals <- modelResults@model.input@input.data@analyteType1
+  if(modelResults@model.input@independent.var.type == 2){
+    analyteSrcVals <- modelResults@model.input@input.data@analyteType2
+  }
+  analyteTgtVals <- modelResults@model.input@input.data@analyteType2
+  if(modelResults@model.input@outcome == 1){
+    analyteTgtVals <- modelResults@model.input@input.data@analyteType1
+  }
   covariateVals <- modelResults@model.input@input.data@sampleMetaData
   weights <- ComputeImportanceWeights(modelResults)
 
@@ -79,7 +85,7 @@ CompositePrediction <- function(pairs, modelResults){
   weighted_a1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_a1 <- weighted_a1 + weights[,pair] * analyte1Vals[strsplit(pair, "__")[[1]][1],]
+    weighted_a1 <- weighted_a1 + weights[,pair] * analyteSrcVals[strsplit(pair, "__")[[1]][1],]
   }
   
   # beta0
@@ -94,7 +100,7 @@ CompositePrediction <- function(pairs, modelResults){
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
     weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
-      analyte2Vals[strsplit(pair, "__")[[1]][2],]
+      analyteTgtVals[strsplit(pair, "__")[[1]][2],]
   }
   
   # beta2
@@ -109,18 +115,27 @@ CompositePrediction <- function(pairs, modelResults){
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
     weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
-      analyte2Vals[strsplit(pair, "__")[[1]][2],]
+      analyteTgtVals[strsplit(pair, "__")[[1]][2],]
   }
   
   # covariates
   weighted_sum_covars <- rep(0, nrow(weights))
-  if(!is.null(covar)){
+  if(length(covar) > 0){
     weighted_sum_each <- lapply(covar, function(c){
       weighted_sum <- rep(0, nrow(weights))
       for(i in 1:length(pairs)){
         pair <- pairs[[i]]
-        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
-          covariateVals[,c]
+        tryCatch({
+          weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
+            covariateVals[,c]
+        }, error = function(e){
+          print(e)
+          print(weighted_sum)
+          print(weights[,pair])
+          print(rep(covariates[pair, c], nrow(weights)))
+          print(covariateVals[,c])
+        })
+        
       }
       return(weighted_sum)
     })
@@ -128,9 +143,6 @@ CompositePrediction <- function(pairs, modelResults){
   }
   
   # Final value.
-  denom <- weighted_sum_b2 + weighted_sum_b3
-  denom[which(denom == 0)] <- 0.0001
-  final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
   
   denom <- weighted_sum_b2 + weighted_sum_b3
   denom[which(denom == 0)] <- 0.0001
@@ -189,16 +201,16 @@ ComputeTScore <- function(pred, trueVal, includeVarianceTest = FALSE){
     nSse <- n * sum(errorDiff ^ 2)
     errorDiffSquared <- sum(errorDiff) ^ 2
     tScore <- sum(errorDiff) / sqrt((nSse - errorDiffSquared) / (n-1))
+    
+    # If variance test is also included, compute f-statistic and add.
+    if(includeVarianceTest == TRUE){
+      fScore <- var(predAbsError) / var(meanAbsError)
+      tScore <- tScore - fScore
+    }
   }
   # If all terms are NA, then categorize this as a very low t-score.
   else{
     tScore <- -1000
-  }
-  
-  # If variance test is also included, compute f-statistic and add.
-  if(includeVarianceTest == TRUE){
-    fScore <- var(predAbsError) / var(meanAbsError)
-    tScore <- tScore - fScore
   }
   
   return(tScore)
@@ -378,7 +390,14 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantPairs){
   for(pair in names(predictorsContaining[which(predictorsContaining > 1)])){
     # For each pair, find the predictors containing it.
     listContainsPair <- unlist(lapply(1:length(compositePredictors), function(i){
-      composite <- compositePredictors[[i]]
+      tryCatch({
+        composite <- compositePredictors[[i]]
+      }, error = function(e){
+        print(e)
+        print(i)
+        str(compositePredictors)
+      })
+      
       containsPair <- FALSE
       if(pair %in% composite){
         containsPair <- TRUE

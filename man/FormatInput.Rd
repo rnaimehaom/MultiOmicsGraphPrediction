@@ -19,7 +19,9 @@ FormatInput(
   stype,
   verbose = FALSE,
   covariates = list(),
-  predictorBounds = c(NA, NA)
+  predictorBounds = c(NA, NA),
+  outcome = 2,
+  independent.var.type = 2
 )
 }
 \arguments{
@@ -47,6 +49,10 @@ sampleMetaData slot of the inputData variable.}
 \item{predictorBounds}{Upper and lower bounds for predictors. Predictors outside
 of these bounds for a sample will not be included in the final prediction for that sample. 
 Defaults to c(NA,NA), meaning that no predictors will be removed.}
+
+\item{outcome}{The outcome used in the IntLIM models.}
+
+\item{independent.var.type}{The independent variable type used in the IntLIM models.}
 }
 \description{
 Format the input for graph-based learning. This input consists of:
