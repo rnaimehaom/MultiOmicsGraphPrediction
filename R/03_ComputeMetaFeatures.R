@@ -170,8 +170,15 @@ ComputePDFImportance <- function(predictions, outliers){
       return(d$y[which.min(abs(d$x - pred))])
     }))
     
-    # Scale importance to be between 0 and 1.
-    importance <- importance / max(importance)
+    # Get the density percentile over all pairs.
+    percentileVals <- seq(1, 100, by = 1) / 100
+    quantiles <- stats::quantile(importance, percentileVals)
+    percentiles <- unlist(lapply(importance, function(c){
+      cvec <- rep(c, length(quantiles))
+      which_match <- which.min(abs(cvec - quantiles))
+      return(percentileVals[which_match])
+    }))
+    importance <- percentiles
     
     # Return.
     cat(".")
@@ -603,11 +610,17 @@ ComputeLocalErrorImportance <- function(predictions, true, outliers, k,
     medErr <- unlist(lapply(1:ncol(err), function(c){
       return(stats::median(err[,c]))
     }))
-    print(medErr)
-    importance <- 1 / medErr
+    importance <- 1 - medErr
 
-    # Scale importance to be between 0 and 1
-    importance <- importance / max(importance)
+    # Get the 1 - error percentile over all pairs.
+    percentileVals <- seq(1, 100, by = 1) / 100
+    quantiles <- stats::quantile(importance, percentileVals)
+    percentiles <- unlist(lapply(importance, function(c){
+      cvec <- rep(c, length(quantiles))
+      which_match <- which.min(abs(cvec - quantiles))
+      return(percentileVals[which_match])
+    }))
+    importance <- percentiles
     
     # Return.
     cat(".")
@@ -645,10 +658,17 @@ ComputeGlobalErrorImportance <- function(predictions, true, outliers){
     medErr <- unlist(lapply(1:ncol(err), function(c){
       return(stats::median(err[,c]))
     }))
-    importance <- 1 / medErr
+    importance <- 1 - medErr
     
-    # Scale importance.
-    importance <- importance / sum(importance)
+    # Get the 1 - error percentile over all pairs.
+    percentileVals <- seq(1, 100, by = 1) / 100
+    quantiles <- stats::quantile(importance, percentileVals)
+    percentiles <- unlist(lapply(importance, function(c){
+      cvec <- rep(c, length(quantiles))
+      which_match <- which.min(abs(cvec - quantiles))
+      return(percentileVals[which_match])
+    }))
+    importance <- percentiles
     
     # Return.
     cat(".")
