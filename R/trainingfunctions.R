@@ -195,10 +195,13 @@ computeGradient <- function(modelResults, prunedModels){
       AoutLocal <- t(AoutLocal)
       colnames(AoutLocal) <- colnames(Aout)
     }
-    CovarLocal <- data.frame(C[k,])
-    if(length(CovarLocal) == ncol(C)){
-      CovarLocal <- t(CovarLocal)
-      colnames(CovarLocal) <- colnames(C)
+    CovarLocal <- NA
+    if(length(modelResults@model.input@covariates) > 0){
+      CovarLocal <- data.frame(C[k,])
+      if(length(CovarLocal) == ncol(C)){
+        CovarLocal <- t(CovarLocal)
+        colnames(CovarLocal) <- colnames(C)
+      }
     }
 
     # Compute the denominator.
@@ -294,16 +297,22 @@ DhatPrime <- function(Aind, M, Beta2, Beta3){
 #' @param Beta0 The intercept coefficients.
 #' @param Beta1 The analyte coefficients.
 #' @param BetaC The covariate coefficients.
-#' @param C The covariates for the predictors of interest.
+#' @param C The covariates for the predictors of interest. If no covariates,
+#' this value should be NA.
 Nhat <- function(Aind, Aout, phi, M, Beta0, Beta1, BetaC, C){
   phiMat <- t(matrix(rep(phi, nrow(Aind)), nrow = nrow(Aind)))
-  covarMat <- matrix(rep(unlist(C), nrow(BetaC)), nrow = nrow(BetaC))
   sumWeights <- colSums(phiMat * M)
-  sumWeightsMat <- matrix(rep(unlist(sumWeights), ncol(covarMat)), ncol = ncol(covarMat))
   term1 <- sum(Aout * sumWeights)
   term2 <- sum(Beta0 * sumWeights)
   term3 <- sum(Aind * Beta1 * sumWeights)
-  term4 <- sum(BetaC * covarMat * sumWeightsMat)
+  
+  # Find term 4 if applicable.
+  term4 <- 0
+  if(!is.na(C)){
+    covarMat <- matrix(rep(unlist(C), nrow(BetaC)), nrow = nrow(BetaC))
+    sumWeightsMat <- matrix(rep(unlist(sumWeights), ncol(covarMat)), ncol = ncol(covarMat))
+    term4 <- sum(BetaC * covarMat * sumWeightsMat)
+  }
   return(term1 - (term2 + term3 + term4))
 }
 
@@ -315,14 +324,22 @@ Nhat <- function(Aind, Aout, phi, M, Beta0, Beta1, BetaC, C){
 #' @param Beta0 The intercept coefficients.
 #' @param Beta1 The analyte coefficients.
 #' @param BetaC The covariate coefficients.
-#' @param C The covariates for the predictors of interest.
+#' @param C The covariates for the predictors of interest. If no covariates,
+#' this value should be NA.
 NhatPrime <- function(Aind, Aout, M, Beta0, Beta1, BetaC, C){
-  covarMat <- matrix(rep(unlist(C), nrow(BetaC)), nrow = nrow(BetaC))
-  sumWeightsMat <- matrix(rep(unlist(M), ncol(covarMat)), ncol = ncol(covarMat))
+
   term1 <- sum(Aout * M)
   term2 <- sum(Beta0 * M)
   term3 <- sum(Aind * Beta1 * M)
-  term4 <- sum(BetaC * covarMat * sumWeightsMat)
+  
+  # Find term 4 if applicable.
+  term4 <- 0
+  if(!is.na(C)){
+    covarMat <- matrix(rep(unlist(C), nrow(BetaC)), nrow = nrow(BetaC))
+    sumWeightsMat <- matrix(rep(unlist(M), ncol(covarMat)), ncol = ncol(covarMat))
+    term4 <- sum(BetaC * covarMat * sumWeightsMat)
+  }
+  
   return(term1 - (term2 + term3 + term4))
 }
 

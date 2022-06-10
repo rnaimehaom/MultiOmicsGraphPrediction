@@ -32,6 +32,7 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               binCount = binCount,
                                                               margin = margin,
                                                               includeVarianceTest = includeVarianceTest)
+
     consolidated <- MultiOmicsGraphPrediction::ObtainCompositeModels(pairsInEachPredictor = consolidated$expandedCompositeModels, 
                                                                      importantPairs = prunedPairs)
     prevModels <- prunedPairs
@@ -66,17 +67,17 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
 #' @return A final predicted value for each sample in the input data
 #' @export
 CompositePrediction <- function(pairs, modelResults){
-  
+
   # Set variables for further analysis.
   covar <- modelResults@model.input@covariates
   covariates <- modelResults@model.input@model.properties
-  analyteSrcVals <- modelResults@model.input@input.data@analyteType1
-  if(modelResults@model.input@independent.var.type == 2){
-    analyteSrcVals <- modelResults@model.input@input.data@analyteType2
+  analyteTgtVals <- modelResults@model.input@input.data@analyteType1
+  if(modelResults@model.input@outcome == 2){
+    analyteTgtVals <- modelResults@model.input@input.data@analyteType2
   }
-  analyteTgtVals <- modelResults@model.input@input.data@analyteType2
-  if(modelResults@model.input@outcome == 1){
-    analyteTgtVals <- modelResults@model.input@input.data@analyteType1
+  analyteSrcVals <- modelResults@model.input@input.data@analyteType2
+  if(modelResults@model.input@independent.var.type == 1){
+    analyteSrcVals <- modelResults@model.input@input.data@analyteType1
   }
   covariateVals <- modelResults@model.input@input.data@sampleMetaData
   weights <- ComputeImportanceWeights(modelResults)
@@ -85,7 +86,7 @@ CompositePrediction <- function(pairs, modelResults){
   weighted_a1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_a1 <- weighted_a1 + weights[,pair] * analyteSrcVals[strsplit(pair, "__")[[1]][1],]
+    weighted_a1 <- weighted_a1 + weights[,pair] * analyteTgtVals[strsplit(pair, "__")[[1]][2],]
   }
   
   # beta0
@@ -100,7 +101,7 @@ CompositePrediction <- function(pairs, modelResults){
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
     weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
-      analyteTgtVals[strsplit(pair, "__")[[1]][2],]
+      analyteSrcVals[strsplit(pair, "__")[[1]][1],]
   }
   
   # beta2
@@ -115,7 +116,7 @@ CompositePrediction <- function(pairs, modelResults){
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
     weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
-      analyteTgtVals[strsplit(pair, "__")[[1]][2],]
+      analyteSrcVals[strsplit(pair, "__")[[1]][1],]
   }
   
   # covariates
@@ -147,7 +148,6 @@ CompositePrediction <- function(pairs, modelResults){
   denom <- weighted_sum_b2 + weighted_sum_b3
   denom[which(denom == 0)] <- 0.0001
   final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
-
   return(final_val)
 }
 
@@ -212,6 +212,16 @@ ComputeTScore <- function(pred, trueVal, includeVarianceTest = FALSE){
   else{
     tScore <- -1000
   }
+  
+  # Plot histogram.
+  # predHist <- hist(predAbsError, plot = FALSE, breaks = 10)
+  # meanHist <- hist(meanAbsError, plot = FALSE, breaks = 10)
+  # overallMin <- pmin(min(predAbsError), min(meanAbsError))
+  # overallMax <- pmax(max(predAbsError), max(predAbsError))
+  # overallMaxHeight <- length(predAbsError)
+  # plot(meanHist, col=rgb(0,0,1,1/4), xlim=c(overallMin, overallMax), ylim = c(0, overallMaxHeight),
+  #      main = tScore)
+  # plot(predHist, col=rgb(1,0,0,1/4), add=T)
   
   return(tScore)
 }
@@ -479,8 +489,24 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     importantModels <- previousModelsMapped
     previousPairsMapped <- previousModels[previousModelsMapped]
     
+    # Sort the models in order of their individual performance.
+    individualPerformance <- unlist(lapply(1:length(previousModelsMapped), function(m){
+      model <- previousModelsMapped[m]
+      modelPairs <- unlist(previousPairsMapped[m])
+      compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = modelPairs,
+                                                                       modelResults = modelResults)
+      significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
+                                                                     trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
+                                                                     pruningMethod = pruningMethod,
+                                                                     binCount = binCount,
+                                                                     margin = margin,
+                                                                     includeVarianceTest = includeVarianceTest)
+      return(significance)
+    }))
+    modelRemovalOrder <- order(individualPerformance)
+    
     # Sequentially test removal of each model.
-    for(m in 1:length(previousModelsMapped)){
+    for(m in modelRemovalOrder){
       model <- previousModelsMapped[m]
       modelPairs <- unlist(previousPairsMapped[m])
       
@@ -555,6 +581,9 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
                            significanceFull), collapse = " "))
         }
       }
+    }
+    if(verbose == TRUE){
+      print(paste("The pruned set of pairs is:", paste(importantPairs, collapse = ", ")))
     }
     return(importantPairs)
   })

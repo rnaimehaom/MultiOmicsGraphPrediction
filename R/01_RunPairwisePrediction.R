@@ -63,6 +63,9 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
   ind_term <- independent.vars[coefficients$Analyte1,] * ind_var
   dep_term <- dependent.vars[coefficients$Analyte2,]
   pred_phenotype <- dep_term - (intercept + ind_term)
+  rownames(dep_term) <- rownames(inputResults)
+  rownames(intercept) <- rownames(inputResults)
+  rownames(ind_term) <- rownames(inputResults)
   
   # If there are covariates, include the covariate terms in the prediction
   # by subtracting them.
@@ -84,13 +87,13 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
     # Include the covariates in the numerator prediction.
     final_covariate_val <- Reduce('+', all_cov_terms)
     pred_phenotype <- pred_phenotype - final_covariate_val
-    print(pred_phenotype)
   }
   
   # Calculate the denominator and divide.
   div_term <- independent.vars[coefficients$Analyte1,] * interact_var
   div_term <- div_term + phen_var
   pred_phenotype <- pred_phenotype / div_term 
+  rownames(div_term) <- rownames(inputResults)
   
   # For discrete phenotypes only, round the value.
   if(!is.numeric(inputData@sampleMetaData[,stype])){

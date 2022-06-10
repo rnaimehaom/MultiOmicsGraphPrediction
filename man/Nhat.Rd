@@ -22,7 +22,8 @@ Nhat(Aind, Aout, phi, M, Beta0, Beta1, BetaC, C)
 
 \item{BetaC}{The covariate coefficients.}
 
-\item{C}{The covariates for the predictors of interest.}
+\item{C}{The covariates for the predictors of interest. If no covariates,
+this value should be NA.}
 }
 \description{
 Compute the N-hat value, which is the numerator value of the composite prediction
