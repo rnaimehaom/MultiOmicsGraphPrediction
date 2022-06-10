@@ -5,10 +5,45 @@ author: "Tara Eicher"
 date: "2/22/2022"
 output: rmarkdown::html_document
 vignette: >
-  %\VignetteIndexEntry{IntLIM:  Integration through Linear Modeling}
+  %\VignetteIndexEntry{MultiOmicsGraphPrediction Toy}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
+# Description
+This toy example was created to verify that the proposed ensemble neural network performs as expected.
+It includes patients P1-P6, metabolites M1-M6, and genes G1-G11.
+
+In this example, age is the predicted phenotype, and artificial gene and metabolite values have been
+created as follows:
+- M2 = M1 * age / 2
+- M3 = M1 / age
+- M4 = -M2 / age
+- G4 = -M2 / age
+- G6 = -M2 / age
+- G7 = M1 / age
+- G8 = -M2 / age
+- G11 = M1 / age
+
+All other gene and metabolite data were filled in using a random number between
+-1 and 1.
+
+We therefore know that age can be predicted using the following predictive models that are in the
+form used by our model:
+- age = -1 * M2 / G4, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -1
+- age = -1 * M2 / G6, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -1
+- age = -1 * M2 / G8, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -1
+- age = M1 / G7, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = 1
+- age = M1 / G11, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = 1
+- age = -2 * M4 / G7, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -0.5
+- age = -2 * M4 / G11, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -0.5
+
+The following analyte models also exist but are not predictive of age:
+- M3 = G7, i.e. beta0 = 0, beta1 = 1, beta2 = 0, and beta3 = 0
+- M3 = G11, i.e. beta0 = 0, beta2 = 1, beta3 = 0, and beta3 = 0
+
+We expect to see the final predictive subgraph comprised of one or more of the predictive models
+listed above and not include any of the non-predictive models.
+
 # Set up.
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -40,251 +75,159 @@ inputData <- IntLIM::ReadData(csvfile)
 ```
 
 # Run IntLIM
+We note that the following models are learned as expected:
+- M2 = 0 + 0 * G4 + 0 * age + -1 * G4 * age
+- M2 = 0 + 0 * G6 + 0 * age + -1 * G6 * age
+- M2 = 0 + 0 * G8 + 0 * age + -1 * G8 * age
+- M4 = 0 - 0 * G7 - 0 * age -0.5 * G7 * age
+- M4 = 0 - 0 * G11 - 0 * age -0.5 * G11 * age
+- M1 = 0 + 0 * G7 + 0 * age + 1 * G7 * age
+- M1 = 0 + 0 * G11 + 0 * age + 1 * G7 * age
+- M3 = 0 + 1 * G7 - 0 * age + 0 * G7 * age
+- M3 = 0 + 1 * G11 - 0 * age + 0 * G7 * age
 ```{r}
 myres <- IntLIM::RunIntLim(inputData = inputData,stype="age",
                                  save.covar.pvals = TRUE, 
                                  outcome = 1, 
                                  independent.var.type = 2, 
                                  continuous = TRUE)
+View(myres@covariate.coefficients)
 ```
 
-# Filter Results
-```{r}
-myres.sig <- IntLIM::ProcessResults(inputResults = myres, inputData = inputData, 
-                                       pvalcutoff = 0.20, )
-IntLIM::OutputResults(inputResults=myres.sig,filename=paste(result_dir,
-                                                                    "toyDataResults.csv"
-                                                                    , sep = "/"))
-```
+# Filter Results and Create Co-Regulation Graph
+The expected pairs all pass the R^2 threshold.
 
-# Create Co-Regulation Graph
-In a co-regulation graph, nodes are analytes (genes and metabolites) and edges indicate
-a significant phenotype-dependent association between the analytes.
+Other pairs that also pass the threshold are:
+(M1, G10)
+(M2, [G7, G10, G11])
+(M3, [G3, G4, G6, G8, G10])
+(M4, [G3, G4, G6, G8, G10])
 ```{r}
+myres.all <- IntLIM::ProcessResults(inputResults = myres, inputData = inputData, 
+                                       pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
+myres.r2.density <- density(myres.all$rsquared)
+peak.r2 <- myres.r2.density$x[which.max(myres.r2.density$y)]
+myres.r2 <- IntLIM::ProcessResults(inputResults = myres, inputData = inputData, 
+                                       pvalcutoff = 1, rsquaredCutoff = peak.r2)
 # Build graph.
-coreg <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.sig)
-PlotCoRegulationGraph(coreg, "Toy Data Graph", saveInFile = NULL, vertices = NULL,truncateTo = 4)
+coreg.r2 <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2)
+MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2, "", saveInFile = NULL, vertices = NULL)
+View(myres.r2)
 ```
 
 # Run Pairwise Prediction.
+We can see that the predictions are exactly correct for (M2, [G4, G6, G8]), 
+(M4, [G7, G11]), and (M1, [G7, G11]). Some of the other
+pairs also give close predictions. The predictions given by (M3, [G7, G11])
+are not correct, which is expected because their relationship does not
+depend on age.
 ```{r}
 # Run pairwise prediction.
-pred <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.sig, 
+pred <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2, 
                                                          inputData = inputData,
-                                                         stype = "age")
+                                                         stype = "age",
+                                                         independentVarType = 2,
+                                                         outcomeType = 1)
+hist(pred, breaks = 100)
+print(inputData@sampleMetaData[,"age"])
+print(pred)
 ```
 
 ## Project Predictions
 ```{r plot graph}
 # Project graph.
-projectedGraph <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg,
+projectedGraph <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg.r2,
                                                                          predictions = pred)
-PlotGraphPredictions(projectedGraph, inputData, saveInDir = NULL, 
-                                 vertices = NULL, truncateTo = 4, includeLabels = TRUE,
-                                 cutoffs = NULL, vertexSize = 10)
-```
-
-## Create Model Input
-```{r model input}
-# Create input.
-modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
-                                                     coregulationGraph = coreg,
-                   inputData = inputData, stype.class = "numeric", stype = "age",
-                   edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"))
-saveRDS(modelInput,file=paste(result_dir, paste0("modelInput.RDS"), sep = "\\"))
-PlotPredictionDendrogram(modelInput, hierarchicalClustering, sampleIndex, 
-                                     predictionLimits)
-MultiOmicsGraphPrediction::PlotLineGraph(modelInput = modelInput, stype = "age", cutoffs = c(0,100))
+MultiOmicsGraphPrediction::PlotGraphPredictions(graph = projectedGraph,
+                                                inputData = inputData,
+                                                stype = "age")
 ```
 
 ## Compute Importance Metrics.
+In this case, the subspace grouping of patients has little relationship to the phenotype.
+However, this is likely due to the analyte values being assigned randomly.
+
+Regarding importance metrics, the exact predictors do not have notably higher PDF scores
+than the other predictors. However, the local error importance values are higher for the
+exact predictors than the other predictors, as are the interaction p-value importance scores.
 ```{r importance}
 MultiOmicsGraphPrediction::PlotSubspaceClusteringDendrogram(inputData = inputData, eigStep = 1)
 MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputData, eigStep = 1)
 importance <- MultiOmicsGraphPrediction::GetAllImportanceMetrics(predictions = pred, 
-                                                                 modelInput = modelInput,
-                                      inputData = inputData, metricList = c("pdf", 
-                                                                            "localerr"),
-                                      k = 2, eigStep = 1)
-starting_weights <- lapply(1:length(importance), function(i){
-  imp <- importance[[i]]
-  nm <- names(importance)[i]
-  sum_over <- as.data.frame(rowSums(imp))
-  rownames(sum_over) <- rownames(imp)
-  colnames(sum_over) <- nm
-  return(sum_over)
-})
-starting_weights_all <- do.call(cbind,starting_weights)
+                                                                 stype = "age",
+                                                                 inputData = inputData, 
+                                                                 metricList = c("pdf", "interactionpval", "interactioncoef", "analytecoef", "localerr"),
+                                                                 k = 2, eigStep = 1,
+                                                                 modelStats = myres.r2,
+                                                                 colIdInd = "databaseId",
+                                                                 colIdOut = "databaseId")
+hist(importance$pdf)
+hist(importance$localerr)
+hist(importance$interactionpval)
+hist(importance$interactioncoef)
+hist(importance$analytecoef)
+print(importance)
 ```
 
-## Calculate information gain for when all terms are included in a composite predictor.
+# Look at a predictive model.
+## T-Test
+The M2-based predictors are grouped together with G4 predictors in neighborhood 1.
+The M4-based predictors are grouped together in neighborhood 2, along with the G7 predictors.
+The M3-based predictors are grouped together in neighborhood 3.
+The M1-based predictors are grouped together with G4 predictors in neighborhood 4.
+
+In neighborhood 1, all predictors are removed except (M2, [G4, G6, G8]), the exact predictors.
+In neighborhood 2, all predictors are removed except (M4, [G4, G6, G7, G8, G11]) and (M1, G7),
+of which (M4, [G7, G11]) and (M1, G7) are exact predictors.
+In neighborhood 3, all predictors are removed except (M3, [G6, G8]) and (M6, G3).
+In neighborhood 4, all predictors are removed except (M2, G4).
+
+In the second iteration, neighborhoods 1 and 3 are combined, and nothing is removed
+(because neighborhood 3 is a subset of neighborhood 1).
+Neighborhoods 2 and 4 do not overlap with any of the other neighborhoods, so they
+remain the same and form the new neighborhoods 2 and 3.
+
+In the third iteration, all neighborhoods are combined, and neighborhoods 2 and 3
+are removed, leaving only the exact predictors (M2, [G4, G6, G8]).
 ```{r}
-CompositePrediction <- function(pairs, covariates, weights, analyte1Vals, analyte2Vals){
-  # Analyte 1
-  weighted_a1 <- rep(0, ncol(weights))
-  for(pair in pairs){
-    weighted_a1 <- weighted_a1 + weights[pair,] * analyte1Vals[strsplit(pair, "__")[[1]][2],]
-  }
+modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+                                                     coregulationGraph = coreg.r2,
+                                                     inputData = inputData, 
+                                                     stype.class = "numeric",
+                                                     stype = "age",
+                                                     edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
+                                                     importance = importance,
+                                                     modelProperties = myres.r2,
+                                                     outcome = 1,
+                                                     independent.var.type = 2)
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2)
+pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
 
-  # beta0
-  weighted_sum_b0 <- rep(0, ncol(weights))
-  for(pair in pairs){
-    weighted_sum_b0 <- weighted_sum_b0 + weights[pair,] * rep(covariates[pair,"(Intercept)"], ncol(weights))
-  }
-  
-  # beta1
-  weighted_sum_b1 <- rep(0, ncol(weights))
-  for(pair in pairs){
-    weighted_sum_b1 <- weighted_sum_b1 + weights[pair,] * rep(covariates[pair, "a"], ncol(weights)) * 
-                                                                analyte2Vals[strsplit(pair, "__")[[1]][1],]
-  }
-  
-  # beta2
-  weighted_sum_b2 <- rep(0, ncol(weights))
-  for(pair in pairs){
-    weighted_sum_b2 <- weighted_sum_b2 + weights[pair,] * rep(covariates[pair, "type"], ncol(weights))
-  }
-  
-  # beta3
-  weighted_sum_b3 <- rep(0, ncol(weights))
-  for(pair in pairs){
-    weighted_sum_b3 <- weighted_sum_b3 + weights[pair,] * rep(covariates[pair, "a:type"], ncol(weights))* 
-                                                                analyte2Vals[strsplit(pair, "__")[[1]][1],]
-  }
-  
-  # Final value.
-  final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1) / (weighted_sum_b2 + weighted_sum_b3)
-  return(final_val)
-}
-
-# Leave-one-out composite prediction
-CompositePredictionLOO <- function(pairs, covariates, weights, analyte1Vals, analyte2Vals){
-  removePairPred <- lapply(pairs, function(pair){
-    return(CompositePrediction(setdiff(pairs, pair), covariates, weights, analyte1Vals, analyte2Vals))
-  })
-  return(removePairPred)
-}
+propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE)
+print(propagatedGraph)
+print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
 ```
 
+# Learn Weights.
+Because the final predictors are exact, there is no need to adjust the weights so that
+other models contribute more to the final prediction. Therefore, the optimization
+converges immediately and returns the same set of predictors as the first iteration.
 ```{r}
-# Information gain
-ComputeInfoGain <- function(originalPred, trueVal){
-  midrange <- (max(trueVal) - min(trueVal)) / 2
-  
-  # Compute original entropy.
-  originalProb <- length(which(trueVal > midrange) == TRUE) / length(trueVal)
-  originalEntropy <- -1 * (originalProb * log2(originalProb) + (1 - originalProb) * log2(1 - originalProb))
-
-  # Compute entropy given prediction.
-  predGreaterProb <- length(which(originalPred > midrange)) / length(originalPred)
-  origGreaterPredGreaterProb <- length(intersect(which(trueVal > midrange), which(originalPred > midrange))) / 
-    length(which(originalPred > midrange))
-  origGreaterPredGreaterTerm <- -1 * origGreaterPredGreaterProb * log2(origGreaterPredGreaterProb) * predGreaterProb
-  if(is.nan(origGreaterPredGreaterTerm) == TRUE){
-    origGreaterPredGreaterTerm <- 0
-  }
-  
-  origGreaterPredLessProb <- length(intersect(which(trueVal > midrange), which(originalPred <= midrange))) / 
-    length(which(originalPred <= midrange))
-  origGreaterPredLessTerm <- -1 * origGreaterPredLessProb * log2(origGreaterPredLessProb) * (1 - predGreaterProb)
-  if(is.nan(origGreaterPredLessTerm) == TRUE){
-    origGreaterPredLessTerm <- 0
-  }
-  
-  origLessPredGreaterProb <- length(intersect(which(trueVal <= midrange), which(originalPred > midrange))) /
-    length(which(originalPred > midrange))
-  origLessPredGreaterTerm <- -1 * origLessPredGreaterProb * log2(origLessPredGreaterProb) * predGreaterProb
-  if(is.nan(origLessPredGreaterTerm) == TRUE){
-    origLessPredGreaterTerm <- 0
-  }
-  
-  origLessPredLessProb <- length(intersect(which(trueVal <= midrange), which(originalPred <= midrange))) /
-    length(which(originalPred <= midrange))
-  origLessPredLessTerm <- -1 * origLessPredLessProb * log2(origLessPredLessProb) * (1 - predGreaterProb)
-  if(is.nan(origLessPredLessTerm) == TRUE){
-    origLessPredLessTerm <- 0
-  }
-  
-  conditionalEntropy <- origGreaterPredGreaterTerm + origGreaterPredLessTerm + origLessPredGreaterTerm + origLessPredLessTerm
-  originalIG <- originalEntropy - conditionalEntropy
-  return(originalIG)
-}
+optimalModel <- MultiOmicsGraphPrediction::OptimizeImportanceCombo(modelResults = modelResults,pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE)
 ```
 
+# Test Performance Using Leave-One-Out Cross-Validation
+To perform leave-one-out cross-validation, we need to perform the following steps 6 times
+(once for each sample):
+1. Split the data into the training set (all samples except the one being left out)
+and the testing set (the sample being left out).
+2. Run IntLIM, create co-regulation graph, and run individual node prediction on
+the training data.
+3. Compute metafeatures on the training data.
+4. Optimize the training data model.
+5. Compute metafeatures on the testing data.
+6. Do prediction for the testing data using the computed metafeatures on the testing data
+and the subgraph and metafeature weights learned on the training data.
 ```{r}
-pairsPredAll <- list(list("Gene4__Metab2", "Gene6__Metab2", "Gene8__Metab2"),
-                     list("Gene11__Metab4", "Gene5__Metab4", "Gene7__Metab4", "Gene11__Metab1", "Gene11__Metab3"),
-                     list("Gene11__Metab4", "Gene5__Metab4", "Gene7__Metab4", "Gene5__Metab1", "Gene5__Metab3"),
-                     list("Gene11__Metab4", "Gene5__Metab4", "Gene7__Metab4", "Gene7__Metab1", "Gene7__Metab3"),
-                     list("Gene11__Metab1", "Gene5__Metab1", "Gene7__Metab1", "Gene7__Metab4", "Gene7__Metab3"),
-                     list("Gene11__Metab1", "Gene5__Metab1", "Gene7__Metab1", "Gene11__Metab4", "Gene11__Metab3"),
-                     list("Gene11__Metab1", "Gene5__Metab1", "Gene7__Metab1", "Gene5__Metab4", "Gene5__Metab3"),
-                     list("Gene11__Metab3", "Gene5__Metab3", "Gene7__Metab3", "Gene7__Metab4", "Gene7__Metab1"),
-                     list("Gene11__Metab3", "Gene5__Metab3", "Gene7__Metab3", "Gene11__Metab4", "Gene11__Metab1"),
-                     list("Gene11__Metab3", "Gene5__Metab3", "Gene7__Metab3", "Gene5__Metab4", "Gene5__Metab1"))
-importantPredictors <- lapply(pairsPredAll, function(pairsPred){
-  pred1 <- CompositePrediction(pairsPred, myres@covariate.coefficients, starting_weights_all,
-                             inputData@analyteType1, inputData@analyteType2)
-
-  # Prune the pairs.
-  removePairPred <- CompositePredictionLOO(pairsPred, myres@covariate.coefficients, starting_weights_all,
-                             inputData@analyteType1, inputData@analyteType2)
-  infoGainOriginal <- ComputeInfoGain(unlist(pred1), inputData@sampleMetaData[,myres@stype])
-  infoGainsLOO <- lapply(removePairPred, function(p){
-    return(ComputeInfoGain(unlist(p), inputData@sampleMetaData[,myres@stype]))
-  })
-  informativePairs <- unlist(pairsPred[which(infoGainsLOO < infoGainsOriginal)])
-  if(length(which(infoGainsLOO < infoGainOriginal))==0){
-    informativePairs <- unlist(pairsPred[which(infoGainsLOO == infoGainsOriginal)])[1]
-  }
-
-  # For each pair that was pruned, see if it functions better than the full
-  # predictor as an "orphan" pair.
-  orphans <- setdiff(unlist(pairsPred), informativePairs)
-  importantOrphans <- unlist(lapply(1:length(orphans), function(orphan){
-    orphanPred <- as.data.frame(t(as.data.frame(pred[,orphan])))
-    orphanInfoGain <- ComputeInfoGain(orphanPred, inputData@sampleMetaData[,myres@stype])
-    retval <- NULL
-    if(orphanInfoGain > infoGainOriginal){
-      retval <- orphan
-    }
-    return(retval)
-  }))
-  return(list(modelPairs = informativePairs, orphans = importantOrphans))
-})
-print(importantPredictors)
-```
-
-# Merge Predictors (Second Layer)
-```{r}
-# Compute table of pair overlaps.
-pairCounts <- table(unlist(pairsPredAll))
-predictorsContaining <- pairCounts[order(-pairCounts)]
-
-# Loop through and group composite predictors.
-belongsTo <- rep(0, length(pairsPredAll))
-compositePredictors <- list()
-predictorIdx <- 1
-for(pair in names(predictorsContaining)){
-  # For each pair, find the predictors containing it.
-  listContainsPair <- unlist(lapply(1:length(pairsPredAll), function(i){
-    composite <- pairsPredAll[[i]]
-    containsPair <- FALSE
-    if(pair %in% composite){
-      containsPair <- TRUE
-    }
-    return(containsPair)
-  }))
-  # If the predictors containing it have not been assigned, assign them.
-  if(max(belongsTo[which(listContainsPair == TRUE)]) == 0){
-    belongsTo[which(listContainsPair == TRUE)] <- predictorIdx
-    predictorIdx <- predictorIdx + 1
-  }
-  # If some of the predictors have already been assigned, merge with them.
-  else{
-    belongsTo[which(listContainsPair == TRUE)] <- max(belongsTo[which(listContainsPair == TRUE)])
-  }
-  #compositePredictors[[length(compositePredictors)+1]] <- which(listContainsPair == TRUE)
-}
-print(belongsTo)
 ```
