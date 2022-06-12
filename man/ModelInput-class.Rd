@@ -24,7 +24,7 @@ and clinical covariates}
 
 \item{\code{line.graph}}{the line graph of the input data.}
 
-\item{\code{importance}}{A list of calculated importance metric data frames for each sample}
+\item{\code{metaFeatures}}{A list of calculated meta-feature data frames for each sample}
 
 \item{\code{model.properties}}{A data frame that includes model information, i.e. R^2,
 interaction term p-value, and coefficients.}

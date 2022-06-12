@@ -11,7 +11,7 @@ each node corresponds to a pair of analytes.
 FormatInput(
   predictionGraphs,
   coregulationGraph,
-  importance,
+  metaFeatures,
   modelProperties,
   inputData,
   stype.class,
@@ -64,7 +64,7 @@ each node corresponds to a pair of analytes.
 \section{Slots}{
 
 \describe{
-\item{\code{importance}}{A list of calculated importance metric data frames for each sample}
+\item{\code{metaFeatures}}{A list of calculated meta-features for each sample}
 
 \item{\code{modelProperties}}{A data frame that includes model information, i.e. R^2,
 interaction term p-value, and coefficients.}

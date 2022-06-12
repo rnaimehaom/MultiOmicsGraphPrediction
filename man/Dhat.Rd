@@ -10,9 +10,9 @@ Dhat(Aind, phi, M, Beta2, Beta3)
 \arguments{
 \item{Aind}{The matrix containing the values of the independent analyte type.}
 
-\item{phi}{The weights of the importance metrics.}
+\item{phi}{The weights of the meta-features.}
 
-\item{M}{The importance values.}
+\item{M}{The meta-features.}
 
 \item{Beta2}{The phenotype term coefficients.}
 

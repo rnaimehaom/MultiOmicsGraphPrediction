@@ -25,7 +25,7 @@ values for each iteration of training.}
 
 \item{\code{activation.type}}{Character value. Must be "sigmoid", "tanh", or "softmax".}
 
-\item{\code{current.importance.weights}}{Importance weights used in the current iteration.}
+\item{\code{current.metaFeature.weights}}{Metafeature weights used in the current iteration.}
 
 \item{\code{previous.weights}}{Weights used in the previous iteration.}
 

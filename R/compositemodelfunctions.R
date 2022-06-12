@@ -80,7 +80,7 @@ CompositePrediction <- function(pairs, modelResults){
     analyteSrcVals <- modelResults@model.input@input.data@analyteType1
   }
   covariateVals <- modelResults@model.input@input.data@sampleMetaData
-  weights <- ComputeImportanceWeights(modelResults)
+  weights <- ComputeMetaFeatureWeights(modelResults)
 
   # Analyte 1
   weighted_a1 <- rep(0, nrow(weights))
@@ -593,13 +593,13 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
 }
 
 #' Compute the weight of each predictor given the weights of different
-#' importance metrics.
+#' metafeatures.
 #' @param modelResults A ModelResults object.
 #' @return A weight matrix for each sample and each predictor.
 #' @export
-ComputeImportanceWeights <- function(modelResults){
-  weights <- lapply(1:length(modelResults@model.input@importance), function(i){
-    imp <- modelResults@model.input@importance[[i]] * modelResults@current.importance.weights[i]
+ComputeMetaFeatureWeights <- function(modelResults){
+  weights <- lapply(1:length(modelResults@model.input@metaFeatures), function(i){
+    imp <- modelResults@model.input@metaFeatures[[i]] * modelResults@current.metaFeature.weights[i]
     return(as.matrix(imp))
   })
   weights_all <- Reduce("+",weights)

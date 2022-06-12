@@ -9,7 +9,7 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
   gradient <- computeGradient(modelResults = modelResults, prunedModels = prunedModels)
 
   # Set previous weights.
-  prevWeights <- modelResults@current.importance.weights
+  prevWeights <- modelResults@current.metaFeature.weights
   
   # Update gradient.
   modelResults@current.gradient <- as.matrix(gradient)
@@ -22,7 +22,7 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
   if(modelResults@optimization.type == "SGD"){
     
     # Stochastic Gradient Descent
-    modelResults@current.importance.weights <- prevWeights - 
+    modelResults@current.metaFeature.weights <- prevWeights - 
       modelResults@learning.rate * modelResults@current.gradient
     
     # Set the new weights and gradient.
@@ -35,7 +35,7 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
     if(modelResults@current.iteration == 1){
       update.vec <- modelResults@learning.rate * modelResults@current.gradient
     }
-    modelResults@current.importance.weights <- prevWeights - update.vec
+    modelResults@current.metaFeature.weights <- prevWeights - update.vec
     modelResults@previous.update.vector <- update.vec
   }else if(modelResults@optimization.type == "adagrad"){
     # Adagrad
@@ -45,7 +45,7 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
     if(modelResults@current.iteration == 1){
       update.vec <- modelResults@learning.rate * modelResults@current.gradient
     }
-    modelResults@current.importance.weights <- prevWeights - update.vec
+    modelResults@current.metaFeature.weights <- prevWeights - update.vec
     modelResults@sum.square.gradients <- modelResults@sum.square.gradients +
       (modelResults@current.gradient^2)
   }else if(modelResults@optimization.type == "adam"){
@@ -60,21 +60,21 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred){
     m.hat <- m / (1 - (beta1)^modelResults@current.iteration)
     v.hat <- v / (1 - (beta2)^modelResults@current.iteration)
     update.vec <- (modelResults@learning.rate * m.hat) / (sqrt(v.hat)+epsilon)
-    modelResults@current.importance.weights <- prevWeights - update.vec
+    modelResults@current.metaFeature.weights <- prevWeights - update.vec
     modelResults@previous.momentum <- m
     modelResults@previous.update.vector <- v
   }else if(modelResults@optimization.type == "newton"){
     # Calculate Hessian and update weights.
     hessian <- computeHessianSingleLayer(modelResults, convolution, pooling)
     update <- MASS::ginv(hessian) %*% modelResults@current.gradient
-    modelResults@current.importance.weights <- prevWeights - 
+    modelResults@current.metaFeature.weights <- prevWeights - 
       (modelResults@learning.rate * update)
   }
   
   # Update the weights for this iteration.
   modelResults@iteration.tracking[modelResults@current.iteration+1,
                                   which(grepl("Weight", 
-                                              colnames(modelResults@iteration.tracking)))] <- modelResults@current.importance.weights
+                                              colnames(modelResults@iteration.tracking)))] <- modelResults@current.metaFeature.weights
   
   # Return.
   return(modelResults)
@@ -89,7 +89,7 @@ computeHessianSingleLayer <- function(modelResults, convolution, pooling){
   # Components for derivative.
   A.hat <- modelResults@model.input@A.hat
   X <- modelResults@model.input@node.wise.prediction
-  Theta.old <- matrix(rep(modelResults@current.importance.weights, dim(X)[2]), ncol = dim(X)[2])
+  Theta.old <- matrix(rep(modelResults@current.metaFeature.weights, dim(X)[2]), ncol = dim(X)[2])
   Y <- modelResults@model.input@true.phenotypes
   
   # Convolve X.
@@ -174,9 +174,9 @@ computeGradient <- function(modelResults, prunedModels){
   P_hat <- CompositePrediction(pairs = S, modelResults = modelResults)
   P <- modelResults@model.input@true.phenotypes
   Beta <- modelResults@model.input@model.properties[S,]
-  M <- as.data.frame(do.call(rbind, modelResults@model.input@importance)[,S])
-  rownames(M) <- names(modelResults@model.input@importance)
-  phi <- modelResults@current.importance.weights
+  M <- as.data.frame(do.call(rbind, modelResults@model.input@metaFeatures)[,S])
+  rownames(M) <- names(modelResults@model.input@metaFeatures)
+  phi <- modelResults@current.metaFeature.weights
 
   # Compute the gradient for each sample.
   sampGradients <- lapply(1:length(P), function(k){
@@ -245,7 +245,7 @@ computeGradient <- function(modelResults, prunedModels){
 
     # Obtain the subgraph derivative.
     subgraphDerivDF <- as.data.frame(phiGradients)
-    colnames(subgraphDerivDF) <- names(modelResults@model.input@importance)
+    colnames(subgraphDerivDF) <- names(modelResults@model.input@metaFeatures)
 
     # If data are categorical, compute the derivative of the activation function.
     derivPredByAct <- 1
@@ -264,8 +264,8 @@ computeGradient <- function(modelResults, prunedModels){
 #' Compute the D-hat value, which is the denominator value of the composite prediction
 #' for a sample k and a subgraph lambda.
 #' @param Aind The matrix containing the values of the independent analyte type.
-#' @param phi The weights of the importance metrics.
-#' @param M The importance values.
+#' @param phi The weights of the meta-features.
+#' @param M The meta-features.
 #' @param Beta2 The phenotype term coefficients.
 #' @param Beta3 The interaction term coefficients.
 Dhat <- function(Aind, phi, M, Beta2, Beta3){
@@ -277,9 +277,9 @@ Dhat <- function(Aind, phi, M, Beta2, Beta3){
 }
 
 #' Compute the D-hat value, which is the derivative of the denominator value of the composite prediction
-#' for a sample k, a subgraph lambda, and an importance metric gamma.
+#' for a sample k, a subgraph lambda, and a meta-feature metric gamma.
 #' @param Aind The matrix containing the values of the independent analyte type.
-#' @param M The importance values.
+#' @param M The meta-features.
 #' @param Beta2 The phenotype term coefficients.
 #' @param Beta3 The interaction term coefficients.
 DhatPrime <- function(Aind, M, Beta2, Beta3){
@@ -292,8 +292,8 @@ DhatPrime <- function(Aind, M, Beta2, Beta3){
 #' for a sample k and a subgraph lambda.
 #' @param Aind The matrix containing the values of the independent analyte type.
 #' @param Aout The matrix containing the values of the outcome analyte type.
-#' @param phi The weights of the importance metrics.
-#' @param M The importance values.
+#' @param phi The weights of the meta-features.
+#' @param M The meta-features.
 #' @param Beta0 The intercept coefficients.
 #' @param Beta1 The analyte coefficients.
 #' @param BetaC The covariate coefficients.
@@ -317,10 +317,10 @@ Nhat <- function(Aind, Aout, phi, M, Beta0, Beta1, BetaC, C){
 }
 
 #' Compute the N-hat value, which is the derivative of the numerator value of the composite prediction
-#' for a sample k, a subgraph lambda, and an importance metric gamma.
+#' for a sample k, a subgraph lambda, and a meta-feature metric gamma.
 #' @param Aind The matrix containing the values of the independent analyte type.
 #' @param Aout The matrix containing the values of the outcome analyte type.
-#' @param M The importance values.
+#' @param M The meta-feature values.
 #' @param Beta0 The intercept coefficients.
 #' @param Beta1 The analyte coefficients.
 #' @param BetaC The covariate coefficients.
@@ -344,7 +344,6 @@ NhatPrime <- function(Aind, Aout, M, Beta0, Beta1, BetaC, C){
 }
 
 #' Compute the derivative of the error by the predictor.
-#' @param importance The importance values.
 #' @param activationType The name of the activation function.
 #' @param pred The predicted value of a single sample for a single parameter
 #' of interest.

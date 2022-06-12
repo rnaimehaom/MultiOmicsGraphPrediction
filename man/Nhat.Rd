@@ -12,9 +12,9 @@ Nhat(Aind, Aout, phi, M, Beta0, Beta1, BetaC, C)
 
 \item{Aout}{The matrix containing the values of the outcome analyte type.}
 
-\item{phi}{The weights of the importance metrics.}
+\item{phi}{The weights of the meta-features.}
 
-\item{M}{The importance values.}
+\item{M}{The meta-features.}
 
 \item{Beta0}{The intercept coefficients.}
 

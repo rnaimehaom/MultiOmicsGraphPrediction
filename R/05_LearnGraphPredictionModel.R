@@ -1,33 +1,28 @@
 #' Find edges that share nodes and add them to a data frame.
 #' @param modelInputs An object of the ModelInput class.
-#' @param importance Calculated importance metrics.
+#' @param metaFeatures Calculated metafeatures.
 #' @param iterations Maximum number of iterations. Default is 1,000.
 #' @param convergenceCutoff Cutoff for convergence. Default is 0.001.
-#' @param modelType The type of model the user wishes to learn. Users may
-#' select from the following:
-#' - "importance": A linear combination of predictors, where each predictor's
-#'   weight is learned as a function of importance metrics.
 #' @param stype.class One of either "character" or "numeric". Default is "numeric".
 #' @param learningRate Learning rate to use during training. Default is 0.2
 #' @param activationType Activation function. May be "softmax", "sigmoid", 
 #' "tanh", or "none". Default is "none", meaning stype.class is numeric.
 #' @param optimizationType Type of optimization. May be "SGD", "momentum",
 #' "adagrad", or "adam". Default is "SGD".
-#' @param initialImportanceWeights Initial weights for model importance. Default
-#' is NULL, which results in each importance metric being given equal weight.
+#' @param initialMetaFeatureWeights Initial weights for model meta-features. Default
+#' is NULL, which results in each meta-feature being given equal weight.
 #' @export
 InitializeGraphLearningModel <- function(modelInputs,
                                          iterations = 1000,
                                          convergenceCutoff = 0.0000000001,
-                                         modelType = "importance",
                                          stype.class = "numeric", 
                                          learningRate = 0.2,
                                          activationType = "none", 
                                          optimizationType = "SGD",
-                                         initialImportanceWeights = NULL){
-  # Initialize importance weights.
-  weights_count <- length(modelInputs@importance)
-  wt_name <- names(modelInputs@importance)
+                                         initialMetaFeatureWeights = NULL){
+  # Initialize metafeature weights.
+  weights_count <- length(modelInputs@metaFeatures)
+  wt_name <- names(modelInputs@metaFeatures)
   
   # Initialize data frame with maximum number of iterations.
   tracking.frame <- as.data.frame(matrix(-1, nrow = iterations, 
@@ -43,10 +38,10 @@ InitializeGraphLearningModel <- function(modelInputs,
   max_phen <- max(modelInputs@true.phenotypes)
   num_nodes <- nrow(modelInputs@node.wise.prediction)
   weights <- as.matrix(rep(1 / weights_count, weights_count))
-  if(!is.null(initialImportanceWeights)){
-    weights <- initialImportanceWeights
+  if(!is.null(initialMetaFeatureWeights)){
+    weights <- initialMetaFeatureWeights
   }
-  names(weights) <- names(modelInputs@importance)
+  names(weights) <- names(modelInputs@metaFeatures)
   
   tracking.frame[1,3:(2+weights_count)] <- weights
 
@@ -54,8 +49,8 @@ InitializeGraphLearningModel <- function(modelInputs,
   newModelResults <- methods::new("ModelResults", model.input=modelInputs,
                         iteration.tracking=tracking.frame, max.iterations=iterations,
                         convergence.cutoff=convergenceCutoff, learning.rate=learningRate,
-                        previous.importance.weights=as.matrix(rep(0,length(weights))), 
-                        current.importance.weights=as.matrix(weights),
+                        previous.metaFeature.weights=as.matrix(rep(0,length(weights))), 
+                        current.metaFeature.weights=as.matrix(weights),
                         current.gradient=as.matrix(rep(-1,length(weights))),
                         previous.momentum=as.matrix(rep(0,length(weights))),
                         previous.update.vector=as.matrix(rep(0,length(weights))),
@@ -72,7 +67,7 @@ InitializeGraphLearningModel <- function(modelInputs,
 #' each node corresponds to a pair of analytes.
 #' 2. A prediction value for each node of the line graph, for each sample X.
 #' 3. The true prediction values Y for each sample X.
-#' @slot importance A list of calculated importance metric data frames for each sample
+#' @slot metaFeatures A list of calculated meta-features for each sample
 #' @slot modelProperties A data frame that includes model information, i.e. R^2,
 #' interaction term p-value, and coefficients.
 #' @slot inputData An IntLIMData object that includes slots for the sample data,
@@ -97,7 +92,7 @@ InitializeGraphLearningModel <- function(modelInputs,
 #' @param outcome The outcome used in the IntLIM models.
 #' @param independent.var.type The independent variable type used in the IntLIM models.
 #' @export
-FormatInput <- function(predictionGraphs, coregulationGraph, importance, modelProperties,
+FormatInput <- function(predictionGraphs, coregulationGraph, metaFeatures, modelProperties,
                         inputData, stype.class, edgeTypeList, stype, verbose = FALSE, covariates = list(),
                         predictorBounds = c(NA,NA), outcome = 2, independent.var.type = 2){
   
@@ -161,7 +156,7 @@ FormatInput <- function(predictionGraphs, coregulationGraph, importance, modelPr
                                 true.phenotypes=Y, outcome.type=stype.class, 
                                 coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
                                 line.graph=as.matrix(A), input.data = inputData, model.properties = modelProperties,
-                                importance = importance, stype = stype, covariates = covariates, stype.class = stype.class,
+                                metaFeatures = metaFeatures, stype = stype, covariates = covariates, stype.class = stype.class,
                                 outcome = outcome, independent.var.type = independent.var.type)
   return(newModelInput)
 }
@@ -251,7 +246,7 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
   return(line_graph_df)
 }
 
-#' Optimize the combination of predictors by importance alone (in other words,
+#' Optimize the combination of predictors by metafeatures alone (in other words,
 #' exclude pooling and combine in a single layer using a linear combination).
 #' @param modelResults An object of the ModelResults class.
 #' @param verbose Whether to print results as you run the model.
@@ -263,14 +258,14 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
 #' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
 #' Only applicable when the pruning method is error.t.test. Default is FALSE.
 #' @export
-OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
+OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                                     pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
                                     includeVarianceTest = FALSE){
   
   # Start the first iteration and calculate a dummy weight delta.
   modelResults@current.iteration <- 1
-  weight.delta <- sqrt(sum((modelResults@current.importance.weights - 
-                              modelResults@previous.importance.weights)^2))
+  weight.delta <- sqrt(sum((modelResults@current.metaFeature.weights - 
+                              modelResults@previous.metaFeature.weights)^2))
   
   # Get the initial pruned models.
   pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
@@ -305,7 +300,7 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     #perm_samples <- 1:nrow(modelResults@model.input@node.wise.prediction)
 
     # Initialize previous weight vector.
-    modelResults@previous.importance.weights <- modelResults@current.importance.weights
+    modelResults@previous.metaFeature.weights <- modelResults@current.metaFeature.weights
     
     for(i in perm_samples){
       # Extract data for each sample.
@@ -317,14 +312,14 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
       newModelResults@model.input@input.data@analyteType1 <- as.matrix(modelResults@model.input@input.data@analyteType1[,i])
       newModelResults@model.input@input.data@analyteType2 <- as.matrix(modelResults@model.input@input.data@analyteType2[,i])
       newModelResults@model.input@input.data@sampleMetaData <- as.data.frame(modelResults@model.input@input.data@sampleMetaData[i,])
-      importanceSamp <- lapply(1:length(modelResults@model.input@importance), function(imp){
-        df <- t(as.data.frame(modelResults@model.input@importance[[imp]][i,]))
+      metaFeaturesSamp <- lapply(1:length(modelResults@model.input@metaFeatures), function(imp){
+        df <- t(as.data.frame(modelResults@model.input@metaFeatures[[imp]][i,]))
         rownames(df) <- rownames(modelResults@model.input@node.wise.prediction)[i]
         colnames(df) <- colnames(modelResults@model.input@node.wise.prediction)
         return(df)
       })
-      names(importanceSamp) <- names(modelResults@model.input@importance)
-      newModelResults@model.input@importance <- importanceSamp
+      names(metaFeaturesSamp) <- names(modelResults@model.input@metaFeatures)
+      newModelResults@model.input@metaFeatures <- metaFeaturesSamp
       
       # Do training iteration.
       newModelResults <- DoSingleTrainingIteration(modelResults = newModelResults,
@@ -332,8 +327,8 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
       
       # Update weights and gradient in the model results according to the
       # results of this sample.
-      modelResults@current.importance.weights <- newModelResults@current.importance.weights
-      modelResults@previous.importance.weights <- newModelResults@previous.importance.weights
+      modelResults@current.metaFeature.weights <- newModelResults@current.metaFeature.weights
+      modelResults@previous.metaFeature.weights <- newModelResults@previous.metaFeature.weights
       modelResults@current.gradient <- newModelResults@current.gradient
       modelResults@outcome.prediction <- newModelResults@outcome.prediction
       modelResults@previous.momentum <- newModelResults@previous.momentum
@@ -370,7 +365,7 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     prunedModelSizes <- lapply(prunedModels, function(model){return(length(model))})
     
     # Print the weight delta and error.
-    weight.delta <- sqrt(sum((modelResults@current.importance.weights - modelResults@previous.importance.weights)^2))
+    weight.delta <- sqrt(sum((modelResults@current.metaFeature.weights - modelResults@previous.metaFeature.weights)^2))
     if(modelResults@current.iteration %% 1 == 0 && verbose == TRUE){
       print(paste("iteration", modelResults@current.iteration, ": weight delta is", weight.delta,
                   "and error is", paste0(currentError, ". Final subgraph has ", prunedModelSizes, " nodes.")))
@@ -399,64 +394,6 @@ OptimizeImportanceCombo <- function(modelResults, verbose = TRUE,
     modelResults@iteration.tracking <- modelResults@iteration.tracking[1:(modelResults@current.iteration-1),]
   }
   return(modelResults)
-}
-
-#' Run least squares optimization to optimize the weights. This function
-#' assumes that the weights are applied after pooling.
-#' @param modelResults An object of the ModelResults class.
-#' @export
-RunLeastSquaresOptimization <- function(modelResults){
-  # Get Components.
-  A.hat <- modelResults@model.input@A.hat
-  X <- modelResults@model.input@node.wise.prediction
-  Y.pred <- X
-  
-  # Find Median Pools.
-  S_all <- lapply(1:dim(X)[2], function(i){
-    return(S)
-  })
-  
-  # Convolve and pool.
-  Y.pred.list <- lapply(1:dim(X)[2], function(i){
-    return(t(A.hat %*% X[,i])  %*% S_all[[i]])
-  })
-  Y.pred <- do.call(rbind, Y.pred.list)
-  
-  # Train.
-  model <- glmnet::glmnet(x = Y.pred, y = modelResults@model.input@true.phenotypes,
-                  intercept = FALSE, lower.limits = 0, lambda = 0)
-  
-  # Return.
-  return(model)
-}
-
-#' Predict test data using a least squares model. This function
-#' assumes that the weights are applied after pooling.
-#' @param modelInput An object of the ModelInput class. This input corresponds
-#' to the test data.
-#' @param trainingModelResults An object of the ModelResults class. This corresponds to
-#' the modelResults object for the training data.
-#' @param leastSquaresModel A least squares model learned using 
-#' RunLeastSquaresOptimization.
-#' @export
-PredictFromLeastSquares <- function(modelInput, trainingModelResults, leastSquaresModel){
-  # Construct testing input.
-  Y.pred.test <- modelInput@node.wise.prediction
-  A.hat = trainingModelResults@model.input@A.hat
-  
-  # Adjust filter. Need to fill this in.
-  S_all <- lapply(1:dim(X)[2], function(i){
-    return(NULL)
-  })
-  
-  # Convolve and pool.
-  Y.pred.list.test <- lapply(1:dim(Y.pred.test)[2], function(i){
-    return(t(A.hat %*% Y.pred.test[,i])  %*% S_all[[i]])
-  })
-  Y.pred.test <- do.call(rbind, Y.pred.list.test)
-  test.predict <- stats::predict(leastSquaresModel, Y.pred.test)
-  rownames(test.predict) <- colnames(modelInput@node.wise.prediction)
-  return(test.predict)
 }
 
 #' Run a prediction on new data using the graph learning model, and compute
@@ -499,80 +436,6 @@ GetErrorDeltas <- function(weights, modelInput, convolutions, minimum = NULL,
   }))
   names(deltas) <- names(modelInput@true.phenotypes)
   return(deltas)
-}
-
-#' Run a prediction on new data using the graph learning model.
-#' @param modelResults An object of the ModelResults class.
-#' @param pooling Whether or not to pool the weights.
-#' @param convolution Whether or not to perform convolution.
-#' @param testInput An object of the ModelInput class.
-#' @export
-PredictTesting <- function(modelResults, pooling, convolution, testInput){
-  # Propagate forward.
-  A.hat <- modelResults@model.input@A.hat
-  X <- testInput@node.wise.prediction
-  Theta.old <- matrix(rep(modelResults@current.importance.weights, dim(X)[2]), ncol = dim(X)[2])
-  Y.pred <- X
-  # If convolution is to be performed, perform convolution.
-  if(convolution == TRUE){
-    Y.pred.list <- lapply(1:dim(X)[2], function(i){
-      return(A.hat %*% X[,i])
-    })
-    Y.pred <- do.call(cbind, Y.pred.list)
-  }
-  # If pooling is to be performed, multiply by pool either after or before weights
-  # are learned, respectively.
-  if(pooling == TRUE){
-    if(modelResults@weights.after.pooling == TRUE){
-      S_all <- modelResults@pooling.filter@individual.filters
-      if(modelResults@current.iteration == 1){
-        # Need to fill this in.
-        S_all <- NULL#CreateFilter(poolingFilter = modelResults@pooling.filter, A.hat = A.hat, 
-                              #X = X)
-        modelResults@pooling.filter@individual.filters <- S_all
-      }
-      Y.pred <- unlist(lapply(1:length(S_all), function(i){
-        return(sum(t(Y.pred[,i]) %*% S_all[[i]] * Theta.old[,i]))
-      }))
-    }else{
-      modelResults@pooling.filter@individual.filters <- S_all
-      Y.pred <- unlist(lapply(1:length(S_all), function(i){
-        return(sum(t(Y.pred[,i] * Theta.old[,i]) %*% S_all[[i]]))
-      }))
-    }
-  }else{
-    Y.pred <- unlist(lapply(1:(dim(Theta.old)[2]), function(i){
-      return(sum(t(Y.pred[,i] * Theta.old[,i])))
-    }))
-  }
-  
-  
-  # Use activation function if output is of a character type. Note that all character
-  # types are converted into factors, and since only binary factors are accepted by
-  # the package, the values will be 1 (for the alphanumerically lowest level) and 2
-  # (for the alphanumerically highest level).
-  if(modelResults@model.input@outcome.type == "categorical"){
-    if(modelResults@activation.type == "softmax"){
-      Y.pred <- round(SoftmaxWithCorrection(Y.pred))
-    }else if(modelResults@activation.type == "tanh"){
-      Y.pred <- round(TanhWithCorrection(Y.pred))
-    }else{
-      Y.pred <- round(SigmoidWithCorrection(Y.pred))
-    }
-  }else{
-    Y.pred <- Y.pred / dim(Theta.old)[1]
-  }
-  
-  # Calculate error.
-  error <- 1
-  if(modelResults@model.input@outcome.type == "categorical"){
-    error <- ComputeClassificationError(testInput@true.phenotypes, Y.pred)
-  }else{
-    error <- ComputeRMSE(testInput@true.phenotypes, Y.pred)
-  }
-  
-  # Modify the model results and return.
-  return(list("Y.pred" = Y.pred, "Error" = error))
 }
 
 #' Compute classification error.

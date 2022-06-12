@@ -11,8 +11,6 @@ DerivativeOfActivation(activationType, pred)
 
 \item{pred}{The predicted value of a single sample for a single parameter
 of interest.}
-
-\item{importance}{The importance values.}
 }
 \description{
 Compute the derivative of the error by the predictor.

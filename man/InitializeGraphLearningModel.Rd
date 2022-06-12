@@ -8,12 +8,11 @@ InitializeGraphLearningModel(
   modelInputs,
   iterations = 1000,
   convergenceCutoff = 1e-10,
-  modelType = "importance",
   stype.class = "numeric",
   learningRate = 0.2,
   activationType = "none",
   optimizationType = "SGD",
-  initialImportanceWeights = NULL
+  initialMetaFeatureWeights = NULL
 )
 }
 \arguments{
@@ -22,11 +21,6 @@ InitializeGraphLearningModel(
 \item{iterations}{Maximum number of iterations. Default is 1,000.}
 
 \item{convergenceCutoff}{Cutoff for convergence. Default is 0.001.}
-
-\item{modelType}{The type of model the user wishes to learn. Users may
-select from the following:
-- "importance": A linear combination of predictors, where each predictor's
-  weight is learned as a function of importance metrics.}
 
 \item{stype.class}{One of either "character" or "numeric". Default is "numeric".}
 
@@ -38,10 +32,10 @@ select from the following:
 \item{optimizationType}{Type of optimization. May be "SGD", "momentum",
 "adagrad", or "adam". Default is "SGD".}
 
-\item{initialImportanceWeights}{Initial weights for model importance. Default
-is NULL, which results in each importance metric being given equal weight.}
+\item{initialMetaFeatureWeights}{Initial weights for model meta-features. Default
+is NULL, which results in each meta-feature being given equal weight.}
 
-\item{importance}{Calculated importance metrics.}
+\item{metaFeatures}{Calculated metafeatures.}
 }
 \description{
 Find edges that share nodes and add them to a data frame.

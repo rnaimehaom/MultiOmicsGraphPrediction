@@ -3,14 +3,14 @@
 \name{DhatPrime}
 \alias{DhatPrime}
 \title{Compute the D-hat value, which is the derivative of the denominator value of the composite prediction
-for a sample k, a subgraph lambda, and an importance metric gamma.}
+for a sample k, a subgraph lambda, and a meta-feature metric gamma.}
 \usage{
 DhatPrime(Aind, M, Beta2, Beta3)
 }
 \arguments{
 \item{Aind}{The matrix containing the values of the independent analyte type.}
 
-\item{M}{The importance values.}
+\item{M}{The meta-features.}
 
 \item{Beta2}{The phenotype term coefficients.}
 
@@ -18,5 +18,5 @@ DhatPrime(Aind, M, Beta2, Beta3)
 }
 \description{
 Compute the D-hat value, which is the derivative of the denominator value of the composite prediction
-for a sample k, a subgraph lambda, and an importance metric gamma.
+for a sample k, a subgraph lambda, and a meta-feature metric gamma.
 }

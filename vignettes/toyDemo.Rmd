@@ -153,7 +153,7 @@ exact predictors than the other predictors, as are the interaction p-value impor
 ```{r importance}
 MultiOmicsGraphPrediction::PlotSubspaceClusteringDendrogram(inputData = inputData, eigStep = 1)
 MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputData, eigStep = 1)
-importance <- MultiOmicsGraphPrediction::GetAllImportanceMetrics(predictions = pred, 
+importance <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred, 
                                                                  stype = "age",
                                                                  inputData = inputData, 
                                                                  metricList = c("pdf", "interactionpval", "interactioncoef", "analytecoef", "localerr"),
@@ -196,7 +196,7 @@ modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projecte
                                                      stype.class = "numeric",
                                                      stype = "age",
                                                      edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
-                                                     importance = importance,
+                                                     metaFeatures = metaFeatures,
                                                      modelProperties = myres.r2,
                                                      outcome = 1,
                                                      independent.var.type = 2)
@@ -214,7 +214,7 @@ Because the final predictors are exact, there is no need to adjust the weights s
 other models contribute more to the final prediction. Therefore, the optimization
 converges immediately and returns the same set of predictors as the first iteration.
 ```{r}
-optimalModel <- MultiOmicsGraphPrediction::OptimizeImportanceCombo(modelResults = modelResults,pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE)
+optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults,pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE)
 ```
 
 # Test Performance Using Leave-One-Out Cross-Validation
@@ -230,4 +230,91 @@ the training data.
 6. Do prediction for the testing data using the computed metafeatures on the testing data
 and the subgraph and metafeature weights learned on the training data.
 ```{r}
+for(sample in rownames(inputData@sampleMetaData)){
+  # Split into training and testing data.
+  data <- MultiOmicsGraphPrediction::SplitTrainingAndTesting(inputData = inputData, testingSamples = sample)
+  
+  # Run prediction.
+  # modelResults.cv <- DoModelSetup(inputData = data$training,
+  #                                 stype = "age",
+  #                                 save.covar.pvals = TRUE,
+  #                                 outcome = 1,
+  #                                 independent.var.type = 2,
+  #                                 continuous = TRUE,
+  #                                 pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0,
+  #                                 metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
+  #                                                                k = 2, eigStep = 1,
+  #                                                                modelStats = myres.r2.cv,
+  #                                                                colIdInd = "databaseId",
+  #                                                                colIdOut = "databaseId",
+  #                                 learningRate = 0.2)
+  myres.cv <- IntLIM::RunIntLim(inputData = data$training, stype="age",
+                                 save.covar.pvals = TRUE, 
+                                 outcome = 1, 
+                                 independent.var.type = 2, 
+                                 continuous = TRUE)
+  myres.all.cv <- IntLIM::ProcessResults(inputResults = myres.cv, inputData = data$training, 
+                                       pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
+  myres.r2.density.cv <- density(myres.all.cv$rsquared)
+  peak.r2.cv <- myres.r2.density$x[which.max(myres.r2.density.cv$y)]
+  myres.r2.cv <- IntLIM::ProcessResults(inputResults = myres.cv, inputData = data$training, 
+                                       pvalcutoff = 1, rsquaredCutoff = peak.r2.cv)
+  pred.cv <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2.cv, 
+                                                         inputData = data$training,
+                                                         stype = "age",
+                                                         independentVarType = 2,
+                                                         outcomeType = 1)
+  coreg.r2.cv <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2.cv)
+  projectedGraph <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg.r2.cv,
+                                                                         predictions = pred.cv)
+  
+  # Compute meta features.
+  metafeaturesTrain <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred.cv,
+                                                                 stype = "age",
+                                                                 inputData = data$training,
+                                                                 metaFeatureList = c("pdf",
+                                                                                     "interactionpval", "interactioncoef", "analytecoef", "localerr"),
+                                                                 k = 2, eigStep = 1,
+                                                                 modelStats = myres.r2.cv,
+                                                                 colIdInd = "databaseId",
+                                                                 colIdOut = "databaseId")
+  
+
+  # Optimize model using training data.
+  modelInput.cv <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+                                                     coregulationGraph = coreg.r2,
+                                                     inputData = data$training, 
+                                                     stype.class = "numeric",
+                                                     stype = "age",
+                                                     edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
+                                                     metaFeatures = metafeaturesTrain,
+                                                     modelProperties = myres.r2.cv,
+                                                     outcome = 1,
+                                                     independent.var.type = 2)
+  modelResults.cv <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput.cv, learningRate = 0.2)
+  optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv,
+                                                                     pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE)
+  
+  pred.cv.test <- MultiOmicsGraphPrediction::RunPairwisePredictionTest(inputResults = myres.r2.cv, 
+                                                         inputData = data$testing,
+                                                         stype = "age",
+                                                         independentVarType = 2,
+                                                         outcomeType = 1)
+  
+  # Get metafeatures for testing.
+  metafeaturesTest <- MultiOmicsGraphPrediction::GetTestMetaFeatures(predictionsTrain = pred.cv,
+                                                                  predictionsTest = pred.cv.test,
+                                                                 stype = "age",
+                                                                 inputDataTrain = data$training,
+                                                                  inputDataTest = data$testing,
+                                                                 metaFeatureList = c("pdf",
+                                                                                     "interactionpval", "interactioncoef", "analytecoef", "localerr"),
+                                                                 k = 2, eigStep = 1,
+                                                                 modelStats = myres.r2.cv,
+                                                                 colIdInd = "databaseId",
+                                                                 colIdOut = "databaseId")
+  
+  # Predict testing values.
+  # predictions <- DoPrediction(inputData = inputDataTest, metafeatures = metafeaturesTest, model = optimalModel)
+}
 ```

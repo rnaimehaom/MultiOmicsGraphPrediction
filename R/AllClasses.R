@@ -11,7 +11,7 @@
 #' @slot outcome.type "numeric" or "categorical"
 #' @slot coregulation.graph the original co-regulation graph for the input data.
 #' @slot line.graph the line graph of the input data.
-#' @slot importance A list of calculated importance metric data frames for each sample
+#' @slot metaFeatures A list of calculated meta-feature data frames for each sample
 #' @slot model.properties A data frame that includes model information, i.e. R^2,
 #' interaction term p-value, and coefficients.
 #' @slot input.data An IntLIMData object that includes slots for the sample data,
@@ -27,7 +27,7 @@ methods::setClass(
                  coregulation.graph="matrix",
                  line.graph="matrix",
                  outcome.type="character",
-                 importance="list",
+                 metaFeatures="list",
                  model.properties = "data.frame",
                  input.data = "IntLimData",
                  covariates = "list",
@@ -50,7 +50,7 @@ methods::setClass(
 #' @slot convergence.cutoff Cutoff for convergence.
 #' @slot learning.rate Learning rate used during training.
 #' @slot activation.type Character value. Must be "sigmoid", "tanh", or "softmax".
-#' @slot current.importance.weights Importance weights used in the current iteration.
+#' @slot current.metaFeature.weights Metafeature weights used in the current iteration.
 #' @slot previous.weights Weights used in the previous iteration.
 #' @slot current.gradient Gradient calculated for this iteration.
 #' @slot weights.after.pooling Whether to include the weights after the pooling
@@ -71,8 +71,8 @@ methods::setClass(
                  convergence.cutoff="numeric",
                  learning.rate="numeric",
                  activation.type="character",
-                 previous.importance.weights="matrix",
-                 current.importance.weights="matrix",
+                 previous.metaFeature.weights="matrix",
+                 current.metaFeature.weights="matrix",
                  current.gradient="matrix",
                  previous.update.vector="matrix",
                  current.iteration="numeric",

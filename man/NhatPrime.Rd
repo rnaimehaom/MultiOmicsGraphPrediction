@@ -3,7 +3,7 @@
 \name{NhatPrime}
 \alias{NhatPrime}
 \title{Compute the N-hat value, which is the derivative of the numerator value of the composite prediction
-for a sample k, a subgraph lambda, and an importance metric gamma.}
+for a sample k, a subgraph lambda, and a meta-feature metric gamma.}
 \usage{
 NhatPrime(Aind, Aout, M, Beta0, Beta1, BetaC, C)
 }
@@ -12,7 +12,7 @@ NhatPrime(Aind, Aout, M, Beta0, Beta1, BetaC, C)
 
 \item{Aout}{The matrix containing the values of the outcome analyte type.}
 
-\item{M}{The importance values.}
+\item{M}{The meta-feature values.}
 
 \item{Beta0}{The intercept coefficients.}
 
@@ -25,5 +25,5 @@ this value should be NA.}
 }
 \description{
 Compute the N-hat value, which is the derivative of the numerator value of the composite prediction
-for a sample k, a subgraph lambda, and an importance metric gamma.
+for a sample k, a subgraph lambda, and a meta-feature metric gamma.
 }

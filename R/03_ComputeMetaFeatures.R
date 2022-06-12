@@ -31,10 +31,10 @@
 #' measured according to the listed criteria (one column per metric, one row
 #' per predictor).
 #' @export
-GetAllImportanceMetrics <- function(predictions, inputData,
+GetMetaFeatures <- function(predictions, inputData,
                                        lowerPercentileLimit = 0.1,
                                        upperPercentileLimit = 0.9,
-                                       metricList = c("pdf", "localerr", "globalerr",
+                                       metaFeatureList = c("pdf", "localerr", "globalerr",
                                                       "pathway", "reaction",
                                                       "interactionpval", "interactioncoef",
                                                       "analytecoef"),
@@ -51,16 +51,16 @@ GetAllImportanceMetrics <- function(predictions, inputData,
                                     colIdOut = ""){
   
   # Compute metrics.
-  metrics <- list()
-  if("pdf" %in% metricList){
+  metaFeatures <- list()
+  if("pdf" %in% metaFeatureList){
     print("Computing PDF importance")
-    metrics$pdf <- ComputePDFImportance(predictions = predictions)
+    metaFeatures$pdf <- ComputePDFImportance(predictions = predictions)
   }
-  if("localerr" %in% metricList){
+  if("localerr" %in% metaFeatureList){
     print("Computing Local Error importance")
     trueVals <- inputData@sampleMetaData[,stype]
     names(trueVals) <- rownames(inputData@sampleMetaData)
-    metrics$localerr <- ComputeLocalErrorImportance(predictions = predictions, 
+    metaFeatures$localerr <- ComputeLocalErrorImportance(predictions = predictions, 
                                                     true = trueVals,
                                                     k = k,
                                                     inputData = inputData, 
@@ -69,42 +69,154 @@ GetAllImportanceMetrics <- function(predictions, inputData,
                                                     alphaMax = alphaMax, 
                                                     alphaStep = alphaStep)
   }
-  if("globalerr" %in% metricList){  
+  if("globalerr" %in% metaFeatureList){  
     print("Computing Global Error importance")
-    metrics$globalerr <- ComputeGlobalErrorImportance(predictions = predictions, 
+    metaFeatures$globalerr <- ComputeGlobalErrorImportance(predictions = predictions, 
                                                       true = inputData@sampleMetaData[,stype])
   }
-  if("pathway" %in% metricList){
+  if("pathway" %in% metaFeatureList){
     print("Computing Pathway importance")
-    metrics$pathway <- ComputePathwayImportance(predictions = predictions, 
+    metaFeatures$pathway <- ComputePathwayImportance(predictions = predictions, 
                                                 inputData = inputData,
                                                 colIdInd = colIdInd,
                                                 colIdOut = colIdOut)
   }
-  if("reaction" %in% metricList){
+  if("reaction" %in% metaFeatureList){
     print("Computing Reaction importance")
-    metrics$reaction <- ComputeReactionImportance(predictions = predictions, 
+    metaFeatures$reaction <- ComputeReactionImportance(predictions = predictions, 
                                                   inputData = inputData,
                                                   colIdInd = colIdInd,
                                                   colIdOut = colIdOut)
   }
-  if("interactionpval" %in% metricList){
+  if("interactionpval" %in% metaFeatureList){
     print("Computing Interaction Term p-Value importance")
-    metrics$interactionpval <- ComputePvalImportance(predictions = predictions, 
+    metaFeatures$interactionpval <- ComputePvalImportance(predictions = predictions, 
                                                      modelStats = modelStats)
   }
-  if("interactioncoef" %in% metricList){
+  if("interactioncoef" %in% metaFeatureList){
     print("Computing Interaction Coefficient importance")
-    metrics$interactioncoef <- ComputeInteractionCoefImportance(predictions = predictions, 
+    metaFeatures$interactioncoef <- ComputeInteractionCoefImportance(predictions = predictions, 
                                                                 modelStats = modelStats)
   }
-  if("analytecoef" %in% metricList){
+  if("analytecoef" %in% metaFeatureList){
     print("Computing Analyte Coefficient importance")
-    metrics$analytecoef <- ComputeAnalyteCoefImportance(predictions = predictions, 
+    metaFeatures$analytecoef <- ComputeAnalyteCoefImportance(predictions = predictions, 
                                                         modelStats = modelStats)
   }
   
-  return(metrics)
+  return(metaFeatures)
+}
+
+#' Computes the metafeatures for each sample and model in the testing data.
+#' @param predictionsTrain Prediction data frame for training data, where rows are samples, and
+#' columns are predictors.
+#' @param predictionsTest Prediction data frame for testing data, where rows are samples, and
+#' columns are predictors.
+#' @param metricList A list of the valid metrics to include. Valid metrics are
+#' "pdf", "localerr", "globalerr", and "pathway".
+#' @param k The number of nearest neighbors to consider in localerr.
+#' @param inputDataTrain The training data (in IntLimData format).
+#' @param inputDataTest The testing data (in IntLimData format).
+#' @param eigStep The number of eigenvectors to step by during the evaluation
+#' in localerr.
+#' Note that this must be less than the number of samples in localerr. Default = 10.
+#' @param alphaMin The lowest value of alpha to investigate in localerr. Default = 0.
+#' @param alphaMax The highest value of alpha to investigate in localerr. Default = 1.
+#' @param alphaStep The value of alpha to step by during the evaluation in localerr.
+#' Default = 0.1.
+#' @param analyteNamesOut A data frame mapping the analyte identifier for the
+#' outcome analyte from the IntLIM model to an identifier that can be mapped
+#' to RaMP. Used in pathway importance.
+#' @param analyteNamesInd A data frame mapping the analyte identifier for the
+#' independent variable analyte from the IntLIM model to an identifier that can be mapped
+#' to RaMP. Used in pathway importance.
+#' @param modelStats A data frame that includes the interaction p-values and
+#' interaction coefficients for each pair (such as the one output by IntLIM's
+#' ProcessResults function)
+#' @param stype Phenotype or outcome to use in models.
+#' @param colIdInd The ID of the column that has the analyte ID's for the
+#' independent variable. If blank, then the existing ID's are used.
+#' @param colIdOut The ID of the column that has the analyte ID's for the
+#' outcome variable. If blank, then the existing ID's are used.
+#' @return A list of data frames (one for each sample) with predictor importance
+#' measured according to the listed criteria (one column per metric, one row
+#' per predictor).
+#' @export
+GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrain, inputDataTest,
+                                    lowerPercentileLimit = 0.1,
+                                    upperPercentileLimit = 0.9,
+                                metaFeatureList = c("pdf", "localerr", "globalerr",
+                                                   "pathway", "reaction",
+                                                   "interactionpval", "interactioncoef",
+                                                   "analytecoef"),
+                                    modelStats = "",
+                                    k = k,
+                                    eigStep = 10, 
+                                    alphaMin = 0,
+                                    alphaMax = 1, 
+                                    alphaStep = 0.1,
+                                    analyteNamesOut = "",
+                                    analyteNamesInd = "",
+                                    stype = "",
+                                    colIdInd = "",
+                                    colIdOut = ""){
+  
+  # Compute metrics.
+  metaFeatures <- list()
+  if("pdf" %in% metaFeatureList){
+    print("Computing PDF importance")
+    metaFeatures$pdf <- ComputePDFImportance(predictions = predictionsTest)
+  }
+  if("localerr" %in% metaFeatureList){
+    print("Computing Local Error importance")
+    trueVals <- inputData@sampleMetaData[,stype]
+    names(trueVals) <- rownames(inputData@sampleMetaData)
+    metaFeatures$localerr <- ComputeLocalErrorImportanceTest(predictions = predictionsTrain, 
+                                                    true = trueVals,
+                                                    k = k,
+                                                    inputDataTrain = inputDataTrain, 
+                                                    inputDataTest = inputDataTest,
+                                                    eigStep = eigStep, 
+                                                    alphaMin = alphaMin,
+                                                    alphaMax = alphaMax, 
+                                                    alphaStep = alphaStep)
+  }
+  if("globalerr" %in% metaFeatureList){  
+    print("Computing Global Error importance")
+    metaFeatures$globalerr <- ComputeGlobalErrorImportance(predictions = predictionsTrain, 
+                                                      true = inputData@sampleMetaData[,stype])
+  }
+  if("pathway" %in% metaFeatureList){
+    print("Computing Pathway importance")
+    metaFeatures$pathway <- ComputePathwayImportance(predictions = predictionsTest, 
+                                                inputData = inputDataTest,
+                                                colIdInd = colIdInd,
+                                                colIdOut = colIdOut)
+  }
+  if("reaction" %in% metaFeatureList){
+    print("Computing Reaction importance")
+    metaFeatures$reaction <- ComputeReactionImportance(predictions = predictionsTest, 
+                                                  inputData = inputDataTest,
+                                                  colIdInd = colIdInd,
+                                                  colIdOut = colIdOut)
+  }
+  if("interactionpval" %in% metaFeatureList){
+    print("Computing Interaction Term p-Value importance")
+    metaFeatures$interactionpval <- ComputePvalImportance(predictions = predictionsTrain, 
+                                                     modelStats = modelStats)
+  }
+  if("interactioncoef" %in% metaFeatureList){
+    print("Computing Interaction Coefficient importance")
+    metaFeatures$interactioncoef <- ComputeInteractionCoefImportance(predictions = predictionsTrain, 
+                                                                modelStats = modelStats)
+  }
+  if("analytecoef" %in% metaFeatureList){
+    print("Computing Analyte Coefficient importance")
+    metaFeatures$analytecoef <- ComputeAnalyteCoefImportance(predictions = predictionsTrain, 
+                                                        modelStats = modelStats)
+  }
+  
+  return(metaFeatures)
 }
 
 #' Computes the importance as the density in the probability density function,
@@ -516,6 +628,58 @@ ComputeCosineSimilarity <- function(R){
   return(sim)
 }
 
+#' Compute cosine similarity between a testing sample and each training sample
+#' in the combined subspace matrix.
+#' @param opt The optimal model obtained using FindOptimalSubspaceClustering on
+#' the training data.
+#' @param inputDataTest The testing data.
+#' @param inputDataTrain The training data.
+#' @param samp The name of the testing sample against which to compute similarity.
+#' @return A matrix of similarities, where the rows are the training data samples
+#' and the columns are the testing data samples.
+CosineSimilarityToTrainingOnSubspace <- function(opt, inputDataTest, inputDataTrain,
+                                                 samp){
+  
+  # Compute adjacency of the sample to each of the training samples using
+  # the parameters of the optimal model.
+  type1Similarity <- CosineSimilarityToTrainingOnSingleDataType(trainingData = inputDataTrain@analyteType1,
+                                                           testingData = inputDataTest@analyteType1,
+                                                           samp = samp)
+  type2Similarity <- CosineSimilarityToTrainingOnSingleDataType(trainingData = inputDataTrain@analyteType2,
+                                                         testingData = inputDataTest@analyteType2,
+                                                         samp = samp)
+  R <- CombineSubspaces(type1Similarity = type1Similarity, 
+                        type2Similarity = type2Similarity, 
+                        eigenCount = opt$optimal_eigens, 
+                        alpha = opt$optimal_alpha)
+  
+  # Compute cosine similarity on the new subspace.
+  return(ComputeCosineSimilarity(R = R))
+}
+
+#' Compute cosine similarity between a testing sample and each training sample
+#' for a single data type.
+#' @param opt The optimal model obtained using FindOptimalSubspaceClustering on
+#' the training data.
+#' @param testingData The testing data.
+#' @param trainingData The training data.
+#' @param samp The name of the testing sample against which to compute similarity.
+#' @return A matrix of similarities, where the rows are the training data samples
+#' and the columns are the testing data samples.
+CosineSimilarityToTrainingOnSingleDataType <- function(trainingData, testingData,
+                                                       samp){
+  # Compute cosine similarity to each training sample.
+  similarityList <- lapply(1:ncol(trainingData), function(c){
+    dotProduct <- trainingData[,c] * testingData[,samp]
+    normTrain <- sqrt(sum(trainingData[,c]^2))
+    normTest <- sqrt(sum(testingData[,samp]^2))
+    return(dotProduct / (normTrain * normTest))
+  })
+  
+  # Return similarity as a matrix.
+  return(matrix(unlist(similarityList)))
+}
+
 #' Computes the importance as the median absolute error for local predictors
 #' (i.e. the predictions for k nearest neighbors of each sample).
 #' @param predictions Prediction data frame, where rows are samples, and
@@ -567,6 +731,82 @@ ComputeLocalErrorImportance <- function(predictions, true, k,
     }))
     importance <- 1 - medErr
 
+    # Get the 1 - error percentile over all pairs.
+    percentileVals <- seq(1, 100, by = 1) / 100
+    quantiles <- stats::quantile(importance, percentileVals)
+    percentiles <- unlist(lapply(importance, function(c){
+      cvec <- rep(c, length(quantiles))
+      which_match <- which.min(abs(cvec - quantiles))
+      return(percentileVals[which_match])
+    }))
+    importance <- percentiles
+    
+    # Return.
+    cat(".")
+    return(importance)
+  })
+  importanceFinal <- t(do.call(cbind, importanceAll))
+  rownames(importanceFinal) <- rownames(predictions)
+  colnames(importanceFinal) <- colnames(predictions)
+  return(importanceFinal)
+}
+
+#' Computes the importance as the median absolute error for local predictors
+#' (i.e. the predictions for k nearest neighbors of each sample).
+#' @param predictions Prediction data frame, where rows are samples, and
+#' columns are predictors.
+#' @param true Named vector of the true outcome values.
+#' @param k The number of nearest neighbors to consider.
+#' @param inputDataTrain The training data (in IntLimData format).
+#' @param inputDataTest The testing data (in IntLimData format).
+#' @param eigStep The number of eigenvectors to step by during the evaluation.
+#' Note that this must be less than the number of samples. Default = 10.
+#' @param alphaMin The lowest value of alpha to investigate. Default = 0.
+#' @param alphaMax The highest value of alpha to investigate. Default = 1.
+#' @param alphaStep The value of alpha to step by during the evalutation.
+#' Default = 0.1.
+#' @return A list of vectors (one for each sample) with an importance metric.
+#' @export
+ComputeLocalErrorImportanceTest <- function(predictions, true, k,
+                                        inputDataTrain, inputDataTest, 
+                                        eigStep = 10, alphaMin = 0,
+                                        alphaMax = 1, alphaStep = 0.1){
+  
+  # Find the optimal projection for best cluster separability on the training data.
+  type1sim <- ComputeCosineSimilarity(t(inputDataTrain@analyteType1))
+  type2sim <- ComputeCosineSimilarity(t(inputDataTrain@analyteType2))
+  opt <- FindOptimalSubspaceClustering(type1Similarity = type1sim, 
+                                       type2Similarity = type2sim,
+                                       eigStep = eigStep, alphaMin = alphaMin,
+                                       alphaMax = alphaMax, alphaStep = alphaStep)
+  str(opt)
+  
+  # Compute the importance for each sample in the testing data.
+  importanceAll <- lapply(1:nrow(predictions), function(samp){
+    # Training data predictions
+    pred <- predictions
+    
+    # Find nearest neighbors.
+    similarities <- CosineSimilarityToTrainingOnSubspace(opt = opt, 
+                                                         inputDataTrain = inputDataTrain, 
+                                                         inputDataTest = inputDataTest, 
+                                                         samp = samp)
+    sorted_sims <- names(similarities)[order(-similarities)]
+    pred_sorted_sims <- sorted_sims[which(sorted_sims %in% rownames(pred))]
+    knn <- pred_sorted_sims[1:k]
+    pred_local <- pred[knn,]
+    
+    # Error
+    trueVals <- matrix(rep(true[knn], ncol(pred_local)),
+                       nrow = length(knn),
+                       ncol = ncol(pred_local))
+    
+    err <- abs(trueVals - pred_local)
+    medErr <- unlist(lapply(1:ncol(err), function(c){
+      return(stats::median(err[,c]))
+    }))
+    importance <- 1 - medErr
+    
     # Get the 1 - error percentile over all pairs.
     percentileVals <- seq(1, 100, by = 1) / 100
     quantiles <- stats::quantile(importance, percentileVals)
