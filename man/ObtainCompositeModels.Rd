@@ -2,7 +2,10 @@
 % Please edit documentation in R/compositemodelfunctions.R
 \name{ObtainCompositeModels}
 \alias{ObtainCompositeModels}
-\title{Obtain the list of pairs in a composite model.}
+\title{Obtain the list of pairs in a composite model. Do this by merging the two
+composite models with the most overlap. Use the full models so that we
+consider the original overlap before pruning. This uses only the structure
+of the graph and requires no dependencies on previous layers.}
 \usage{
 ObtainCompositeModels(pairsInEachPredictor, importantModels)
 }
@@ -13,5 +16,8 @@ ObtainCompositeModels(pairsInEachPredictor, importantModels)
 previous layer.}
 }
 \description{
-Obtain the list of pairs in a composite model.
+Obtain the list of pairs in a composite model. Do this by merging the two
+composite models with the most overlap. Use the full models so that we
+consider the original overlap before pruning. This uses only the structure
+of the graph and requires no dependencies on previous layers.
 }

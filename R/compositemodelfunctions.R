@@ -387,67 +387,75 @@ ObtainSubgraphNeighborhoods <- function(modelInput, percentOverlapCutoff = 100){
   return(nodeNeighborhoods)
 }
 
-#' Obtain the list of pairs in a composite model.
+#' Obtain the list of pairs in a composite model. Do this by merging the two
+#' composite models with the most overlap. Use the full models so that we
+#' consider the original overlap before pruning. This uses only the structure
+#' of the graph and requires no dependencies on previous layers.
 #' @param pairsInEachPredictor A list of pairs contained within each predictor.
 #' @param importantModels A list of all pairs that were found to be important in the
 #' previous layer.
 #' @export
 ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
-
-  # Compute table of pair overlaps.
-  pairCounts <- table(unlist(pairsInEachPredictor))
-  predictorsContaining <- pairCounts[order(-pairCounts)]
   
-  # Loop through and group composite predictors.
+  # Initialize.
   compositePredictors <- importantModels
   compositeFull <- pairsInEachPredictor
   pairMapping <- data.frame(from = 1:length(importantModels), to = 1:length(importantModels))
-  for(pair in sort(names(predictorsContaining[which(predictorsContaining > 1)]))){
-    # For each pair, find the predictors containing it.
-    listContainsPair <- unlist(lapply(1:length(compositePredictors), function(i){
-      composite <- compositePredictors[[i]]
-      containsPair <- FALSE
-      if(pair %in% composite){
-        containsPair <- TRUE
-      }
-      return(containsPair)
-    }))
-    listContainsPairFull <- unlist(lapply(compositeFull, function(composite){
-      containsPair <- FALSE
-      if(pair %in% composite){
-        containsPair <- TRUE
-      }
-      return(containsPair)
-    }))
-    whichContainsPair <- which(listContainsPair == TRUE)
-    whichContainsPairFull <- which(listContainsPairFull == TRUE)
-    if(length(whichContainsPair) > 0){
+  
+  # Only merge composite models if there is more than one composite model to begin with.
+  if(length(importantModels) > 1){
+    # Compute a matrix of composite model overlaps.
+    overlapsList <- lapply(1:(length(pairsInEachPredictor)-1), function(i){
       
-      # Create a new combined predictor.
-      newPredictor <- unique(unlist(compositePredictors[whichContainsPair]))
-      newFull <- unique(unlist(compositeFull[whichContainsPair]))
+      # Initialize model.
+      model1 <- pairsInEachPredictor[[i]]
       
-      # Replace old predictor information with new.
-      firstPiece <- min(whichContainsPair)
-      compositePredictors[[firstPiece]] <- newPredictor
-      compositeFull[[firstPiece]] <- newFull
-      toKeep <- sort(union(firstPiece, setdiff(1:length(compositePredictors), whichContainsPair)))
-      compositePredictors <- compositePredictors[toKeep]
-      compositeFull <- compositeFull[toKeep]
+      # Calculate the overlap of this model with all other models.
+      overlapsWithModel1 <- unlist(lapply(1:length(pairsInEachPredictor), function(j){
+        model2 <- pairsInEachPredictor[[j]]
+        overlap <- NA
+        if(i < j){
+          overlap <- length(intersect(model1, model2)) / pmin(length(model1), length(model2))
+        }
+        return(overlap)
+      }))
       
-      # Update the mappings.
-      pairMapping[which(pairMapping$to %in% whichContainsPair), "to"] <- min(whichContainsPair)
-      indicesToUpdate <- which(pairMapping$to > max(whichContainsPair))
-      pairMapping[indicesToUpdate, "to"] <- pairMapping[indicesToUpdate, "to"] - (length(whichContainsPair) - 1)
+      # Convert to data frame and return.
+      overlapsWithModel1df <- as.data.frame(overlapsWithModel1)
+      rownames(overlapsWithModel1df) <- 1:length(pairsInEachPredictor)
+      colnames(overlapsWithModel1df) <- i
+      return(overlapsWithModel1df)
+    })
+    overlaps <- do.call(cbind, overlapsList)
+    
+    # Find maximum overlap pair.
+    unlistedOverlaps <- unlist(overlaps)
+    combs <- expand.grid(rownames(overlaps), colnames(overlaps))
+    names(unlistedOverlaps) <- paste(combs$Var2, combs$Var1, sep = ".")
+    unlistedOverlaps <- unlistedOverlaps[which(!is.na(unlistedOverlaps))]
+    pairToMerge <- as.numeric(strsplit(names(unlistedOverlaps)[which.max(unlistedOverlaps)], split = ".", fixed = T)[[1]])
+    
+    # Replace old predictor information with new.
+    newPredictor <- unique(unlist(compositePredictors[pairToMerge]))
+    newFull <- unique(unlist(compositeFull[pairToMerge]))
+    compositePredictors[[min(pairToMerge)]] <- newPredictor
+    compositeFull[[min(pairToMerge)]] <- newFull
+    compositePredictors <- compositePredictors[-max(pairToMerge)]
+    compositeFull <- compositeFull[-max(pairToMerge)]
+    
+    # Update the mappings.
+    pairMapping[which(pairMapping$from %in% pairToMerge), "to"] <- min(pairToMerge)
+
+    # Reassign mapping numbers.
+    seq <- pairMapping$to
+    compositePredictorIds <- sort(unique(pairMapping$to))
+    pairMappingCopy <- pairMapping
+    for(num in 1:length(compositePredictorIds)){
+      pairMapping$to[which(pairMappingCopy$to == compositePredictorIds[num])] <- num
     }
   }
-  # Reassign mapping numbers.
-  seq <- pairMapping$to
-  compositePredictorIds <- sort(unique(pairMapping$to))
-  pairMappingCopy <- pairMapping
-  for(num in 1:length(compositePredictorIds)){
-    pairMapping$to[which(pairMappingCopy$to == compositePredictorIds[num])] <- num
-  }
+  
+  # Return the data.
   return(list(compositeModels = compositePredictors, expandedCompositeModels = compositeFull, mapping = pairMapping))
 }
 
