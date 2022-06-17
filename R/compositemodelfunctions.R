@@ -17,12 +17,12 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                       includeVarianceTest = FALSE){
   # Initialize consolidated pairs.
   consolidated <- list(compositeModels = pairs, expandedCompositeModels = pairs, 
-                       mapping = data.frame(from = 1:length(unlist(pairsPredAll)),
-                                            to = unlist(lapply(1:length(pairsPredAll), function(i){rep(i, length(pairsPredAll[[i]]))}))))
+                       mapping = data.frame(from = 1:length(unlist(pairs)),
+                                            to = unlist(lapply(1:length(pairs), function(i){rep(i, length(pairs[[i]]))}))))
   prevModels <- unlist(pairs)
   
   # If this is the first iteration or if the mapping has not changed, stop.
-  while(length(unique(consolidated$mapping[,1])) != length(unique(consolidated$mapping[,2]))){
+  while(length(unique(consolidated$mapping$from)) != length(unique(consolidated$mapping$to))){
     prunedPairs <- MultiOmicsGraphPrediction::PrunePredictors(compositeSubgraphs = consolidated,
                                                               previousModels = prevModels,
                                                               modelResults = modelResults, 
@@ -34,10 +34,10 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               includeVarianceTest = includeVarianceTest)
 
     consolidated <- MultiOmicsGraphPrediction::ObtainCompositeModels(pairsInEachPredictor = consolidated$expandedCompositeModels, 
-                                                                     importantPairs = prunedPairs)
+                                                                     importantModels = prunedPairs)
     prevModels <- prunedPairs
   }
-  
+
   # If number of composite models > 1, then concatenate all models and prune.
   if(length(consolidated$compositeModels) > 1){
     consolidated$compositeModels <- list(unlist(consolidated$compositeModels))
@@ -80,13 +80,19 @@ CompositePrediction <- function(pairs, modelResults){
     analyteSrcVals <- modelResults@model.input@input.data@analyteType1
   }
   covariateVals <- modelResults@model.input@input.data@sampleMetaData
-  weights <- ComputeMetaFeatureWeights(modelResults)
+  weights <- ComputeMetaFeatureWeights(modelResults = modelResults,
+                                       metaFeatures = modelResults@model.input@metaFeatures)
 
   # Analyte 1
   weighted_a1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    weighted_a1 <- weighted_a1 + weights[,pair] * analyteTgtVals[strsplit(pair, "__")[[1]][2],]
+    tryCatch({
+      weighted_a1 <- weighted_a1 + weights[,pair] * analyteTgtVals[strsplit(pair, "__")[[1]][2],]
+    }, error = function(cond){
+      print(cond)
+      print(pairs)
+    })
   }
   
   # beta0
@@ -383,31 +389,30 @@ ObtainSubgraphNeighborhoods <- function(modelInput, percentOverlapCutoff = 100){
 
 #' Obtain the list of pairs in a composite model.
 #' @param pairsInEachPredictor A list of pairs contained within each predictor.
-#' @param importantPairs A list of all pairs that were found to be important in the
+#' @param importantModels A list of all pairs that were found to be important in the
 #' previous layer.
 #' @export
-ObtainCompositeModels <- function(pairsInEachPredictor, importantPairs){
+ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
 
   # Compute table of pair overlaps.
   pairCounts <- table(unlist(pairsInEachPredictor))
   predictorsContaining <- pairCounts[order(-pairCounts)]
   
   # Loop through and group composite predictors.
-  belongsTo <- rep(0, length(pairsInEachPredictor))
-  compositePredictors <- importantPairs
+  compositePredictors <- importantModels
   compositeFull <- pairsInEachPredictor
-  pairMapping <- data.frame(from = 1:length(importantPairs), to = 1:length(importantPairs))
-  for(pair in names(predictorsContaining[which(predictorsContaining > 1)])){
+  pairMapping <- data.frame(from = 1:length(importantModels), to = 1:length(importantModels))
+  for(pair in sort(names(predictorsContaining[which(predictorsContaining > 1)]))){
     # For each pair, find the predictors containing it.
     listContainsPair <- unlist(lapply(1:length(compositePredictors), function(i){
-      tryCatch({
-        composite <- compositePredictors[[i]]
-      }, error = function(e){
-        print(e)
-        print(i)
-        str(compositePredictors)
-      })
-      
+      composite <- compositePredictors[[i]]
+      containsPair <- FALSE
+      if(pair %in% composite){
+        containsPair <- TRUE
+      }
+      return(containsPair)
+    }))
+    listContainsPairFull <- unlist(lapply(compositeFull, function(composite){
       containsPair <- FALSE
       if(pair %in% composite){
         containsPair <- TRUE
@@ -415,6 +420,7 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantPairs){
       return(containsPair)
     }))
     whichContainsPair <- which(listContainsPair == TRUE)
+    whichContainsPairFull <- which(listContainsPairFull == TRUE)
     if(length(whichContainsPair) > 0){
       
       # Create a new combined predictor.
@@ -434,6 +440,13 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantPairs){
       indicesToUpdate <- which(pairMapping$to > max(whichContainsPair))
       pairMapping[indicesToUpdate, "to"] <- pairMapping[indicesToUpdate, "to"] - (length(whichContainsPair) - 1)
     }
+  }
+  # Reassign mapping numbers.
+  seq <- pairMapping$to
+  compositePredictorIds <- sort(unique(pairMapping$to))
+  pairMappingCopy <- pairMapping
+  for(num in 1:length(compositePredictorIds)){
+    pairMapping$to[which(pairMappingCopy$to == compositePredictorIds[num])] <- num
   }
   return(list(compositeModels = compositePredictors, expandedCompositeModels = compositeFull, mapping = pairMapping))
 }
@@ -456,6 +469,7 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantPairs){
 PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE,
                             pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
                             includeVarianceTest = includeVarianceTest){
+  
   # Extract relevant information.
   pairs <- compositeSubgraphs$compositeModels
   mapping <- compositeSubgraphs$mapping
@@ -471,15 +485,15 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = importantPairs, 
                                                                      modelResults = modelResults)
     significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel), 
-                                                           trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
-                                                           pruningMethod = pruningMethod,
-                                                           binCount = binCount,
-                                                           margin = margin,
-                                                           includeVarianceTest = includeVarianceTest)
+                                                                   trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
+                                                                   pruningMethod = pruningMethod,
+                                                                   binCount = binCount,
+                                                                   margin = margin,
+                                                                   includeVarianceTest = includeVarianceTest)
     if(verbose == TRUE){
       print(paste(list("Original", pruningMethod, "is", significance), collapse = " "))
     }
-
+    
     removedLastTime <- FALSE
     compositeModelFull <- compositeModel
     significanceFull <- significance
@@ -488,7 +502,7 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     previousModelsMapped <- mapping$from[which(mapping$to == i)]
     importantModels <- previousModelsMapped
     previousPairsMapped <- previousModels[previousModelsMapped]
-    
+
     # Sort the models in order of their individual performance.
     individualPerformance <- unlist(lapply(1:length(previousModelsMapped), function(m){
       model <- previousModelsMapped[m]
@@ -523,11 +537,11 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
         compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsToInclude,
                                                                          modelResults = modelResults)
         significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
-                                                               trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
-                                                               pruningMethod = pruningMethod,
-                                                               binCount = binCount,
-                                                               margin = margin,
-                                                               includeVarianceTest = includeVarianceTest)
+                                                                       trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
+                                                                       pruningMethod = pruningMethod,
+                                                                       binCount = binCount,
+                                                                       margin = margin,
+                                                                       includeVarianceTest = includeVarianceTest)
       }
       
       # If the significance of the new model is greater than or equal to the full model, remove the pair.
@@ -550,7 +564,7 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
           if(makePlots == TRUE){
             # Plot the new line graph.
             newPredictions <- matrix(rep(compositeModel, ncol(modelResults@model.input@node.wise.prediction)),
-                                       ncol = ncol(modelResults@model.input@node.wise.prediction))
+                                     ncol = ncol(modelResults@model.input@node.wise.prediction))
             rownames(newPredictions) <- rownames(modelResults@model.input@node.wise.prediction)
             colnames(newPredictions) <- colnames(modelResults@model.input@node.wise.prediction)
             modelResultsNew <- modelResults
@@ -595,11 +609,12 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
 #' Compute the weight of each predictor given the weights of different
 #' metafeatures.
 #' @param modelResults A ModelResults object.
+#' @param metaFeatures A set of metafeatures, such as that found within ModelResults
 #' @return A weight matrix for each sample and each predictor.
 #' @export
-ComputeMetaFeatureWeights <- function(modelResults){
+ComputeMetaFeatureWeights <- function(metaFeatures, modelResults){
   weights <- lapply(1:length(modelResults@model.input@metaFeatures), function(i){
-    imp <- modelResults@model.input@metaFeatures[[i]] * modelResults@current.metaFeature.weights[i]
+    imp <- metaFeatures[[i]] * modelResults@current.metaFeature.weights[i]
     return(as.matrix(imp))
   })
   weights_all <- Reduce("+",weights)

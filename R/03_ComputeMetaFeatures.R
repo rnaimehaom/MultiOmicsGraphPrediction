@@ -185,6 +185,11 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
     print("Computing Global Error importance")
     metaFeatures$globalerr <- ComputeGlobalErrorImportance(predictions = predictionsTrain, 
                                                       true = inputData@sampleMetaData[,stype])
+    # Adjust dimensionality for test data.
+    metaFeatures$globalerr <- t(matrix(rep(metaFeatures$globalerr[1,], nrow(predictionsTest),
+                                         ncol = nrow(predictionsTest))))
+    rownames(metaFeatures$globalerr) <- rownames(predictionsTest)
+    colnames(metaFeatures$globalerr) <- colnames(predictionsTest)
   }
   if("pathway" %in% metaFeatureList){
     print("Computing Pathway importance")
@@ -192,6 +197,11 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
                                                 inputData = inputDataTest,
                                                 colIdInd = colIdInd,
                                                 colIdOut = colIdOut)
+    # Adjust dimensionality for test data.
+    metaFeatures$pathway <- t(matrix(rep(metaFeatures$pathway[1,], nrow(predictionsTest),
+                                                 ncol = nrow(predictionsTest))))
+    rownames(metaFeatures$pathway) <- rownames(predictionsTest)
+    colnames(metaFeatures$pathway) <- colnames(predictionsTest)
   }
   if("reaction" %in% metaFeatureList){
     print("Computing Reaction importance")
@@ -199,21 +209,41 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
                                                   inputData = inputDataTest,
                                                   colIdInd = colIdInd,
                                                   colIdOut = colIdOut)
+    # Adjust dimensionality for test data.
+    metaFeatures$reaction <- t(matrix(rep(metaFeatures$reaction[1,], nrow(predictionsTest),
+                                           ncol = nrow(predictionsTest))))
+    rownames(metaFeatures$reaction) <- rownames(predictionsTest)
+    colnames(metaFeatures$reaction) <- colnames(predictionsTest)
   }
   if("interactionpval" %in% metaFeatureList){
     print("Computing Interaction Term p-Value importance")
     metaFeatures$interactionpval <- ComputePvalImportance(predictions = predictionsTrain, 
                                                      modelStats = modelStats)
+    metaFeatures$interactionpval <- t(matrix(rep(metaFeatures$interactionpval[1,], nrow(predictionsTest),
+                                       ncol = nrow(predictionsTest))))
+    rownames(metaFeatures$interactionpval) <- rownames(predictionsTest)
+    colnames(metaFeatures$interactionpval) <- colnames(predictionsTest)
   }
   if("interactioncoef" %in% metaFeatureList){
     print("Computing Interaction Coefficient importance")
     metaFeatures$interactioncoef <- ComputeInteractionCoefImportance(predictions = predictionsTrain, 
                                                                 modelStats = modelStats)
+    # Adjust dimensionality for test data.
+    metaFeatures$interactioncoef <- t(matrix(rep(metaFeatures$interactioncoef[1,], nrow(predictionsTest),
+                                          ncol = nrow(predictionsTest))))
+    rownames(metaFeatures$interactioncoef) <- rownames(predictionsTest)
+    colnames(metaFeatures$interactioncoef) <- colnames(predictionsTest)
   }
   if("analytecoef" %in% metaFeatureList){
     print("Computing Analyte Coefficient importance")
     metaFeatures$analytecoef <- ComputeAnalyteCoefImportance(predictions = predictionsTrain, 
                                                         modelStats = modelStats)
+    
+    # Adjust dimensionality for test data.
+    metaFeatures$analytecoef <- t(matrix(rep(metaFeatures$analytecoef[1,], nrow(predictionsTest),
+                                                 ncol = nrow(predictionsTest))))
+    rownames(metaFeatures$analytecoef) <- rownames(predictionsTest)
+    colnames(metaFeatures$analytecoef) <- colnames(predictionsTest)
   }
   
   return(metaFeatures)
@@ -611,6 +641,62 @@ CombineSubspaces <- function(type1Similarity, type2Similarity, eigenCount, alpha
   return(L_mod)
 }
 
+#' Combine subspaces (i.e. using Grassmann Manifold Technique
+#' - see PMID 30329022) given two different modalities of data (e.g. gene and metabolite)
+#' and the alpha value and the desired number of eigenvectors.
+#' @param type1SimilarityTrain A cosine similarity matrix for the first data type, 
+#' found using ComputeCosineSimilarity on the training data.
+#' @param type2SimilarityTrain A cosine similarity matrix for the second data type,
+#' found using ComputeCosineSimilarity on the training data.
+#' @param type1SimilarityTest A cosine similarity matrix for the first data type, 
+#' found using ComputeCosineSimilarity on the testing data.
+#' @param type2SimilarityTest A cosine similarity matrix for the second data type,
+#' found using ComputeCosineSimilarity on the testing data.
+#' @param subspaceTraining The subspace 
+#' @param eigenCount The number of eigenvectors to use.
+#' @param alpha The value of alpha to use.
+#' @return A named list including the data projected onto the merged subspace,
+#' the optimal number of eigenvectors, the optimal alpha value, the clustering
+#' coefficient, and the dendrogram.
+CombineSubspacesTest <- function(type1SimilarityTrain, type2SimilarityTrain, 
+                                 type1SimilarityTest, type2SimilarityTest, 
+                                 eigenCount, alpha){
+  
+  # Make graphs. We compute the diagonals on the training data only.
+  D_dat1 <- diag(colSums(type1SimilarityTrain))
+  D_dat2 <- diag(colSums(type2SimilarityTrain))
+  L_dat1_train <- as.matrix(D_dat1 - type1SimilarityTrain)
+  L_dat2_train <- as.matrix(D_dat2 - type2SimilarityTrain)
+  D_neg_half_dat1 <- diag(diag(1 / sqrt(abs(D_dat1))))
+  D_neg_half_dat2 <- diag(diag(1 / sqrt(abs(D_dat2))))
+  L_dat1_train <- D_neg_half_dat1 %*% L_dat1_train %*% D_neg_half_dat1
+  L_dat2_train <- D_neg_half_dat2 %*% L_dat2_train %*% D_neg_half_dat2
+  
+  # Get eigenvectors for each Laplacian on the training data.
+  U_dat1_train <- eigen(L_dat1_train)$vectors[,c(1:eigenCount)]
+  U_dat2_train <- eigen(L_dat2_train)$vectors[,c(1:eigenCount)]
+  
+  # Do not subtract from D_dat for testing data because none of the
+  # data points are on the diagonal. Simply negate the values.
+  L_dat1 <- as.matrix(0 - type1SimilarityTest)
+  L_dat2 <- as.matrix(0 - type2SimilarityTest)
+  
+  # Normalize. Here, transposition is necessary to obtain the correct
+  # dimensionality of the matrix.
+  D_neg_half_dat1 <- diag(diag(1 / sqrt(abs(D_dat1))))
+  D_neg_half_dat2 <- diag(diag(1 / sqrt(abs(D_dat2))))
+  L_dat1 <- t(t(D_neg_half_dat1 %*% t(L_dat1)) %*% D_neg_half_dat1)
+  L_dat2 <- t(t(D_neg_half_dat2 %*% t(L_dat2)) %*% D_neg_half_dat2)
+  
+  # Project testing data onto eigenvectors.
+  U_dat1 <- t(L_dat1) %*% U_dat1_train
+  U_dat2 <- t(L_dat2) %*% U_dat2_train
+  
+  # Combine
+  L_mod <- L_dat1 + L_dat2 - alpha * (t(U_dat1 %*% t(U_dat1_train)) + t(U_dat2 %*% t(U_dat2_train)))
+  return(L_mod)
+}
+
 #' Compute cosine similarity between samples on an adjacency matrix.
 #' @param R The adjacency matrix.
 #' @return A matrix of sample rows and sample columns, with the cosine
@@ -640,21 +726,36 @@ ComputeCosineSimilarity <- function(R){
 CosineSimilarityToTrainingOnSubspace <- function(opt, inputDataTest, inputDataTrain,
                                                  samp){
   
+  # Compute similarity between the training samples.
+  type1SimilarityTrain <- ComputeCosineSimilarity(t(inputDataTrain@analyteType1))
+  type2SimilarityTrain <- ComputeCosineSimilarity(t(inputDataTrain@analyteType2))
+  
   # Compute adjacency of the sample to each of the training samples using
   # the parameters of the optimal model.
-  type1Similarity <- CosineSimilarityToTrainingOnSingleDataType(trainingData = inputDataTrain@analyteType1,
+  type1SimilarityTest <- CosineSimilarityToTrainingOnSingleDataType(trainingData = inputDataTrain@analyteType1,
                                                            testingData = inputDataTest@analyteType1,
                                                            samp = samp)
-  type2Similarity <- CosineSimilarityToTrainingOnSingleDataType(trainingData = inputDataTrain@analyteType2,
+  type2SimilarityTest <- CosineSimilarityToTrainingOnSingleDataType(trainingData = inputDataTrain@analyteType2,
                                                          testingData = inputDataTest@analyteType2,
                                                          samp = samp)
-  R <- CombineSubspaces(type1Similarity = type1Similarity, 
-                        type2Similarity = type2Similarity, 
-                        eigenCount = opt$optimal_eigens, 
-                        alpha = opt$optimal_alpha)
+
+  R <- CombineSubspacesTest(type1SimilarityTrain = type1SimilarityTrain,
+                            type2SimilarityTrain = type2SimilarityTrain,
+                            type1SimilarityTest = t(type1SimilarityTest), 
+                        type2SimilarityTest = t(type2SimilarityTest), 
+                        eigenCount = opt$eigenvector_ct, 
+                        alpha = opt$alpha)
+  colnames(R) <- samp
+  rownames(R) <- rownames(inputDataTrain@sampleMetaData)
   
   # Compute cosine similarity on the new subspace.
-  return(ComputeCosineSimilarity(R = R))
+  similarity <- CosineSimilarityToTrainingOnSingleDataType(trainingData = opt$L_mod,
+                                                           testingData = R,
+                                                           samp = samp)
+  colnames(similarity) <- samp
+  rownames(similarity) <- rownames(inputDataTrain@sampleMetaData)
+
+  return(similarity)
 }
 
 #' Compute cosine similarity between a testing sample and each training sample
@@ -669,15 +770,15 @@ CosineSimilarityToTrainingOnSubspace <- function(opt, inputDataTest, inputDataTr
 CosineSimilarityToTrainingOnSingleDataType <- function(trainingData, testingData,
                                                        samp){
   # Compute cosine similarity to each training sample.
-  similarityList <- lapply(1:ncol(trainingData), function(c){
-    dotProduct <- trainingData[,c] * testingData[,samp]
+  similarityList <- matrix(unlist(lapply(1:ncol(trainingData), function(c){
+    dotProduct <- sum(trainingData[,c] * testingData[,samp])
     normTrain <- sqrt(sum(trainingData[,c]^2))
     normTest <- sqrt(sum(testingData[,samp]^2))
     return(dotProduct / (normTrain * normTest))
-  })
-  
+  })))
+
   # Return similarity as a matrix.
-  return(matrix(unlist(similarityList)))
+  return(similarityList)
 }
 
 #' Computes the importance as the median absolute error for local predictors
@@ -779,10 +880,10 @@ ComputeLocalErrorImportanceTest <- function(predictions, true, k,
                                        type2Similarity = type2sim,
                                        eigStep = eigStep, alphaMin = alphaMin,
                                        alphaMax = alphaMax, alphaStep = alphaStep)
-  str(opt)
   
   # Compute the importance for each sample in the testing data.
-  importanceAll <- lapply(1:nrow(predictions), function(samp){
+  importanceAll <- lapply(rownames(inputDataTest@sampleMetaData), function(samp){
+
     # Training data predictions
     pred <- predictions
     
@@ -791,7 +892,7 @@ ComputeLocalErrorImportanceTest <- function(predictions, true, k,
                                                          inputDataTrain = inputDataTrain, 
                                                          inputDataTest = inputDataTest, 
                                                          samp = samp)
-    sorted_sims <- names(similarities)[order(-similarities)]
+    sorted_sims <- rownames(similarities)[order(-similarities)]
     pred_sorted_sims <- sorted_sims[which(sorted_sims %in% rownames(pred))]
     knn <- pred_sorted_sims[1:k]
     pred_local <- pred[knn,]
@@ -822,7 +923,7 @@ ComputeLocalErrorImportanceTest <- function(predictions, true, k,
     return(importance)
   })
   importanceFinal <- t(do.call(cbind, importanceAll))
-  rownames(importanceFinal) <- rownames(predictions)
+  rownames(importanceFinal) <- rownames(inputDataTest@sampleMetaData)
   colnames(importanceFinal) <- colnames(predictions)
   return(importanceFinal)
 }

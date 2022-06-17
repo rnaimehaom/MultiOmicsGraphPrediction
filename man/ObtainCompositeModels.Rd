@@ -4,12 +4,12 @@
 \alias{ObtainCompositeModels}
 \title{Obtain the list of pairs in a composite model.}
 \usage{
-ObtainCompositeModels(pairsInEachPredictor, importantPairs)
+ObtainCompositeModels(pairsInEachPredictor, importantModels)
 }
 \arguments{
 \item{pairsInEachPredictor}{A list of pairs contained within each predictor.}
 
-\item{importantPairs}{A list of all pairs that were found to be important in the
+\item{importantModels}{A list of all pairs that were found to be important in the
 previous layer.}
 }
 \description{

@@ -5,9 +5,11 @@
 \title{Compute the weight of each predictor given the weights of different
 metafeatures.}
 \usage{
-ComputeMetaFeatureWeights(modelResults)
+ComputeMetaFeatureWeights(metaFeatures, modelResults)
 }
 \arguments{
+\item{metaFeatures}{A set of metafeatures, such as that found within ModelResults}
+
 \item{modelResults}{A ModelResults object.}
 }
 \value{

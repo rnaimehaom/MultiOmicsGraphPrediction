@@ -61,7 +61,7 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
   # Compute the numerator of the prediction for each subject 
   # (sans covariate terms)
   ind_term <- independent.vars[coefficients$Analyte1,] * ind_var
-  dep_term <- dependent.vars[coefficients$Analyte2,]
+  dep_term <- as.matrix(dependent.vars[coefficients$Analyte2,])
   pred_phenotype <- dep_term - (intercept + ind_term)
   rownames(dep_term) <- rownames(inputResults)
   rownames(intercept) <- rownames(inputResults)
@@ -106,6 +106,7 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
   # Add analyte information for each prediction.
   rownames(pred_phenotype) <- paste(coefficients$Analyte1, coefficients$Analyte2,
                                     sep = "__")
+  colnames(pred_phenotype) <- rownames(inputData@sampleMetaData)
   return(t(pred_phenotype))
 }
 

@@ -349,7 +349,7 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
     }
     currentError <- modelResults@iteration.tracking$Error[modelResults@current.iteration+1]
     
-    #Get the new pruned models.
+    # Get the new pruned models.
     prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
                                                                         verbose = FALSE, makePlots = FALSE,
                                                                         pruningMethod = pruningMethod,
