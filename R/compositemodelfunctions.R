@@ -10,11 +10,14 @@
 #' Default is 0.1. Used in odds ratio pruning only.
 #' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
 #' Only applicable when the pruning method is error.t.test. Default is FALSE.
+#' @param modelRetention Strategy for model retention. "stringent" (the default)
+#' retains only models that improve the prediction score. "lenient" also retains models that
+#' neither improve nor reduce the prediction score.
 #' @return A final predicted value for each sample in the input data
 #' @export
 DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose = FALSE, makePlots = FALSE,
                                       pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
-                                      includeVarianceTest = FALSE){
+                                      includeVarianceTest = FALSE, modelRetention = "stringent"){
   # Initialize consolidated pairs.
   consolidated <- list(compositeModels = pairs, expandedCompositeModels = pairs, 
                        mapping = data.frame(from = 1:length(unlist(pairs)),
@@ -31,7 +34,8 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               pruningMethod = pruningMethod,
                                                               binCount = binCount,
                                                               margin = margin,
-                                                              includeVarianceTest = includeVarianceTest)
+                                                              includeVarianceTest = includeVarianceTest,
+                                                              modelRetention = modelRetention)
 
     consolidated <- MultiOmicsGraphPrediction::ObtainCompositeModels(pairsInEachPredictor = consolidated$expandedCompositeModels, 
                                                                      importantModels = prunedPairs)
@@ -51,7 +55,8 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               pruningMethod = pruningMethod,
                                                               binCount = binCount,
                                                               margin = margin,
-                                                              includeVarianceTest = includeVarianceTest)
+                                                              includeVarianceTest = includeVarianceTest,
+                                                              modelRetention = modelRetention)
   }
   
   # Return consolidated pairs.
@@ -87,12 +92,7 @@ CompositePrediction <- function(pairs, modelResults){
   weighted_a1 <- rep(0, nrow(weights))
   for(i in 1:length(pairs)){
     pair <- pairs[[i]]
-    tryCatch({
-      weighted_a1 <- weighted_a1 + weights[,pair] * analyteTgtVals[strsplit(pair, "__")[[1]][2],]
-    }, error = function(cond){
-      print(cond)
-      print(pairs)
-    })
+    weighted_a1 <- weighted_a1 + weights[,pair] * analyteTgtVals[strsplit(pair, "__")[[1]][2],]
   }
   
   # beta0
@@ -132,17 +132,8 @@ CompositePrediction <- function(pairs, modelResults){
       weighted_sum <- rep(0, nrow(weights))
       for(i in 1:length(pairs)){
         pair <- pairs[[i]]
-        tryCatch({
-          weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
-            covariateVals[,c]
-        }, error = function(e){
-          print(e)
-          print(weighted_sum)
-          print(weights[,pair])
-          print(rep(covariates[pair, c], nrow(weights)))
-          print(covariateVals[,c])
-        })
-        
+        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
+          covariateVals[,c]
       }
       return(weighted_sum)
     })
@@ -192,27 +183,38 @@ ComputeTScore <- function(pred, trueVal, includeVarianceTest = FALSE){
   trueVal <- trueVal[which(!is.nan(pred))]
   pred <- pred[which(!is.nan(pred))]
   tScore <- NA
-  
   if(length(trueVal)>0 && length(pred)>0){
     
     # Compute the absolute error values.
     meanTrue <- rep(mean(trueVal), length(pred))
     meanAbsError <- abs(trueVal - meanTrue)
     predAbsError <- abs(trueVal - pred)
-    
+
     # Find the difference between mean errors and prediction errors.
     # https://www.cuemath.com/data/paired-t-test/
-    errorDiff <- meanAbsError - predAbsError
-    n <- length(errorDiff)
-    nSse <- n * sum(errorDiff ^ 2)
-    errorDiffSquared <- sum(errorDiff) ^ 2
-    tScore <- sum(errorDiff) / sqrt((nSse - errorDiffSquared) / (n-1))
+    # errorDiff <- meanAbsError - predAbsError
+    # n <- length(errorDiff)
+    # nSse <- n * sum(errorDiff ^ 2)
+    # errorDiffSquared <- sum(errorDiff) ^ 2
+    # tScore <- sum(errorDiff) / sqrt((nSse - errorDiffSquared) / (n-1))
+    
+    # Compute Welch's t-test.
+    n <- length(meanAbsError)
+    meanMeanAbsError <- mean(meanAbsError)
+    meanPredAbsError <- mean(predAbsError)
+    stdevMeanAbsError <- sd(meanAbsError) / sqrt(n)
+    stdevPredAbsError <- sd(predAbsError) / sqrt(n)
+    tScore <- (meanMeanAbsError - meanPredAbsError) / sqrt((stdevMeanAbsError ^ 2) + (stdevPredAbsError ^ 2))
     
     # If variance test is also included, compute f-statistic and add.
-    if(includeVarianceTest == TRUE){
-      fScore <- var(predAbsError) / var(meanAbsError)
-      tScore <- tScore - fScore
-    }
+    # if(includeVarianceTest == TRUE){
+    #   fScore <- var(predAbsError) / var(meanAbsError)
+    #   tScoreOld <- tScore
+    #   tScore <- tScore - fScore
+    #   if(tScore > 7.93){
+    #     print(paste(tScore, sum(errorDiff), sqrt((nSse - errorDiffSquared) / (n-1))))
+    #   }
+    # }
   }
   # If all terms are NA, then categorize this as a very low t-score.
   else{
@@ -398,7 +400,9 @@ ObtainSubgraphNeighborhoods <- function(modelInput, percentOverlapCutoff = 100){
 ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
   
   # Initialize.
-  compositePredictors <- importantModels
+  compositePredictors <- lapply(importantModels, function(model){
+    return(unlist(model))
+  })
   compositeFull <- pairsInEachPredictor
   pairMapping <- data.frame(from = 1:length(importantModels), to = 1:length(importantModels))
   
@@ -442,7 +446,7 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
     compositeFull[[min(pairToMerge)]] <- newFull
     compositePredictors <- compositePredictors[-max(pairToMerge)]
     compositeFull <- compositeFull[-max(pairToMerge)]
-    
+
     # Update the mappings.
     pairMapping[which(pairMapping$from %in% pairToMerge), "to"] <- min(pairToMerge)
 
@@ -472,11 +476,16 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
 #' Default is 0.1. Used in odds ratio pruning only.
 #' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
 #' Only applicable when the pruning method is error.t.test. Default is FALSE.
+#' @param tolerance Tolerance factor when computing equality of two numeric values.
+#' @param modelRetention Strategy for model retention. "stringent" (the default)
+#' retains only models that improve the prediction score. "lenient" also retains models that
+#' neither improve nor reduce the prediction score.
 #' @return A list of informative pairs
 #' @export
 PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE,
                             pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
-                            includeVarianceTest = includeVarianceTest){
+                            includeVarianceTest = includeVarianceTest, tolerance = 1e-5,
+                            modelRetention = "stringent"){
   
   # Extract relevant information.
   pairs <- compositeSubgraphs$compositeModels
@@ -489,8 +498,7 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     }
     
     # Initialize the predictor to include all pairs in the composite subgraph.
-    importantPairs <- pairs[[i]]
-    compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = importantPairs, 
+    compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairs[[i]], 
                                                                      modelResults = modelResults)
     significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel), 
                                                                    trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
@@ -509,12 +517,13 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     # Figure out which of the previous models mapped to this one.
     previousModelsMapped <- mapping$from[which(mapping$to == i)]
     importantModels <- previousModelsMapped
-    previousPairsMapped <- previousModels[previousModelsMapped]
+    importantPairs <- previousModels[previousModelsMapped]
 
     # Sort the models in order of their individual performance.
     individualPerformance <- unlist(lapply(1:length(previousModelsMapped), function(m){
-      model <- previousModelsMapped[m]
-      modelPairs <- unlist(previousPairsMapped[m])
+      model <- importantModels[m]
+      modelPairs <- unlist(importantPairs[m])
+      
       compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = modelPairs,
                                                                        modelResults = modelResults)
       significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
@@ -529,8 +538,6 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     
     # Sequentially test removal of each model.
     for(m in modelRemovalOrder){
-      model <- previousModelsMapped[m]
-      modelPairs <- unlist(previousPairsMapped[m])
       
       # Save the information gain for the full model.
       if(removedLastTime == TRUE){
@@ -539,8 +546,8 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       }
       
       # Compute the significance for the new model.
-      modelsToInclude <- setdiff(importantModels, model)
-      pairsToInclude <- setdiff(importantPairs, modelPairs)
+      modelsToInclude <- setdiff(importantModels, previousModelsMapped[m])
+      pairsToInclude <- intersect(unlist(importantPairs), unlist(previousModels[modelsToInclude]))
       if(length(pairsToInclude) > 0){
         compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsToInclude,
                                                                          modelResults = modelResults)
@@ -556,58 +563,48 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       # If only one analyte pair remains and it has not improved over the full model, keep the pair.
       # If only one analyte pair remains and the value is 0, remove the pair.
       # If the significance of the new model is less than the full model, remove the pair.
+      model <- intersect(unlist(importantPairs), unlist(previousModels[setdiff(importantModels, modelsToInclude)]))
       removedLastTime <- FALSE
-      if(significance >= significanceFull && length(pairsToInclude) > 0){
+      meetsCutoffForRemoval <- significance >= significanceFull - tolerance
+      if(modelRetention == "lenient"){
+        meetsCutoffForRemoval <- significance > significanceFull
+      }
+      if(meetsCutoffForRemoval == TRUE && length(pairsToInclude) > 0){
         # Print the increase in significance.
         if(verbose == TRUE){
-          print(paste(list("Removed model.", pruningMethod, "after removing", model, "is", significance, ", equal or greater than",
-                           significanceFull), collapse = " "))
+          print(paste(list("Removed model.", pruningMethod, "after removing", paste(model, collapse = ","), "is", 
+                           format(round(significance, 2), nsmall = 2), ", as compared to",
+                           format(round(significanceFull, 2), nsmall = 2)), collapse = " "))
         }
         
         importantPairs <- pairsToInclude
         importantModels <- modelsToInclude
         removedLastTime <- TRUE
-        
-        tryCatch({
-          if(makePlots == TRUE){
-            # Plot the new line graph.
-            newPredictions <- matrix(rep(compositeModel, ncol(modelResults@model.input@node.wise.prediction)),
-                                     ncol = ncol(modelResults@model.input@node.wise.prediction))
-            rownames(newPredictions) <- rownames(modelResults@model.input@node.wise.prediction)
-            colnames(newPredictions) <- colnames(modelResults@model.input@node.wise.prediction)
-            modelResultsNew <- modelResults
-            modelResultsNew@model.input@node.wise.prediction <- newPredictions
-            MultiOmicsGraphPrediction::PlotLineGraph(modelResults = modelResultsNew, subset = pairsToInclude,
-                                                     sampSubset = "UACC.62", weights = TRUE, stype = "drug5FU")
-          }
-        }, warning=function(cond){
-          if(verbose == TRUE){
-            plot.new()
-          }
-        })
       }else if(significance <= 0 && length(pairsToInclude) == 0){
         if(verbose == TRUE){
-          print(paste(list("Removed", model, "because final", pruningMethod, "is", significance), collapse = " "))
+          print(paste(list("Removed", paste(model, collapse = ","), "because final", 
+                           pruningMethod, "is", format(round(significance, 2), nsmall = 2)), collapse = " "))
         }
         importantPairs <- pairsToInclude
         importantModels <- modelsToInclude
         removedLastTime <- TRUE
       }else if (length(pairsToInclude) == 0){
         if(verbose == TRUE){
-          print(paste(list("Kept", model, "because it is the last remaining model"), collapse = " "))
+          print(paste(list("Kept", paste(model, collapse = ","), "because it is the last remaining model"), collapse = " "))
         }
       }else{
         # Print the decrease in information gain.
         if(verbose == TRUE){
-          print(paste(list("Kept model.", pruningMethod, "after removing", model, "is", significance, ", which is lower than",
-                           significanceFull), collapse = " "))
+          print(paste(list("Kept model.", pruningMethod, "after removing", paste(model, collapse = ","), "is", 
+                           format(round(significance, 2), nsmall = 2), ", as compared to",
+                           format(round(significanceFull, 2), nsmall = 2)), collapse = " "))
         }
       }
     }
     if(verbose == TRUE){
-      print(paste("The pruned set of pairs is:", paste(importantPairs, collapse = ", ")))
+      print(paste("The pruned set of pairs is:", paste(unlist(importantPairs), collapse = ",")))
     }
-    return(importantPairs)
+    return(unlist(importantPairs))
   })
   lengths <- unlist(lapply(prunedSubgraphs, function(g){return(length(g))}))
   prunedSubgraphs <- prunedSubgraphs[which(lengths > 0)]

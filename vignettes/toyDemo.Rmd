@@ -153,42 +153,60 @@ exact predictors than the other predictors, as are the interaction p-value impor
 ```{r importance}
 MultiOmicsGraphPrediction::PlotSubspaceClusteringDendrogram(inputData = inputData, eigStep = 1)
 MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputData, eigStep = 1)
-importance <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred, 
+metaFeatures <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred, 
                                                                  stype = "age",
                                                                  inputData = inputData, 
-                                                                 metricList = c("pdf", "interactionpval", "interactioncoef", "analytecoef", "localerr"),
+                                                                 metaFeatureList = c("pdf", "interactionpval", "interactioncoef", "analytecoef", "localerr"),
                                                                  k = 2, eigStep = 1,
                                                                  modelStats = myres.r2,
                                                                  colIdInd = "databaseId",
                                                                  colIdOut = "databaseId")
-hist(importance$pdf)
-hist(importance$localerr)
-hist(importance$interactionpval)
-hist(importance$interactioncoef)
-hist(importance$analytecoef)
-print(importance)
+hist(metaFeatures$pdf)
+hist(metaFeatures$localerr)
+hist(metaFeatures$interactionpval)
+hist(metaFeatures$interactioncoef)
+hist(metaFeatures$analytecoef)
+print(metaFeatures)
 ```
 
 # Look at a predictive model.
-## T-Test
-The M2-based predictors are grouped together with G4 predictors in neighborhood 1.
-The M4-based predictors are grouped together in neighborhood 2, along with the G7 predictors.
-The M3-based predictors are grouped together in neighborhood 3.
-The M1-based predictors are grouped together with G4 predictors in neighborhood 4.
+## Stringent cutoff
+- age = -1 * M2 / G4, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -1
+- age = -1 * M2 / G6, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -1
+- age = -1 * M2 / G8, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -1
+- age = M1 / G7, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = 1
+- age = M1 / G11, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = 1
+- age = -2 * M4 / G7, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -0.5
+- age = -2 * M4 / G11, i.e. beta0 = 0, beta1 = 0, beta2 = 0, and beta3 = -0.5
 
-In neighborhood 1, all predictors are removed except (M2, [G4, G6, G8]), the exact predictors.
-In neighborhood 2, all predictors are removed except (M4, [G4, G6, G7, G8, G11]) and (M1, G7),
-of which (M4, [G7, G11]) and (M1, G7) are exact predictors.
+In this example, we use the t-score of the predicted values to determine whether
+or not to keep each model. We use a stringent model retention strategy, keeping
+only models that improve the overall score (not those that neither improve nor
+reduce the score).
+
+The M2-based predictors are grouped together with G4 predictors in neighborhood 1.
+In neighborhood 1, all predictors are removed except (M2, G4), an exact predictor.
+
+The M4-based predictors are grouped together in neighborhood 2, along with the G7 predictors.
+In neighborhood 2, all predictors are removed except (M4, G7), another exact predictor.
+
+The M3-based predictors are grouped together in neighborhood 3.
 In neighborhood 3, all predictors are removed except (M3, [G6, G8]) and (M6, G3).
+
+The M1-based predictors are grouped together with G4 predictors in neighborhood 4.
 In neighborhood 4, all predictors are removed except (M2, G4).
 
-In the second iteration, neighborhoods 1 and 3 are combined, and nothing is removed
-(because neighborhood 3 is a subset of neighborhood 1).
-Neighborhoods 2 and 4 do not overlap with any of the other neighborhoods, so they
-remain the same and form the new neighborhoods 2 and 3.
+In the second iteration, neighborhoods 1 and 4 are combined to create the new neighborhood 1, and nothing is removed
+(because they are identical). Nothing is removed from the other neighborhoods.
 
-In the third iteration, all neighborhoods are combined, and neighborhoods 2 and 3
-are removed, leaving only the exact predictors (M2, [G4, G6, G8]).
+In the third iteration, neighborhoods 1 and 2 are combined to create the new neighborhood 1,
+but neighborhood 2 is removed because both represent exact predictors. Neighborhood
+3 becomes neighborhood 2.
+
+In the fourth iteration, neighborhoods 1 and 2 are combined to create the new neighborhood 1,
+but neighborhood 2 is removed so that only the exact predictor remains.
+
+The single pair (M2, G4) gives an exact prediction for the entire data set as expected.
 ```{r}
 modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
                                                      coregulationGraph = coreg.r2,
@@ -204,7 +222,57 @@ modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInp
 pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
 
 propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE)
+                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE,
+                                               modelRetention = "stringent")
+print(propagatedGraph)
+print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
+```
+
+# Lenient Model Retention
+In this example, we use the t-score of the predicted values to determine whether
+or not to keep each model. We use a lenient model retention strategy, keeping
+models that neither improve nor reduce the score.
+
+The M2-based predictors are grouped together with G4 predictors in neighborhood 1.
+In neighborhood 1, all predictors are removed except (M2, [G4, G6, G8]), the exact predictors.
+
+The M4-based predictors are grouped together in neighborhood 2, along with the G7 predictors.
+In neighborhood 2, all predictors are removed except (M4, [G4, G6, G8, G1, G11]) and (M3, G7).
+
+The M3-based predictors are grouped together in neighborhood 3.
+In neighborhood 3, all predictors are removed except (M3, [G6, G8, G11]) and (M6, G3).
+
+The M1-based predictors are grouped together with G4 predictors in neighborhood 4.
+In neighborhood 4, all predictors are removed except (M2, G4) and (M1, [G4, G6, G8]).
+
+In the second iteration, neighborhoods 1 and 4 are combined to create the new neighborhood 1, and nothing is removed
+(because they are identical). Nothing is removed from the other neighborhoods.
+
+In the third iteration, neighborhoods 1 and 2 are combined to create the new neighborhood 1,
+but neighborhood 2 is removed because both contain exact predictors. Neighborhood
+3 becomes neighborhood 2.
+
+In the fourth iteration, neighborhoods 1 and 2 are combined to create the new neighborhood 1,
+but neighborhood 2 is removed.
+
+The single pair (M2, G4) gives an exact prediction for the entire data set as expected.
+```{r}
+modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+                                                     coregulationGraph = coreg.r2,
+                                                     inputData = inputData, 
+                                                     stype.class = "numeric",
+                                                     stype = "age",
+                                                     edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
+                                                     metaFeatures = metaFeatures,
+                                                     modelProperties = myres.r2,
+                                                     outcome = 1,
+                                                     independent.var.type = 2)
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2)
+pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
+
+propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE,
+                                               modelRetention = "lenient")
 print(propagatedGraph)
 print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
 ```
@@ -214,7 +282,8 @@ Because the final predictors are exact, there is no need to adjust the weights s
 other models contribute more to the final prediction. Therefore, the optimization
 converges immediately and returns the same set of predictors as the first iteration.
 ```{r}
-optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults,pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE)
+optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults,pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE,
+                                                                    modelRetention = "stringent")
 ```
 
 # Test Performance Using Leave-One-Out Cross-Validation
@@ -229,8 +298,11 @@ the training data.
 5. Compute metafeatures on the testing data.
 6. Do prediction for the testing data using the computed metafeatures on the testing data
 and the subgraph and metafeature weights learned on the training data.
+
+When we run cross-validation, we obtain the same pair (M2, G4) for each of the cross-validations.
 ```{r}
 for(sample in rownames(inputData@sampleMetaData)){
+  print(sample)
   # Split into training and testing data.
   data <- MultiOmicsGraphPrediction::SplitTrainingAndTesting(inputData = inputData, testingSamples = sample)
   
@@ -248,6 +320,17 @@ for(sample in rownames(inputData@sampleMetaData)){
   #                                                                colIdInd = "databaseId",
   #                                                                colIdOut = "databaseId",
   #                                 learningRate = 0.2)
+  modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+                                                     coregulationGraph = coreg.r2,
+                                                     inputData = inputData, 
+                                                     stype.class = "numeric",
+                                                     stype = "age",
+                                                     edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
+                                                     metaFeatures = metaFeatures,
+                                                     modelProperties = myres.r2,
+                                                     outcome = 1,
+                                                     independent.var.type = 2)
+
   myres.cv <- IntLIM::RunIntLim(inputData = data$training, stype="age",
                                  save.covar.pvals = TRUE, 
                                  outcome = 1, 
@@ -257,6 +340,8 @@ for(sample in rownames(inputData@sampleMetaData)){
                                        pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
   myres.r2.density.cv <- density(myres.all.cv$rsquared)
   peak.r2.cv <- myres.r2.density$x[which.max(myres.r2.density.cv$y)]
+  if(peak.r2.cv > 1){peak.r2.cv <- 1}
+  if(peak.r2.cv < 0){peak.r2.cv <- 0}
   myres.r2.cv <- IntLIM::ProcessResults(inputResults = myres.cv, inputData = data$training, 
                                        pvalcutoff = 1, rsquaredCutoff = peak.r2.cv)
   pred.cv <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2.cv, 
@@ -265,7 +350,7 @@ for(sample in rownames(inputData@sampleMetaData)){
                                                          independentVarType = 2,
                                                          outcomeType = 1)
   coreg.r2.cv <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2.cv)
-  projectedGraph <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg.r2.cv,
+  projectedGraph.cv <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg.r2.cv,
                                                                          predictions = pred.cv)
   
   # Compute meta features.
@@ -281,7 +366,7 @@ for(sample in rownames(inputData@sampleMetaData)){
   
 
   # Optimize model using training data.
-  modelInput.cv <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+  modelInput.cv <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph.cv, 
                                                      coregulationGraph = coreg.r2,
                                                      inputData = data$training, 
                                                      stype.class = "numeric",
@@ -291,16 +376,22 @@ for(sample in rownames(inputData@sampleMetaData)){
                                                      modelProperties = myres.r2.cv,
                                                      outcome = 1,
                                                      independent.var.type = 2)
-  modelResults.cv <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput.cv, learningRate = 0.2)
-  optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv,
-                                                                     pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE)
-  
-  pred.cv.test <- MultiOmicsGraphPrediction::RunPairwisePredictionTest(inputResults = myres.r2.cv, 
+  optimalModel.cv <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv,
+                                                                    pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = FALSE)
+  # modelResults.cv <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput.cv, learningRate = 0.2)
+  # pairsPredAll.cv <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults.cv@model.input, percentOverlapCutoff = 50)
+  # 
+  # propagatedGraph.cv <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll.cv, modelResults = modelResults.cv,
+  #                                                verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE)
+  # print(propagatedGraph.cv)
+  # print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults.cv, pairs = propagatedGraph.cv[[1]]))
+  # 
+  pred.cv.test <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2.cv,
                                                          inputData = data$testing,
                                                          stype = "age",
                                                          independentVarType = 2,
                                                          outcomeType = 1)
-  
+
   # Get metafeatures for testing.
   metafeaturesTest <- MultiOmicsGraphPrediction::GetTestMetaFeatures(predictionsTrain = pred.cv,
                                                                   predictionsTest = pred.cv.test,
@@ -313,8 +404,10 @@ for(sample in rownames(inputData@sampleMetaData)){
                                                                  modelStats = myres.r2.cv,
                                                                  colIdInd = "databaseId",
                                                                  colIdOut = "databaseId")
-  
+
   # Predict testing values.
-  # predictions <- DoPrediction(inputData = inputDataTest, metafeatures = metafeaturesTest, model = optimalModel)
+  predictions <- PredictTesting(inputData = data$testing, metafeatures = metafeaturesTest, model = optimalModel.cv)
+  print(optimalModel.cv@pairs)
+  print(paste(sample, predictions, data$testing@sampleMetaData$age))
 }
 ```

@@ -11,7 +11,8 @@ OptimizeMetaFeatureCombo(
   pruningMethod = "odds.ratio",
   binCount = 10,
   margin = 0.1,
-  includeVarianceTest = FALSE
+  includeVarianceTest = FALSE,
+  modelRetention = "stringent"
 )
 }
 \arguments{
@@ -29,6 +30,10 @@ Default is 0.1. Used in odds ratio pruning only.}
 
 \item{includeVarianceTest}{Scale the t-score by the f-statistic (the ratio of variances).
 Only applicable when the pruning method is error.t.test. Default is FALSE.}
+
+\item{modelRetention}{Strategy for model retention. "stringent" (the default)
+retains only models that improve the prediction score. "lenient" also retains models that
+neither improve nor reduce the prediction score.}
 }
 \description{
 Optimize the combination of predictors by metafeatures alone (in other words,

@@ -13,7 +13,9 @@ PrunePredictors(
   pruningMethod = "odds.ratio",
   binCount = 10,
   margin = 0.1,
-  includeVarianceTest = includeVarianceTest
+  includeVarianceTest = includeVarianceTest,
+  tolerance = 1e-05,
+  modelRetention = "stringent"
 )
 }
 \arguments{
@@ -37,6 +39,12 @@ Default is 0.1. Used in odds ratio pruning only.}
 
 \item{includeVarianceTest}{Scale the t-score by the f-statistic (the ratio of variances).
 Only applicable when the pruning method is error.t.test. Default is FALSE.}
+
+\item{tolerance}{Tolerance factor when computing equality of two numeric values.}
+
+\item{modelRetention}{Strategy for model retention. "stringent" (the default)
+retains only models that improve the prediction score. "lenient" also retains models that
+neither improve nor reduce the prediction score.}
 }
 \value{
 A list of informative pairs

@@ -257,10 +257,13 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
 #' Default is 0.1. Used in odds ratio pruning only.
 #' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
 #' Only applicable when the pruning method is error.t.test. Default is FALSE.
+#' @param modelRetention Strategy for model retention. "stringent" (the default)
+#' retains only models that improve the prediction score. "lenient" also retains models that
+#' neither improve nor reduce the prediction score.
 #' @export
 OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                                     pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
-                                    includeVarianceTest = FALSE){
+                                    includeVarianceTest = FALSE, modelRetention = "stringent"){
   
   # Start the first iteration and calculate a dummy weight delta.
   modelResults@current.iteration <- 1
@@ -274,7 +277,8 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                                                                        pruningMethod = pruningMethod,
                                                                        binCount = binCount,
                                                                        margin = margin,
-                                                                       includeVarianceTest = includeVarianceTest)
+                                                                       includeVarianceTest = includeVarianceTest,
+                                                                       modelRetention = modelRetention)
   
   # Set initial error.
   Y.pred <- DoPrediction(modelResults = modelResults, prunedModels = prunedModels)
@@ -297,7 +301,6 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
     # sample at a time.
     perm_samples <- sample(1:nrow(modelResults@model.input@node.wise.prediction),
                           nrow(modelResults@model.input@node.wise.prediction))
-    #perm_samples <- 1:nrow(modelResults@model.input@node.wise.prediction)
 
     # Initialize previous weight vector.
     modelResults@previous.metaFeature.weights <- modelResults@current.metaFeature.weights
@@ -355,13 +358,9 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                                                                         pruningMethod = pruningMethod,
                                                                         binCount = binCount,
                                                                         margin = margin,
-                                                                        includeVarianceTest = includeVarianceTest)
-    tryCatch({
-      modelResults@pairs <- unlist(prunedModels)
-    }, error = function(e){
-      print(e)
-      print(prunedModels)
-    })
+                                                                        includeVarianceTest = includeVarianceTest,
+                                                                        modelRetention = modelRetention)
+    modelResults@pairs <- unlist(prunedModels)
     prunedModelSizes <- lapply(prunedModels, function(model){return(length(model))})
     
     # Print the weight delta and error.
