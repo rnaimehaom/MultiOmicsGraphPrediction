@@ -71,7 +71,7 @@ library(IntLIM)
 ```{r}
 dir <- system.file("extdata", package="MultiOmicsGraphPrediction", mustWork=TRUE)
 csvfile <- file.path(dir, "toyinput.csv")
-inputData <- IntLIM::ReadData(csvfile)
+inputData <- IntLIM::ReadData(csvfile, analyteType1id = "id")
 ```
 
 # Run IntLIM
@@ -342,5 +342,99 @@ for(sample in rownames(inputData@sampleMetaData)){
   predictions <- PredictTesting(inputData = data$testing, metafeatures = metafeaturesTest, model = optimalModel.cv)
   print(optimalModel.cv@pairs)
   print(paste(sample, predictions, data$testing@sampleMetaData$age))
+}
+```
+
+# Random Forest
+
+We run random forest as a baseline on each cross-validation. We observe that,
+unlike the models constructed above, the random forest models learned do not
+predict the test data accurately. Furthermore, analyte importance differs
+across folds, so the same analytes are not selected consistently.
+```{r}
+# Install packages.
+if(!require("caret")){
+  install.packages("caret")
+}
+if(!require("randomForest")){
+  install.packages("randomForest", dependencies = TRUE)
+}
+library(randomForest)
+set.seed(1234)
+```
+
+```{r}
+for(sample in rownames(inputData@sampleMetaData)){
+  print(sample)
+  # Split into training and testing data.
+  data <- MultiOmicsGraphPrediction::SplitTrainingAndTesting(inputData = inputData, testingSamples = sample)
+
+  # Set up Data.
+  train.X.all <- as.matrix(cbind(t(data$training@analyteType1),t(data$training@analyteType2)))
+  test.X.all <- as.matrix(cbind(t(data$testing@analyteType1),t(data$testing@analyteType2)))
+  train.Y.all <- data$training@sampleMetaData[, "age"]
+  test.Y.all <- data$testing@sampleMetaData[, "age"]
+
+  # Run Random Forest
+  control <- caret::trainControl(method='none')
+  mtry <- sqrt(ncol(train.X.all))
+  tunegrid <- expand.grid(.mtry=mtry)
+  rf_fit <- caret::train(x = train.X.all, y = c(train.Y.all),
+                  method='rf',
+                  metric='RMSE',
+                  tuneGrid=tunegrid,
+                  trControl=control)
+  rf_models <- rf_fit[which(names(rf_fit) != "trainingData")]
+  rf_importance <- caret::varImp(rf_fit, scale = FALSE)
+  rf_test_predict <- predict(rf_fit, test.X.all)
+  rf_test_true <- test.Y.all
+  rf_rmse <- ComputeRMSE(test.Y.all, rf_test_predict)
+  print(rownames(rf_importance$importance)[order(-1 * rf_importance$importance$Overall)])
+  print(paste(sample, rf_test_predict, rf_test_true))
+}
+```
+
+
+# LASSO
+
+We run LASSO as a baseline on each cross-validation. LASSO does not predict
+the phenotype accurately for the cross-validation folds. As shown in the histograms,
+the most heavily weighted features differ for each fold but are fairly consistent
+across lambda values. In all but the 5th fold, the intercept is has greater
+magnitude than the features.
+```{r}
+# Install packages.
+if(!require("glmnet")){
+  install.packages("glmnet", dependencies = TRUE)
+}
+```
+
+```{r}
+for(sample in rownames(inputData@sampleMetaData)){
+  print(sample)
+  # Split into training and testing data.
+  data <- MultiOmicsGraphPrediction::SplitTrainingAndTesting(inputData = inputData, testingSamples = sample)
+
+  # Set up Data.
+  train.X.all <- as.matrix(cbind(t(data$training@analyteType1),t(data$training@analyteType2)))
+  test.X.all <- as.matrix(cbind(t(data$testing@analyteType1),t(data$testing@analyteType2)))
+  train.Y.all <- data$training@sampleMetaData[, "age"]
+  test.Y.all <- data$testing@sampleMetaData[, "age"]
+
+  # Run LASSO
+  control <- caret::trainControl(method='none')
+  tunegrid <- expand.grid(alpha = 1, lambda = 0)
+  lasso_fit <- caret::train(x = train.X.all, y = c(train.Y.all),
+                     method='glmnet',
+                     metric='RMSE',
+                     tuneGrid=tunegrid,
+                     trControl=control)
+  lasso_models <- lasso_fit[which(names(lasso_fit) != "trainingData")]
+  lasso_importance <- coef(lasso_fit$finalModel)
+  lasso_test_predict <- predict(lasso_fit, test.X.all)
+  lasso_test_true <- test.Y.all
+  lasso_rmse <- ComputeRMSE(test.Y.all, rf_test_predict)
+  gplots::heatmap.2(as.matrix(lasso_importance), trace = "none", scale = "none")
+  print(paste(sample, lasso_test_predict, lasso_test_true))
 }
 ```
