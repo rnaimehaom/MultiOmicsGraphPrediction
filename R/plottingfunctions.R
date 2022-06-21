@@ -600,7 +600,7 @@ PlotSubspaceClusteringDendrogram <- function(inputData,
 }
 
 #' Plots a heatmap of the optimal subspace clustering.
-#' @include 03_ComputeMetaFeatures.R
+#' @include metafeaturefunctions.R
 #' @param optimalClustering The output of FindOptimalSubspaceClustering.
 #' @export
 PlotSubspaceClusteringHeatmap <- function(inputData,

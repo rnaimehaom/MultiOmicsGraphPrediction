@@ -563,6 +563,8 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       # If only one analyte pair remains and it has not improved over the full model, keep the pair.
       # If only one analyte pair remains and the value is 0, remove the pair.
       # If the significance of the new model is less than the full model, remove the pair.
+      significance <- round(significance, 2)
+      significanceFull <- round(significanceFull, 2)
       model <- intersect(unlist(importantPairs), unlist(previousModels[setdiff(importantModels, modelsToInclude)]))
       removedLastTime <- FALSE
       meetsCutoffForRemoval <- significance >= significanceFull - tolerance
@@ -573,8 +575,8 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
         # Print the increase in significance.
         if(verbose == TRUE){
           print(paste(list("Removed model.", pruningMethod, "after removing", paste(model, collapse = ","), "is", 
-                           format(round(significance, 2), nsmall = 2), ", as compared to",
-                           format(round(significanceFull, 2), nsmall = 2)), collapse = " "))
+                           format(significance, nsmall = 2), ", as compared to",
+                           format(significanceFull, nsmall = 2)), collapse = " "))
         }
         
         importantPairs <- pairsToInclude
@@ -583,7 +585,7 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       }else if(significance <= 0 && length(pairsToInclude) == 0){
         if(verbose == TRUE){
           print(paste(list("Removed", paste(model, collapse = ","), "because final", 
-                           pruningMethod, "is", format(round(significance, 2), nsmall = 2)), collapse = " "))
+                           pruningMethod, "is", format(significance, nsmall = 2)), collapse = " "))
         }
         importantPairs <- pairsToInclude
         importantModels <- modelsToInclude
@@ -596,8 +598,8 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
         # Print the decrease in information gain.
         if(verbose == TRUE){
           print(paste(list("Kept model.", pruningMethod, "after removing", paste(model, collapse = ","), "is", 
-                           format(round(significance, 2), nsmall = 2), ", as compared to",
-                           format(round(significanceFull, 2), nsmall = 2)), collapse = " "))
+                           format(significance, nsmall = 2), ", as compared to",
+                           format(significanceFull, nsmall = 2)), collapse = " "))
         }
       }
     }

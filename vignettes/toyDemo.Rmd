@@ -299,7 +299,8 @@ the training data.
 6. Do prediction for the testing data using the computed metafeatures on the testing data
 and the subgraph and metafeature weights learned on the training data.
 
-When we run cross-validation, we obtain the same pair (M2, G4) for each of the cross-validations.
+When we run cross-validation, we obtain (M2, G4) or another exact pair for each of
+the cross-validations.
 ```{r}
 for(sample in rownames(inputData@sampleMetaData)){
   print(sample)
@@ -307,85 +308,17 @@ for(sample in rownames(inputData@sampleMetaData)){
   data <- MultiOmicsGraphPrediction::SplitTrainingAndTesting(inputData = inputData, testingSamples = sample)
   
   # Run prediction.
-  # modelResults.cv <- DoModelSetup(inputData = data$training,
-  #                                 stype = "age",
-  #                                 save.covar.pvals = TRUE,
-  #                                 outcome = 1,
-  #                                 independent.var.type = 2,
-  #                                 continuous = TRUE,
-  #                                 pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0,
-  #                                 metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
-  #                                                                k = 2, eigStep = 1,
-  #                                                                modelStats = myres.r2.cv,
-  #                                                                colIdInd = "databaseId",
-  #                                                                colIdOut = "databaseId",
-  #                                 learningRate = 0.2)
-  modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
-                                                     coregulationGraph = coreg.r2,
-                                                     inputData = inputData, 
-                                                     stype.class = "numeric",
-                                                     stype = "age",
-                                                     edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
-                                                     metaFeatures = metaFeatures,
-                                                     modelProperties = myres.r2,
-                                                     outcome = 1,
-                                                     independent.var.type = 2)
-
-  myres.cv <- IntLIM::RunIntLim(inputData = data$training, stype="age",
-                                 save.covar.pvals = TRUE, 
-                                 outcome = 1, 
-                                 independent.var.type = 2, 
-                                 continuous = TRUE)
-  myres.all.cv <- IntLIM::ProcessResults(inputResults = myres.cv, inputData = data$training, 
-                                       pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
-  myres.r2.density.cv <- density(myres.all.cv$rsquared)
-  peak.r2.cv <- myres.r2.density$x[which.max(myres.r2.density.cv$y)]
-  if(peak.r2.cv > 1){peak.r2.cv <- 1}
-  if(peak.r2.cv < 0){peak.r2.cv <- 0}
-  myres.r2.cv <- IntLIM::ProcessResults(inputResults = myres.cv, inputData = data$training, 
-                                       pvalcutoff = 1, rsquaredCutoff = peak.r2.cv)
-  pred.cv <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2.cv, 
-                                                         inputData = data$training,
-                                                         stype = "age",
-                                                         independentVarType = 2,
-                                                         outcomeType = 1)
-  coreg.r2.cv <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2.cv)
-  projectedGraph.cv <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg.r2.cv,
-                                                                         predictions = pred.cv)
-  
-  # Compute meta features.
-  metafeaturesTrain <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred.cv,
-                                                                 stype = "age",
-                                                                 inputData = data$training,
-                                                                 metaFeatureList = c("pdf",
-                                                                                     "interactionpval", "interactioncoef", "analytecoef", "localerr"),
-                                                                 k = 2, eigStep = 1,
-                                                                 modelStats = myres.r2.cv,
-                                                                 colIdInd = "databaseId",
-                                                                 colIdOut = "databaseId")
-  
-
-  # Optimize model using training data.
-  modelInput.cv <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph.cv, 
-                                                     coregulationGraph = coreg.r2,
-                                                     inputData = data$training, 
-                                                     stype.class = "numeric",
-                                                     stype = "age",
-                                                     edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
-                                                     metaFeatures = metafeaturesTrain,
-                                                     modelProperties = myres.r2.cv,
-                                                     outcome = 1,
-                                                     independent.var.type = 2)
+  modelResults.cv <- DoModelSetup(inputData = data$training,
+                                  stype = "age",
+                                  outcomeType = 1,
+                                  independentVarType = 2,
+                                  continuous = TRUE,
+                                  metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
+                                 modelStats = myres.r2.cv,
+                                  learningRate = 0.2)
   optimalModel.cv <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv,
-                                                                    pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = FALSE)
-  # modelResults.cv <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput.cv, learningRate = 0.2)
-  # pairsPredAll.cv <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults.cv@model.input, percentOverlapCutoff = 50)
-  # 
-  # propagatedGraph.cv <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll.cv, modelResults = modelResults.cv,
-  #                                                verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE)
-  # print(propagatedGraph.cv)
-  # print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults.cv, pairs = propagatedGraph.cv[[1]]))
-  # 
+                                                                   pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = FALSE)
+
   pred.cv.test <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2.cv,
                                                          inputData = data$testing,
                                                          stype = "age",

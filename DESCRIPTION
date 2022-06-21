@@ -30,13 +30,14 @@ Encoding: UTF-8
 LazyData: TRUE
 NeedsCompilation: no
 Collate: 
-    '01_RunPairwisePrediction.R'
-    '02_BuildCoRegulationGraph.R'
-    '03_ComputeMetaFeatures.R'
-    '05_LearnGraphPredictionModel.R'
-    '06_PredictUsingLearnedModel.R'
+    '01_ModelSetup.R'
+    '02_LearnGraphPredictionModel.R'
+    '03_PredictUsingLearnedModel.R'
     'AllClasses.R'
     'compositemodelfunctions.R'
+    'coregulationgraphfunctions.R'
+    'metafeaturefunctions.R'
+    'pairwisepredictionfunctions.R'
     'plottingfunctions.R'
     'trainingfunctions.R'
 VignetteBuilder: knitr

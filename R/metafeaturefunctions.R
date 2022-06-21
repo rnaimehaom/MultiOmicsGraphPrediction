@@ -1,7 +1,7 @@
 #' Computes the metafeatures for each sample and model.
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
-#' @param metricList A list of the valid metrics to include. Valid metrics are
+#' @param metaFeatureList A list of the valid metrics to include. Valid metrics are
 #' "pdf", "localerr", "globalerr", and "pathway".
 #' @param k The number of nearest neighbors to consider in localerr.
 #' @param inputData The input data read in using the function IntLIM function
