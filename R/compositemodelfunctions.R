@@ -582,14 +582,6 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
         importantPairs <- pairsToInclude
         importantModels <- modelsToInclude
         removedLastTime <- TRUE
-      }else if(significance <= 0 && length(pairsToInclude) == 0){
-        if(verbose == TRUE){
-          print(paste(list("Removed", paste(model, collapse = ","), "because final", 
-                           pruningMethod, "is", format(significance, nsmall = 2)), collapse = " "))
-        }
-        importantPairs <- pairsToInclude
-        importantModels <- modelsToInclude
-        removedLastTime <- TRUE
       }else if (length(pairsToInclude) == 0){
         if(verbose == TRUE){
           print(paste(list("Kept", paste(model, collapse = ","), "because it is the last remaining model"), collapse = " "))
