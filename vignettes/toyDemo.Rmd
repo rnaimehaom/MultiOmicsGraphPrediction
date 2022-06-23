@@ -143,7 +143,7 @@ MultiOmicsGraphPrediction::PlotGraphPredictions(graph = projectedGraph,
                                                 stype = "age")
 ```
 
-## Compute Importance Metrics.
+## Compute Metafeatures.
 In this case, the subspace grouping of patients has little relationship to the phenotype.
 However, this is likely due to the analyte values being assigned randomly.
 
@@ -314,12 +314,16 @@ for(sample in rownames(inputData@sampleMetaData)){
                                   independentVarType = 2,
                                   continuous = TRUE,
                                   metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
-                                 modelStats = myres.r2.cv,
                                   learningRate = 0.2)
   optimalModel.cv <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv,
                                                                    pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = FALSE)
 
-  pred.cv.test <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2.cv,
+  pred.cv <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = optimalModel.cv@model.input@model.properties,
+                                                         inputData = data$training,
+                                                         stype = "age",
+                                                         independentVarType = 2,
+                                                         outcomeType = 1)
+  pred.cv.test <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = optimalModel.cv@model.input@model.properties,
                                                          inputData = data$testing,
                                                          stype = "age",
                                                          independentVarType = 2,
@@ -334,7 +338,7 @@ for(sample in rownames(inputData@sampleMetaData)){
                                                                  metaFeatureList = c("pdf",
                                                                                      "interactionpval", "interactioncoef", "analytecoef", "localerr"),
                                                                  k = 2, eigStep = 1,
-                                                                 modelStats = myres.r2.cv,
+                                                                 modelStats = optimalModel.cv@model.input@model.properties,
                                                                  colIdInd = "databaseId",
                                                                  colIdOut = "databaseId")
 

@@ -36,7 +36,6 @@ DoModelSetup <- function(inputData, stype,
                                 pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0,
                                 metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
                                 k = 2, eigStep = 1,
-                                modelStats = myres.r2.cv,
                                 colIdInd = "databaseId",
                                 colIdOut = "databaseId",
                          edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
@@ -72,6 +71,10 @@ DoModelSetup <- function(inputData, stype,
                                          interactionCoeffPercentile = interactionCoeffPercentile)
   }
   
+  # Perform one-hot-encoding on the covariates.
+  encoding <- MultiOmicsGraphPrediction::OneHotEncoding(covar = covar, inputData = inputData)
+  covar = encoding$covar
+  inputData@sampleMetaData <- encoding$sampleMetaData
 
   # Run pairwise prediction.
   pred <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.filt, 

@@ -7,7 +7,7 @@ covariates are used. This one-hot encoding will be used later in predictions,
 and will simplify the prediction process because the names of the result columns
 and the covariates will match up.}
 \usage{
-OneHotEncoding(inputData, covar = NULL)
+OneHotEncoding(inputData, covar = c())
 }
 \arguments{
 \item{inputData}{An object with the following fields:}

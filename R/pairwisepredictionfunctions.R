@@ -162,30 +162,28 @@ ProjectPredictionsOntoGraph <- function(predictions, coRegulationGraph){
 #' @param covar The clinical covariates to include in the model. These should be the same
 #' covariates that were included when running the IntLIM linear models.
 #' @export
-OneHotEncoding <- function(inputData, covar=NULL){
+OneHotEncoding <- function(inputData, covar=c()){
   # Extract the covariate values from the input data.
   covariateVals <- inputData@sampleMetaData
   
-  # If the covariates are factors, then one-hot encode them. Else, stop.
-  retVal <- NULL
-  if(!is.numeric(covariateVals[,covar])){
-    newCovars <- list()
-    for(c in covar){
-      # Find all factor covariates derived from the original covariate.
-      for(fac in unique(covariateVals[,c])){
-        # Append new one-hot-encoded factor covariates.
-        covariateVals[,paste0(c, fac)] <- 0
-        covariateVals[which(covariateVals[,c] == fac),paste0(c, fac)] <- 1
-        
-        # Append to the list of new covariates.
-        newCovars <- c(newCovars, paste0(c, fac))
-      }
+  # If the covariates are factors, then one-hot encode them. Else, add the same
+  # values back into the list.
+  newCovars <- c()
+  for(c in covar){
+    if(is.numeric(covariateVals[,c])){
+      newCovars <- c(newCovars, c)
     }
-    
-    # Return results
-    retVal <- list(covar = newCovars, sampleMetaData = covariateVals)
-  }else{
-    stop("The covariates input to OneHotEncoding do not exist or are not factors.")
+    # Find all factor covariates derived from the original covariate.
+    for(fac in unique(covariateVals[,c])){
+      # Append new one-hot-encoded factor covariates.
+      covariateVals[,paste0(c, fac)] <- 0
+      covariateVals[which(covariateVals[,c] == fac),paste0(c, fac)] <- 1
+      
+      # Append to the list of new covariates.
+      newCovars <- c(newCovars, paste0(c, fac))
+    }
   }
+  # Return results.
+  retVal <- list(covar = newCovars, sampleMetaData = covariateVals)
   return(retVal)
 }

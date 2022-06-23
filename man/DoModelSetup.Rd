@@ -22,7 +22,6 @@ DoModelSetup(
     "localerr"),
   k = 2,
   eigStep = 1,
-  modelStats = myres.r2.cv,
   colIdInd = "databaseId",
   colIdOut = "databaseId",
   edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
