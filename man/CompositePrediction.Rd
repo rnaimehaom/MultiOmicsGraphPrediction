@@ -4,17 +4,24 @@
 \alias{CompositePrediction}
 \title{Obtain a prediction from a composite model, given the pairs to include in the model.}
 \usage{
-CompositePrediction(pairs, modelResults)
+CompositePrediction(
+  pairs,
+  modelResults,
+  minCutoff,
+  maxCutoff,
+  useCutoff = FALSE
+)
 }
 \arguments{
 \item{pairs}{A list of pairs to include in the composite model.}
 
 \item{modelResults}{A ModelResults object.}
 
-\item{IntLIMresults}{The filtered results obtained from the IntLIM function
-ProcessRe}
+\item{minCutoff}{Mininum cutoff for the prediction.}
 
-\item{covar}{Covariates to be used in the model.}
+\item{maxCutoff}{Maximum cutoff for the prediction.}
+
+\item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
 }
 \value{
 A final predicted value for each sample in the input data

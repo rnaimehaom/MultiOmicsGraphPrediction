@@ -260,10 +260,15 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
 #' @param modelRetention Strategy for model retention. "stringent" (the default)
 #' retains only models that improve the prediction score. "lenient" also retains models that
 #' neither improve nor reduce the prediction score.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
 #' @export
 OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                                     pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
-                                    includeVarianceTest = FALSE, modelRetention = "stringent"){
+                                    includeVarianceTest = FALSE, modelRetention = "stringent",
+                                    useCutoff = FALSE){
+  
+  # Calculate prediction cutoffs.
+  predictionCutoffs <- CalculatePredictionCutoffs(modelResults = modelResults)
   
   # Start the first iteration and calculate a dummy weight delta.
   modelResults@current.iteration <- 1
@@ -278,7 +283,10 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                                                                        binCount = binCount,
                                                                        margin = margin,
                                                                        includeVarianceTest = includeVarianceTest,
-                                                                       modelRetention = modelRetention)
+                                                                       modelRetention = modelRetention,
+                                                                       useCutoff = useCutoff,
+                                                                       minCutoff = predictionCutoffs$min,
+                                                                       maxCutoff = predictionCutoffs$max)
   
   # Set initial error.
   Y.pred <- DoPrediction(modelResults = modelResults, prunedModels = prunedModels)
@@ -326,7 +334,10 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
       
       # Do training iteration.
       newModelResults <- DoSingleTrainingIteration(modelResults = newModelResults,
-                                                   prunedModels = prunedModels)
+                                                   prunedModels = prunedModels,
+                                                   useCutoff = useCutoff,
+                                                   minCutoff = predictionCutoffs$min,
+                                                   maxCutoff = predictionCutoffs$max)
       
       # Update weights and gradient in the model results according to the
       # results of this sample.
@@ -339,7 +350,10 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
       modelResults@iteration.tracking <- newModelResults@iteration.tracking
     }
     # Fill in the prediction for error calculation.
-    Y.pred <- DoPrediction(modelResults = modelResults, prunedModels = prunedModels)
+    Y.pred <- DoPrediction(modelResults = modelResults, prunedModels = prunedModels,
+                           useCutoff = useCutoff,
+                           minCutoff = predictionCutoffs$min,
+                           maxCutoff = predictionCutoffs$max)
 
     # Compute the prediction error over all samples.
     modelResults@iteration.tracking$Iteration[modelResults@current.iteration+1] <- modelResults@current.iteration
@@ -359,7 +373,10 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                                                                         binCount = binCount,
                                                                         margin = margin,
                                                                         includeVarianceTest = includeVarianceTest,
-                                                                        modelRetention = modelRetention)
+                                                                        modelRetention = modelRetention,
+                                                                        useCutoff = useCutoff,
+                                                                        minCutoff = predictionCutoffs$min,
+                                                                        maxCutoff = predictionCutoffs$max)
     modelResults@pairs <- unlist(prunedModels)
     prunedModelSizes <- lapply(prunedModels, function(model){return(length(model))})
     

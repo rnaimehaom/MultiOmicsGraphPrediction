@@ -1,3 +1,75 @@
+#' Sets up the test data so that it is in the correct format, then
+#' runs prediction on the test data. To do this:
+#' 1. Run pairwise prediction on the test data.
+#' 2. Run pairwise prediction on the training data.
+#' 3. Compute metafeatures on the test data.
+#' 4. Predict the test values using the learned model.
+#' @param inputDataTrain An object of the IntLimData class corresponding to the training set.
+#' @param inputDataTest An object of the IntLimData class corresponding to the test set.
+#' @param model An object of the ModelResults class corresponding to the optimized model.
+#' @param stype The variable to predict.
+#' @param covar The clinical covariates to include in the model. These should be the same
+#' covariates that were included when running the IntLIM linear models.
+#' @param independentVarType The independent variable type (1 or 2)
+#' @param outcomeType The outcome type (1 or 2)
+#' @param metaFeatureList A list of the valid metrics to include. Valid metrics are
+#' "pdf", "localerr", "globalerr", and "pathway".
+#' @param k The number of nearest neighbors to consider in localerr.
+#' @param eigStep The number of eigenvectors to step by during the evaluation
+#' in localerr.
+#' Note that this must be less than the number of samples in localerr. Default = 10.
+#' @param colIdInd The ID of the column that has the analyte ID's for the
+#' independent variable. If blank, then the existing ID's are used.
+#' @param colIdOut The ID of the column that has the analyte ID's for the
+#' outcome variable. If blank, then the existing ID's are used.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+#' @export
+DoTestSetupAndPrediction <- function(inputDataTrain, inputDataTest, model, stype,
+                                     outcomeType = 1,
+                                     independentVarType = 2,
+                                     metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
+                                     k = 2, eigStep = 1,
+                                     colIdInd = "databaseId",
+                                     colIdOut = "databaseId",
+                                     covar = c(),
+                                     useCutoff = FALSE){
+  # Calculate prediction cutoffs.
+  predictionCutoffs <- CalculatePredictionCutoffs(modelResults = modelResults)
+  
+  # Run pairwise prediction for training data.
+  pred.cv <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = model@model.input@model.properties,
+                                                              inputData = inputDataTrain,
+                                                              stype = stype,
+                                                              covar = covar,
+                                                              independentVarType = independentVarType,
+                                                              outcomeType = outcomeType)
+  pred.cv.test <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = model@model.input@model.properties,
+                                                                   inputData = inputDataTest,
+                                                                   stype = stype,
+                                                                   covar = covar,
+                                                                   independentVarType = independentVarType,
+                                                                   outcomeType = outcomeType)
+  
+  # Get metafeatures for testing.
+  metafeaturesTest <- MultiOmicsGraphPrediction::GetTestMetaFeatures(predictionsTrain = pred.cv,
+                                                                     predictionsTest = pred.cv.test,
+                                                                     stype = stype,
+                                                                     inputDataTrain = inputDataTrain,
+                                                                     inputDataTest = inputDataTest,
+                                                                     metaFeatureList = metaFeatureList,
+                                                                     k = k, eigStep = eigStep,
+                                                                     modelStats = model@model.input@model.properties,
+                                                                     colIdInd = colIdInd,
+                                                                     colIdOut = colIdOut)
+  
+  # Predict testing values.
+  predictions <- PredictTesting(inputData = data$testing, metafeatures = metafeaturesTest, model = model,
+                                useCutoff = useCutoff,
+                                minCutoff = predictionCutoffs$min,
+                                maxCutoff = predictionCutoffs$max)
+  return(predictions)
+}
+
 #' Splits input data into training and testing sets given a specified
 #' set of testing samples. Alternatively, separate training and testing
 #' sets can be read in prior to training. However, this function is a
@@ -36,8 +108,11 @@ SplitTrainingAndTesting <- function(inputData, testingSamples){
 #' IntLimData class type.
 #' @param metafeatures The metafeatures calculated using GetTestMetaFeatures()
 #' @param model The learned model, an object of the modelResults class.
+#' @param minCutoff Mininum cutoff for the prediction.
+#' @param maxCutoff Maximum cutoff for the prediction.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
 #' @export
-PredictTesting <- function(inputData, metafeatures, model){
+PredictTesting <- function(inputData, metafeatures, model, minCutoff, maxCutoff, useCutoff = FALSE){
   
   # Set variables for further analysis.
   covar <- model@model.input@covariates
@@ -116,11 +191,9 @@ PredictTesting <- function(inputData, metafeatures, model){
   }
   
   # Final value.
-  
   denom <- weighted_sum_b2 + weighted_sum_b3
   denom[which(denom == 0)] <- 0.0001
   Y.pred <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
-  
   
   # Use activation function if output is of a character type. Note that all character
   # types are converted into factors, and since only binary factors are accepted by
@@ -134,6 +207,12 @@ PredictTesting <- function(inputData, metafeatures, model){
     }else{
       Y.pred <- round(SigmoidWithCorrection(Y.pred))
     }
+  }
+  
+  # Implement cutoff if desired.
+  if(useCutoff == TRUE){
+    Y.pred[which(Y.pred < minCutoff)] <- minCutoff
+    Y.pred[which(Y.pred > maxCutoff)] <- maxCutoff
   }
   
   return(Y.pred)

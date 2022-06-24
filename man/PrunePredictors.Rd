@@ -15,7 +15,10 @@ PrunePredictors(
   margin = 0.1,
   includeVarianceTest = includeVarianceTest,
   tolerance = 1e-05,
-  modelRetention = "stringent"
+  modelRetention = "stringent",
+  minCutoff,
+  maxCutoff,
+  useCutoff = FALSE
 )
 }
 \arguments{
@@ -45,6 +48,12 @@ Only applicable when the pruning method is error.t.test. Default is FALSE.}
 \item{modelRetention}{Strategy for model retention. "stringent" (the default)
 retains only models that improve the prediction score. "lenient" also retains models that
 neither improve nor reduce the prediction score.}
+
+\item{minCutoff}{Mininum cutoff for the prediction.}
+
+\item{maxCutoff}{Maximum cutoff for the prediction.}
+
+\item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
 }
 \value{
 A list of informative pairs

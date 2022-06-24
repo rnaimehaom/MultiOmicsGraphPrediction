@@ -4,13 +4,25 @@
 \alias{DoPrediction}
 \title{Predict Y given current weights.}
 \usage{
-DoPrediction(modelResults, prunedModels)
+DoPrediction(
+  modelResults,
+  prunedModels,
+  minCutoff = minCutoff,
+  maxCutoff = maxCutoff,
+  useCutoff = FALSE
+)
 }
 \arguments{
 \item{modelResults}{An object of the ModelResults class.}
 
 \item{prunedModels}{The models that remain after pruning. There should only
 be one model at the end.}
+
+\item{minCutoff}{Mininum cutoff for the prediction.}
+
+\item{maxCutoff}{Maximum cutoff for the prediction.}
+
+\item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
 }
 \description{
 Predict Y given current weights.

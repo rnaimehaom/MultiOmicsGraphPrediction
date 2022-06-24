@@ -12,7 +12,8 @@ OptimizeMetaFeatureCombo(
   binCount = 10,
   margin = 0.1,
   includeVarianceTest = FALSE,
-  modelRetention = "stringent"
+  modelRetention = "stringent",
+  useCutoff = FALSE
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ Only applicable when the pruning method is error.t.test. Default is FALSE.}
 \item{modelRetention}{Strategy for model retention. "stringent" (the default)
 retains only models that improve the prediction score. "lenient" also retains models that
 neither improve nor reduce the prediction score.}
+
+\item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
 }
 \description{
 Optimize the combination of predictors by metafeatures alone (in other words,

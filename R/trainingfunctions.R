@@ -4,9 +4,15 @@
 #' @param modelResults An object of the ModelResults class.
 #' @param prunedModels The models that remain after pruning.
 #' @param Y.pred The predicted phenotype value.
-Backpropagate <- function(modelResults, prunedModels, Y.pred){
+#' @param minCutoff Mininum cutoff for the prediction.
+#' @param maxCutoff Maximum cutoff for the prediction.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+Backpropagate <- function(modelResults, prunedModels, Y.pred, minCutoff, maxCutoff, useCutoff = FALSE){
   # Calculate gradient.
-  gradient <- computeGradient(modelResults = modelResults, prunedModels = prunedModels)
+  gradient <- computeGradient(modelResults = modelResults, prunedModels = prunedModels,
+                              minCutoff = minCutoff,
+                              maxCutoff = maxCutoff,
+                              useCutoff = useCutoff)
 
   # Set previous weights.
   prevWeights <- modelResults@current.metaFeature.weights
@@ -142,7 +148,10 @@ computeHessianSingleLayer <- function(modelResults, convolution, pooling){
 #' Compute the gradient for a single layer neural network.
 #' @param modelResults An object of the ModelResults class.
 #' @param prunedModels The models that remain after pruning.
-computeGradient <- function(modelResults, prunedModels){
+#' @param minCutoff Mininum cutoff for the prediction.
+#' @param maxCutoff Maximum cutoff for the prediction.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+computeGradient <- function(modelResults, prunedModels, minCutoff, maxCutoff, useCutoff = FALSE){
   
   # Extract model components.
   S <- unlist(prunedModels)
@@ -171,7 +180,10 @@ computeGradient <- function(modelResults, prunedModels){
   }))
 
   # Extract other components for gradient.
-  P_hat <- CompositePrediction(pairs = S, modelResults = modelResults)
+  P_hat <- CompositePrediction(pairs = S, modelResults = modelResults,
+                               minCutoff = minCutoff,
+                               maxCutoff = maxCutoff,
+                               useCutoff = useCutoff)
   P <- modelResults@model.input@true.phenotypes
   Beta <- modelResults@model.input@model.properties[S,]
   M <- as.data.frame(do.call(rbind, modelResults@model.input@metaFeatures)[,S])
@@ -411,10 +423,16 @@ SigmoidWithCorrection <- function(input){
 #' @param modelResults An object of the ModelResults class.
 #' @param prunedModels The models that remain after pruning. There should only
 #' be one model at the end.
-DoPrediction <- function(modelResults, prunedModels){
+#' @param minCutoff Mininum cutoff for the prediction.
+#' @param maxCutoff Maximum cutoff for the prediction.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+DoPrediction <- function(modelResults, prunedModels, minCutoff = minCutoff, maxCutoff = maxCutoff, useCutoff = FALSE){
   
   # Obtain the final prediction.
-  predictions <- CompositePrediction(pairs = unlist(prunedModels), modelResults = modelResults)
+  predictions <- CompositePrediction(pairs = unlist(prunedModels), modelResults = modelResults,
+                                     minCutoff = minCutoff, 
+                                     maxCutoff = maxCutoff, 
+                                     useCutoff = FALSE)
   Y.pred <- as.data.frame(predictions)
   colnames(Y.pred) <- 1
   rownames(Y.pred) <- names(predictions)
@@ -437,19 +455,41 @@ DoPrediction <- function(modelResults, prunedModels){
   return(Y.pred)
 }
 
+#' Calculate minimum and maximum cutoffs for prediction.
+#' @param modelResults An object of the ModelResults class.
+CalculatePredictionCutoffs <- function(modelResults){
+  fudgeFactor <- 0.1
+  maxTrue <- max(modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype])
+  minTrue <- min(modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype])
+  marginMax <- fudgeFactor * abs(maxTrue)
+  marginMin <- fudgeFactor * abs(minTrue)
+  minCutoff <- minTrue - marginMin
+  maxCutoff <- maxTrue + marginMax
+  return(list(min = minCutoff, max = maxCutoff))
+}
+
 #' Train the graph learning model, using the specifications in the ModelResults
 #' class and storing the results in the ModelResults class.
 #' @param modelResults An object of the ModelResults class.
 #' @param prunedModels The models that remain after pruning.
-DoSingleTrainingIteration <- function(modelResults, prunedModels){
+#' @param minCutoff Mininum cutoff for the prediction.
+#' @param maxCutoff Maximum cutoff for the prediction.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+DoSingleTrainingIteration <- function(modelResults, prunedModels, minCutoff, maxCutoff, useCutoff = FALSE){
   # Predict Y.
-  Y.pred <- DoPrediction(modelResults, prunedModels)
+  Y.pred <- DoPrediction(modelResults, prunedModels,
+                         minCutoff = minCutoff,
+                         maxCutoff = maxCutoff,
+                         useCutoff = useCutoff)
   modelResults@outcome.prediction <- as.numeric(as.matrix(Y.pred))
 
   # Backpropagate and calculate the error.
   modelResults <- Backpropagate(modelResults = modelResults,
                                 prunedModels = prunedModels,
-                                Y.pred = Y.pred)
+                                Y.pred = Y.pred,
+                                minCutoff = minCutoff,
+                                maxCutoff = maxCutoff,
+                                useCutoff = useCutoff)
 
   # Modify the model results and return.
   return(modelResults)

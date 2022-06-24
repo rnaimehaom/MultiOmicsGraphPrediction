@@ -13,11 +13,15 @@
 #' @param modelRetention Strategy for model retention. "stringent" (the default)
 #' retains only models that improve the prediction score. "lenient" also retains models that
 #' neither improve nor reduce the prediction score.
+#' @param minCutoff Mininum cutoff for the prediction.
+#' @param maxCutoff Maximum cutoff for the prediction.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
 #' @return A final predicted value for each sample in the input data
 #' @export
 DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose = FALSE, makePlots = FALSE,
                                       pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
-                                      includeVarianceTest = FALSE, modelRetention = "stringent"){
+                                      includeVarianceTest = FALSE, modelRetention = "stringent",
+                                      minCutoff, maxCutoff, useCutoff = FALSE){
   # Initialize consolidated pairs.
   consolidated <- list(compositeModels = pairs, expandedCompositeModels = pairs, 
                        mapping = data.frame(from = 1:length(unlist(pairs)),
@@ -35,7 +39,10 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               binCount = binCount,
                                                               margin = margin,
                                                               includeVarianceTest = includeVarianceTest,
-                                                              modelRetention = modelRetention)
+                                                              modelRetention = modelRetention,
+                                                              minCutoff = minCutoff,
+                                                              maxCutoff = maxCutoff,
+                                                              useCutoff = useCutoff)
 
     consolidated <- MultiOmicsGraphPrediction::ObtainCompositeModels(pairsInEachPredictor = consolidated$expandedCompositeModels, 
                                                                      importantModels = prunedPairs)
@@ -56,7 +63,10 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               binCount = binCount,
                                                               margin = margin,
                                                               includeVarianceTest = includeVarianceTest,
-                                                              modelRetention = modelRetention)
+                                                              modelRetention = modelRetention,
+                                                              minCutoff = minCutoff,
+                                                              maxCutoff = maxCutoff,
+                                                              useCutoff = useCutoff)
   }
   
   # Return consolidated pairs.
@@ -65,13 +75,13 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
 
 #' Obtain a prediction from a composite model, given the pairs to include in the model.
 #' @param pairs A list of pairs to include in the composite model.
-#' @param IntLIMresults The filtered results obtained from the IntLIM function
-#' ProcessRe
 #' @param modelResults A ModelResults object.
-#' @param covar Covariates to be used in the model.
+#' @param minCutoff Mininum cutoff for the prediction.
+#' @param maxCutoff Maximum cutoff for the prediction.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
 #' @return A final predicted value for each sample in the input data
 #' @export
-CompositePrediction <- function(pairs, modelResults){
+CompositePrediction <- function(pairs, modelResults, minCutoff, maxCutoff, useCutoff = FALSE){
 
   # Set variables for further analysis.
   covar <- modelResults@model.input@covariates
@@ -141,10 +151,16 @@ CompositePrediction <- function(pairs, modelResults){
   }
   
   # Final value.
-  
   denom <- weighted_sum_b2 + weighted_sum_b3
   denom[which(denom == 0)] <- 0.0001
   final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
+  
+  # Implement cutoff if desired.
+  if(useCutoff == TRUE){
+    final_val[which(final_val < minCutoff)] <- minCutoff
+    final_val[which(final_val > maxCutoff)] <- maxCutoff
+  }
+  
   return(final_val)
 }
 
@@ -480,12 +496,15 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
 #' @param modelRetention Strategy for model retention. "stringent" (the default)
 #' retains only models that improve the prediction score. "lenient" also retains models that
 #' neither improve nor reduce the prediction score.
+#' @param minCutoff Mininum cutoff for the prediction.
+#' @param maxCutoff Maximum cutoff for the prediction.
+#' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
 #' @return A list of informative pairs
 #' @export
 PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE,
                             pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
                             includeVarianceTest = includeVarianceTest, tolerance = 1e-5,
-                            modelRetention = "stringent"){
+                            modelRetention = "stringent", minCutoff, maxCutoff, useCutoff = FALSE){
   
   # Extract relevant information.
   pairs <- compositeSubgraphs$compositeModels
@@ -499,7 +518,10 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     
     # Initialize the predictor to include all pairs in the composite subgraph.
     compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairs[[i]], 
-                                                                     modelResults = modelResults)
+                                                                     modelResults = modelResults,
+                                                                     minCutoff = minCutoff,
+                                                                     maxCutoff = maxCutoff,
+                                                                     useCutoff = useCutoff)
     significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel), 
                                                                    trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
                                                                    pruningMethod = pruningMethod,
@@ -525,7 +547,10 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       modelPairs <- unlist(importantPairs[m])
       
       compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = modelPairs,
-                                                                       modelResults = modelResults)
+                                                                       modelResults = modelResults,
+                                                                       minCutoff = minCutoff,
+                                                                       maxCutoff = maxCutoff,
+                                                                       useCutoff = useCutoff)
       significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
                                                                      trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
                                                                      pruningMethod = pruningMethod,
@@ -550,7 +575,10 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       pairsToInclude <- intersect(unlist(importantPairs), unlist(previousModels[modelsToInclude]))
       if(length(pairsToInclude) > 0){
         compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsToInclude,
-                                                                         modelResults = modelResults)
+                                                                         modelResults = modelResults,
+                                                                         minCutoff = minCutoff,
+                                                                         maxCutoff = maxCutoff,
+                                                                         useCutoff = useCutoff)
         significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
                                                                        trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
                                                                        pruningMethod = pruningMethod,

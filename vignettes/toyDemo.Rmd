@@ -307,43 +307,71 @@ for(sample in rownames(inputData@sampleMetaData)){
   # Split into training and testing data.
   data <- MultiOmicsGraphPrediction::SplitTrainingAndTesting(inputData = inputData, testingSamples = sample)
   
+  # Initialize parameters.
+  metaFeatureList <- c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr")
+  stype <- "age"
+  outcomeType <- 1
+  independentVarType <- 2
+  
   # Run prediction.
   modelResults.cv <- DoModelSetup(inputData = data$training,
-                                  stype = "age",
-                                  outcomeType = 1,
-                                  independentVarType = 2,
+                                  stype = stype,
+                                  outcomeType = outcomeType,
+                                  independentVarType = independentVarType,
                                   continuous = TRUE,
-                                  metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
+                                  metaFeatureList = metaFeatureList,
                                   learningRate = 0.2)
   optimalModel.cv <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv,
                                                                    pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = FALSE)
 
-  pred.cv <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = optimalModel.cv@model.input@model.properties,
-                                                         inputData = data$training,
-                                                         stype = "age",
-                                                         independentVarType = 2,
-                                                         outcomeType = 1)
-  pred.cv.test <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = optimalModel.cv@model.input@model.properties,
-                                                         inputData = data$testing,
-                                                         stype = "age",
-                                                         independentVarType = 2,
-                                                         outcomeType = 1)
+  # Predict testing values.
+  predictions <- DoTestSetupAndPrediction(inputDataTrain = data$training, 
+                                          inputDataTest = data$testing, 
+                                          model = optimalModel.cv, 
+                                          metaFeatureList = metaFeatureList,
+                                          stype = stype,
+                                          independentVarType = independentVarType, 
+                                          outcomeType = outcomeType)
+  print(optimalModel.cv@pairs)
+  print(paste(sample, predictions, data$testing@sampleMetaData$age))
+}
+```
 
-  # Get metafeatures for testing.
-  metafeaturesTest <- MultiOmicsGraphPrediction::GetTestMetaFeatures(predictionsTrain = pred.cv,
-                                                                  predictionsTest = pred.cv.test,
-                                                                 stype = "age",
-                                                                 inputDataTrain = data$training,
-                                                                  inputDataTest = data$testing,
-                                                                 metaFeatureList = c("pdf",
-                                                                                     "interactionpval", "interactioncoef", "analytecoef", "localerr"),
-                                                                 k = 2, eigStep = 1,
-                                                                 modelStats = optimalModel.cv@model.input@model.properties,
-                                                                 colIdInd = "databaseId",
-                                                                 colIdOut = "databaseId")
+# Test Performance With Prediction Cutoffs
+We perform the same test with prediction cutoffs. The result does not change.
+```{r}
+for(sample in rownames(inputData@sampleMetaData)){
+  print(sample)
+  # Split into training and testing data.
+  data <- MultiOmicsGraphPrediction::SplitTrainingAndTesting(inputData = inputData, testingSamples = sample)
+  
+  # Initialize parameters.
+  metaFeatureList <- c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr")
+  stype <- "age"
+  outcomeType <- 1
+  independentVarType <- 2
+  
+  # Run prediction.
+  modelResults.cv <- DoModelSetup(inputData = data$training,
+                                  stype = stype,
+                                  outcomeType = outcomeType,
+                                  independentVarType = independentVarType,
+                                  continuous = TRUE,
+                                  metaFeatureList = metaFeatureList,
+                                  learningRate = 0.2)
+  optimalModel.cv <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv,
+                                                                   pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = FALSE,
+                                                                   useCutoff = TRUE)
 
   # Predict testing values.
-  predictions <- PredictTesting(inputData = data$testing, metafeatures = metafeaturesTest, model = optimalModel.cv)
+  predictions <- DoTestSetupAndPrediction(inputDataTrain = data$training, 
+                                          inputDataTest = data$testing, 
+                                          model = optimalModel.cv, 
+                                          metaFeatureList = metaFeatureList,
+                                          stype = stype,
+                                          independentVarType = independentVarType, 
+                                          outcomeType = outcomeType,
+                                          useCutoff = TRUE)
   print(optimalModel.cv@pairs)
   print(paste(sample, predictions, data$testing@sampleMetaData$age))
 }

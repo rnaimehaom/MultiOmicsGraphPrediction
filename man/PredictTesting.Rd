@@ -4,7 +4,14 @@
 \alias{PredictTesting}
 \title{Run a prediction on new data using the graph learning model.}
 \usage{
-PredictTesting(inputData, metafeatures, model)
+PredictTesting(
+  inputData,
+  metafeatures,
+  model,
+  minCutoff,
+  maxCutoff,
+  useCutoff = FALSE
+)
 }
 \arguments{
 \item{inputData}{The input testing data, which should be of an 
@@ -13,6 +20,12 @@ IntLimData class type.}
 \item{metafeatures}{The metafeatures calculated using GetTestMetaFeatures()}
 
 \item{model}{The learned model, an object of the modelResults class.}
+
+\item{minCutoff}{Mininum cutoff for the prediction.}
+
+\item{maxCutoff}{Maximum cutoff for the prediction.}
+
+\item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
 }
 \description{
 Run a prediction on new data using the graph learning model.

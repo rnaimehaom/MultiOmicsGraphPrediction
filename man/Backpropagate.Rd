@@ -6,7 +6,14 @@
 is computed by taking partial derivatives for each of the model weights. Given
 a learning rate, the weights are adjusted according to the gradient.}
 \usage{
-Backpropagate(modelResults, prunedModels, Y.pred)
+Backpropagate(
+  modelResults,
+  prunedModels,
+  Y.pred,
+  minCutoff,
+  maxCutoff,
+  useCutoff = FALSE
+)
 }
 \arguments{
 \item{modelResults}{An object of the ModelResults class.}
@@ -14,6 +21,12 @@ Backpropagate(modelResults, prunedModels, Y.pred)
 \item{prunedModels}{The models that remain after pruning.}
 
 \item{Y.pred}{The predicted phenotype value.}
+
+\item{minCutoff}{Mininum cutoff for the prediction.}
+
+\item{maxCutoff}{Maximum cutoff for the prediction.}
+
+\item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
 }
 \description{
 Run backpropagation for a single layer. In backpropagation, a gradient is
