@@ -83,84 +83,15 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
 #' @export
 CompositePrediction <- function(pairs, modelResults, minCutoff, maxCutoff, useCutoff = FALSE){
 
-  # Set variables for further analysis.
-  covar <- modelResults@model.input@covariates
-  covariates <- modelResults@model.input@model.properties
-  analyteTgtVals <- modelResults@model.input@input.data@analyteType1
-  if(modelResults@model.input@outcome == 2){
-    analyteTgtVals <- modelResults@model.input@input.data@analyteType2
-  }
-  analyteSrcVals <- modelResults@model.input@input.data@analyteType2
-  if(modelResults@model.input@independent.var.type == 1){
-    analyteSrcVals <- modelResults@model.input@input.data@analyteType1
-  }
-  covariateVals <- modelResults@model.input@input.data@sampleMetaData
-  weights <- ComputeMetaFeatureWeights(modelResults = modelResults,
-                                       metaFeatures = modelResults@model.input@metaFeatures)
-
-  # Analyte 1
-  weighted_a1 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_a1 <- weighted_a1 + weights[,pair] * analyteTgtVals[strsplit(pair, "__")[[1]][2],]
-  }
-  
-  # beta0
-  weighted_sum_b0 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b0 <- weighted_sum_b0 + weights[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
-  }
-  
-  # beta1
-  weighted_sum_b1 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
-      analyteSrcVals[strsplit(pair, "__")[[1]][1],]
-  }
-  
-  # beta2
-  weighted_sum_b2 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b2 <- weighted_sum_b2 + weights[,pair] * rep(covariates[pair, "type"], nrow(weights))
-  }
-  
-  # beta3
-  weighted_sum_b3 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
-      analyteSrcVals[strsplit(pair, "__")[[1]][1],]
-  }
-  
-  # covariates
-  weighted_sum_covars <- rep(0, nrow(weights))
-  if(length(covar) > 0){
-    weighted_sum_each <- lapply(covar, function(c){
-      weighted_sum <- rep(0, nrow(weights))
-      for(i in 1:length(pairs)){
-        pair <- pairs[[i]]
-        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
-          covariateVals[,c]
-      }
-      return(weighted_sum)
-    })
-    weighted_sum_covars <- Reduce('+', weighted_sum_each)
-  }
-  
-  # Final value.
-  denom <- weighted_sum_b2 + weighted_sum_b3
-  denom[which(denom == 0)] <- 0.0001
-  final_val <- (weighted_a1 - weighted_sum_b0 - weighted_sum_b1 - weighted_sum_covars) / denom
-  
-  # Implement cutoff if desired.
-  if(useCutoff == TRUE){
-    final_val[which(final_val < minCutoff)] <- minCutoff
-    final_val[which(final_val > maxCutoff)] <- maxCutoff
-  }
-  
+  # Run prediction for training data.
+  final_val <- Predict(pairs = pairs,
+    inputData = modelResults@model.input@input.data, 
+                       metafeatures = modelResults@model.input@metaFeatures, 
+                       model = modelResults, 
+                       minCutoff = minCutoff, 
+                       maxCutoff = maxCutoff, 
+                       useCutoff = useCutoff,
+                      useActivation = FALSE)
   return(final_val)
 }
 

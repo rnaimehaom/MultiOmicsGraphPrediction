@@ -63,7 +63,10 @@ DoTestSetupAndPrediction <- function(inputDataTrain, inputDataTest, model, stype
                                                                      colIdOut = colIdOut)
   
   # Predict testing values.
-  predictions <- PredictTesting(inputData = data$testing, metafeatures = metafeaturesTest, model = model,
+  predictions <- Predict(pairs = model@pairs,
+                         inputData = data$testing, 
+                         metafeatures = metafeaturesTest, 
+                         model = model,
                                 useCutoff = useCutoff,
                                 minCutoff = predictionCutoffs$min,
                                 maxCutoff = predictionCutoffs$max)
@@ -104,6 +107,7 @@ SplitTrainingAndTesting <- function(inputData, testingSamples){
 }
 
 #' Run a prediction on new data using the graph learning model.
+#' @param pairs A list of pairs to include in the composite model.
 #' @param inputData The input testing data, which should be of an 
 #' IntLimData class type.
 #' @param metafeatures The metafeatures calculated using GetTestMetaFeatures()
@@ -111,8 +115,11 @@ SplitTrainingAndTesting <- function(inputData, testingSamples){
 #' @param minCutoff Mininum cutoff for the prediction.
 #' @param maxCutoff Maximum cutoff for the prediction.
 #' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+#' @param useActivation Whether or not to use the activation function if the phenotype
+#' to predict is a factor. Default is TRUE. We set to FALSE during training.
 #' @export
-PredictTesting <- function(inputData, metafeatures, model, minCutoff, maxCutoff, useCutoff = FALSE){
+Predict <- function(pairs, inputData, metafeatures, model, minCutoff, maxCutoff, useCutoff = FALSE,
+                    useActivation = TRUE){
   
   # Set variables for further analysis.
   covar <- model@model.input@covariates
@@ -131,37 +138,37 @@ PredictTesting <- function(inputData, metafeatures, model, minCutoff, maxCutoff,
   
   # Analyte 1
   weighted_a1 <- rep(0, nrow(weights))
-  for(i in 1:length(model@pairs)){
-    pair <- model@pairs[[i]]
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
     weighted_a1 <- weighted_a1 + weights[,pair] * analyteTgtVals[strsplit(pair, "__")[[1]][2],]
   }
   
   # beta0
   weighted_sum_b0 <- rep(0, nrow(weights))
-  for(i in 1:length(model@pairs)){
-    pair <- model@pairs[[i]]
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
     weighted_sum_b0 <- weighted_sum_b0 + weights[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
   }
   
   # beta1
   weighted_sum_b1 <- rep(0, nrow(weights))
-  for(i in 1:length(model@pairs)){
-    pair <- model@pairs[[i]]
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
     weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
       analyteSrcVals[strsplit(pair, "__")[[1]][1],]
   }
   
   # beta2
   weighted_sum_b2 <- rep(0, nrow(weights))
-  for(i in 1:length(model@pairs)){
-    pair <- model@pairs[[i]]
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
     weighted_sum_b2 <- weighted_sum_b2 + weights[,pair] * rep(covariates[pair, "type"], nrow(weights))
   }
   
   # beta3
   weighted_sum_b3 <- rep(0, nrow(weights))
-  for(i in 1:length(model@pairs)){
-    pair <- model@pairs[[i]]
+  for(i in 1:length(pairs)){
+    pair <- pairs[[i]]
     weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
       analyteSrcVals[strsplit(pair, "__")[[1]][1],]
   }
@@ -171,8 +178,8 @@ PredictTesting <- function(inputData, metafeatures, model, minCutoff, maxCutoff,
   if(length(covar) > 0){
     weighted_sum_each <- lapply(covar, function(c){
       weighted_sum <- rep(0, nrow(weights))
-      for(i in 1:length(model@pairs)){
-        pair <- model@pairs[[i]]
+      for(i in 1:length(pairs)){
+        pair <- pairs[[i]]
         tryCatch({
           weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
             covariateVals[,c]
@@ -199,7 +206,7 @@ PredictTesting <- function(inputData, metafeatures, model, minCutoff, maxCutoff,
   # types are converted into factors, and since only binary factors are accepted by
   # the package, the values will be 1 (for the alphanumerically lowest level) and 2
   # (for the alphanumerically highest level).
-  if(model@model.input@outcome.type == "categorical"){
+  if(model@model.input@outcome.type == "categorical" && useActivation == TRUE){
     if(model@activation.type == "softmax"){
       Y.pred <- round(SoftmaxWithCorrection(Y.pred))
     }else if(model@activation.type == "tanh"){
