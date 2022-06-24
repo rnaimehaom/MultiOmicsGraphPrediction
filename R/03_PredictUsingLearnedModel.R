@@ -221,6 +221,6 @@ Predict <- function(pairs, inputData, metafeatures, model, minCutoff, maxCutoff,
     Y.pred[which(Y.pred < minCutoff)] <- minCutoff
     Y.pred[which(Y.pred > maxCutoff)] <- maxCutoff
   }
-  
+
   return(Y.pred)
 }

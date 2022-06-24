@@ -432,7 +432,7 @@ DoPrediction <- function(modelResults, prunedModels, minCutoff = minCutoff, maxC
   predictions <- CompositePrediction(pairs = unlist(prunedModels), modelResults = modelResults,
                                      minCutoff = minCutoff, 
                                      maxCutoff = maxCutoff, 
-                                     useCutoff = FALSE)
+                                     useCutoff = useCutoff)
   Y.pred <- as.data.frame(predictions)
   colnames(Y.pred) <- 1
   rownames(Y.pred) <- names(predictions)

@@ -289,7 +289,10 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                                                                        maxCutoff = predictionCutoffs$max)
   
   # Set initial error.
-  Y.pred <- DoPrediction(modelResults = modelResults, prunedModels = prunedModels)
+  Y.pred <- DoPrediction(modelResults = modelResults, prunedModels = prunedModels,
+                         useCutoff = useCutoff,
+                         minCutoff = predictionCutoffs$min,
+                         maxCutoff = predictionCutoffs$max)
   if(modelResults@model.input@outcome.type == "categorical"){
     modelResults@iteration.tracking$Error[1] <- 
       ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
