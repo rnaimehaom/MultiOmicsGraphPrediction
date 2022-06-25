@@ -7,8 +7,8 @@
 PlotGraphPredictionsAllFolds(
   graphs,
   inputDataFolds,
-  saveInDir = NULL,
-  vertices = NULL,
+  saveInDir = "",
+  vertices = c(),
   truncateTo = 4
 )
 }
@@ -19,15 +19,15 @@ PlotGraphPredictionsAllFolds(
 CreateCrossValidationFolds()) with gene expression, metabolite abundances, 
 and associated meta-data}
 
-\item{saveInDir}{Directory where file should be saved. If NULL, then the output
-is plotted without being saved. Default is NULL.}
+\item{saveInDir}{Directory where file should be saved. If "", then the output
+is plotted without being saved. Default is "".}
 
 \item{vertices}{List of vectors of vertices to plot. This is used if one
-wishes to focus on a subset of vertices. If NULL, then all vertices are plotted.
-Default is NULL.}
+wishes to focus on a subset of vertices. If c(), then all vertices are plotted.
+Default is c().}
 
 \item{truncateTo}{Vertex names are truncated to the first "truncateTo" characters.
-Default is 4. If NULL, names are not truncated.}
+Default is 4. If -1, names are not truncated.}
 }
 \description{
 Wrapper for PlotGraphPredictions.

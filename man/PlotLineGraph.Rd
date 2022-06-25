@@ -8,15 +8,15 @@ Include a color scale for the predictions.}
 PlotLineGraph(
   modelResults,
   stype,
-  subset = NULL,
-  saveInDir = NULL,
+  subset = c(),
+  saveInDir = "",
   truncateTo = 2,
   weights = FALSE,
-  analytes = NULL,
+  analytes = c(),
   includeLabels = TRUE,
-  cutoffs = NULL,
+  cutoffs = c(0, 0),
   vertexSize = 10,
-  sampSubset = NULL
+  sampSubset = c()
 )
 }
 \arguments{
@@ -24,28 +24,30 @@ PlotLineGraph(
 
 \item{stype}{Outcome / phenotype}
 
-\item{subset}{The subset of predictors to include. If NULL, then all nodes
+\item{subset}{The subset of predictors to include. If c(), then all nodes
 will be plotted.}
 
-\item{saveInDir}{Directory where file should be saved. If NULL, then the output
-is plotted without being saved. Default is NULL.}
+\item{saveInDir}{Directory where file should be saved. If "", then the output
+is plotted without being saved. Default is ""}
 
 \item{truncateTo}{Analyte names are truncated to the first "truncateTo" characters.
-Default is 4. If NULL, names are not truncated.}
+Default is 4. If -1, names are not truncated.}
 
 \item{weights}{Whether or not to encode weights in the opacity of the nodes.
 Defaults to FALSE.}
 
-\item{analytes}{analytes of interest. Default is NULL}
+\item{analytes}{List of vectors of analytes to plot. This is used if one
+wishes to focus on a subset of analytes If c(), then all vertices are plotted.
+Default is c().}
 
 \item{includeLabels}{whether or not to include labels. Defaults to TRUE.}
 
 \item{cutoffs}{Cutoff weight values, which can be included for visibility.
-Default is NULL.}
+Default is c(0,0), or no cutoff.}
 
 \item{vertexSize}{Vertex size to use in display.}
 
-\item{sampSubset}{Samples to plot.}
+\item{sampSubset}{Samples to plot. If c(), all samples are plotted.}
 }
 \description{
 Plot the line graph for each sample with nodes colored according to prediction.

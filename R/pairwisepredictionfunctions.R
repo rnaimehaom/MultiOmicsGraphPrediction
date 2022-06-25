@@ -15,13 +15,13 @@
 #' @param independentVarType The independent variable type (1 or 2)
 #' @param outcomeType The outcome type (1 or 2)
 #' @export
-RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NULL,
+RunPairwisePrediction <- function(inputResults, inputData, stype="", covar=c(),
                                   independentVarType = 2, outcomeType = 1){
   
   # Extract data needed for model.
   covariates <- inputData@sampleMetaData
-  independent.vars <- NULL
-  dependent.vars <- NULL
+  independent.vars <- data.frame()
+  dependent.vars <- data.frame()
   independent.vars <- as.data.frame(inputData@analyteType1)
   if(independentVarType == 2){
     independent.vars <- as.data.frame(inputData@analyteType2)
@@ -69,9 +69,9 @@ RunPairwisePrediction <- function(inputResults, inputData, stype=NULL, covar=NUL
   
   # If there are covariates, include the covariate terms in the prediction
   # by subtracting them.
-  if(!is.null(covar)) {
+  if(length(covar) > 0) {
     all_cov_terms<- lapply(covar, function(cov_name){
-      this_covariate_term <- NULL
+      this_covariate_term <- matrix()
       
       # We expect that the terms are one-hot-encoded now, so it should be numeric.
       this_coefficient_mat <- matrix(coefficients[,cov_name], 

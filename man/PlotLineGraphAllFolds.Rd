@@ -7,10 +7,10 @@
 PlotLineGraphAllFolds(
   modelInputs,
   stype,
-  saveInDir = NULL,
-  analytes = NULL,
+  saveInDir = "",
+  analytes = c(),
   truncateTo = 2,
-  weights = NULL
+  weights = c()
 )
 }
 \arguments{
@@ -18,18 +18,18 @@ PlotLineGraphAllFolds(
 
 \item{stype}{Outcome / phenotype}
 
-\item{saveInDir}{Directory where file should be saved. If NULL, then the output
-is plotted without being saved. Default is NULL.}
+\item{saveInDir}{Directory where file should be saved. If "", then the output
+is plotted without being saved. Default is "".}
 
 \item{analytes}{List of vectors of analytes to plot. This is used if one
-wishes to focus on a subset of analytes If NULL, then all vertices are plotted.
-Default is NULL.}
+wishes to focus on a subset of analytes If c(), then all vertices are plotted.
+Default is c().}
 
 \item{truncateTo}{Analyte names are truncated to the first "truncateTo" characters.
-Default is 2. If NULL, names are not truncated.}
+Default is 2. If c(), names are not truncated.}
 
 \item{weights}{The list of weights assigned to each node. This is encoded using opacity.
-If NULL, all nodes are opaque. Default is NULL.}
+If c(), all nodes are opaque. Default is c().}
 }
 \description{
 Wrapper for PlotLineGraph.

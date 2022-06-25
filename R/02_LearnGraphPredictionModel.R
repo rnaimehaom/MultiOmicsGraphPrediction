@@ -10,7 +10,7 @@
 #' @param optimizationType Type of optimization. May be "SGD", "momentum",
 #' "adagrad", or "adam". Default is "SGD".
 #' @param initialMetaFeatureWeights Initial weights for model meta-features. Default
-#' is NULL, which results in each meta-feature being given equal weight.
+#' is 0, which results in each meta-feature being given equal weight.
 #' @export
 InitializeGraphLearningModel <- function(modelInputs,
                                          iterations = 1000,
@@ -19,7 +19,7 @@ InitializeGraphLearningModel <- function(modelInputs,
                                          learningRate = 0.2,
                                          activationType = "none", 
                                          optimizationType = "SGD",
-                                         initialMetaFeatureWeights = NULL){
+                                         initialMetaFeatureWeights = 0){
   # Initialize metafeature weights.
   weights_count <- length(modelInputs@metaFeatures)
   wt_name <- names(modelInputs@metaFeatures)
@@ -38,7 +38,7 @@ InitializeGraphLearningModel <- function(modelInputs,
   max_phen <- max(modelInputs@true.phenotypes)
   num_nodes <- nrow(modelInputs@node.wise.prediction)
   weights <- as.matrix(rep(1 / weights_count, weights_count))
-  if(!is.null(initialMetaFeatureWeights)){
+  if(initialMetaFeatureWeights != 0){
     weights <- initialMetaFeatureWeights
   }
   names(weights) <- names(modelInputs@metaFeatures)
@@ -79,9 +79,6 @@ InitializeGraphLearningModel <- function(modelInputs,
 #' @param stype The phenotype or outcome of interest
 #' @param covariates A list of covariates to include in the model. These will be in the
 #' sampleMetaData slot of the inputData variable.
-#' @param predictorBounds Upper and lower bounds for predictors. Predictors outside
-#' of these bounds for a sample will not be included in the final prediction for that sample. 
-#' Defaults to c(NA,NA), meaning that no predictors will be removed.
 #' @param edgeTypeList List containing one or more of the following to include
 #' in the line graph:
 #' - "shared.outcome.analyte"
@@ -94,7 +91,7 @@ InitializeGraphLearningModel <- function(modelInputs,
 #' @export
 FormatInput <- function(predictionGraphs, coregulationGraph, metaFeatures, modelProperties,
                         inputData, stype.class, edgeTypeList, stype, verbose = FALSE, covariates = list(),
-                        predictorBounds = c(NA,NA), outcome = 2, independent.var.type = 2){
+                        outcome = 2, independent.var.type = 2){
   
   # Extract edge-wise predictions.
   predictions_by_node <- lapply(names(predictionGraphs), function(sampName){
@@ -227,7 +224,7 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
     
     # Find all line graph nodes starting with or ending with the analyte in question.
     node <- nodes[i]
-    combs <- NULL
+    combs <- 0
     set_with_1 <- predictionsByEdge$Node[which(graph_df[,nodeType1] == node)]
     set_with_2 <- predictionsByEdge$Node[which(graph_df[,nodeType2] == node)]
     

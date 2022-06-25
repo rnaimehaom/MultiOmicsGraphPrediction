@@ -169,8 +169,8 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
   }
   if("localerr" %in% metaFeatureList){
     print("Computing Local Error importance")
-    trueVals <- inputData@sampleMetaData[,stype]
-    names(trueVals) <- rownames(inputData@sampleMetaData)
+    trueVals <- inputDataTrain@sampleMetaData[,stype]
+    names(trueVals) <- rownames(inputDataTrain@sampleMetaData)
     metaFeatures$localerr <- ComputeLocalErrorImportanceTest(predictions = predictionsTrain, 
                                                     true = trueVals,
                                                     k = k,
@@ -184,7 +184,7 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
   if("globalerr" %in% metaFeatureList){  
     print("Computing Global Error importance")
     metaFeatures$globalerr <- ComputeGlobalErrorImportance(predictions = predictionsTrain, 
-                                                      true = inputData@sampleMetaData[,stype])
+                                                      true = inputDataTrain@sampleMetaData[,stype])
     # Adjust dimensionality for test data.
     metaFeatures$globalerr <- t(matrix(rep(metaFeatures$globalerr[1,], nrow(predictionsTest),
                                          ncol = nrow(predictionsTest))))
@@ -198,8 +198,8 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
                                                 colIdInd = colIdInd,
                                                 colIdOut = colIdOut)
     # Adjust dimensionality for test data.
-    metaFeatures$pathway <- t(matrix(rep(metaFeatures$pathway[1,], nrow(predictionsTest),
-                                                 ncol = nrow(predictionsTest))))
+    metaFeatures$pathway <- t(matrix(rep(metaFeatures$pathway[1,], nrow(predictionsTest)),
+                                                 ncol = nrow(predictionsTest)))
     rownames(metaFeatures$pathway) <- rownames(predictionsTest)
     colnames(metaFeatures$pathway) <- colnames(predictionsTest)
   }
@@ -210,8 +210,8 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
                                                   colIdInd = colIdInd,
                                                   colIdOut = colIdOut)
     # Adjust dimensionality for test data.
-    metaFeatures$reaction <- t(matrix(rep(metaFeatures$reaction[1,], nrow(predictionsTest),
-                                           ncol = nrow(predictionsTest))))
+    metaFeatures$reaction <- t(matrix(rep(metaFeatures$reaction[1,], nrow(predictionsTest)),
+                                           ncol = nrow(predictionsTest)))
     rownames(metaFeatures$reaction) <- rownames(predictionsTest)
     colnames(metaFeatures$reaction) <- colnames(predictionsTest)
   }
@@ -219,8 +219,8 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
     print("Computing Interaction Term p-Value importance")
     metaFeatures$interactionpval <- ComputePvalImportance(predictions = predictionsTrain, 
                                                      modelStats = modelStats)
-    metaFeatures$interactionpval <- t(matrix(rep(metaFeatures$interactionpval[1,], nrow(predictionsTest),
-                                       ncol = nrow(predictionsTest))))
+    metaFeatures$interactionpval <- t(matrix(rep(metaFeatures$interactionpval[1,], nrow(predictionsTest)),
+                                       ncol = nrow(predictionsTest)))
     rownames(metaFeatures$interactionpval) <- rownames(predictionsTest)
     colnames(metaFeatures$interactionpval) <- colnames(predictionsTest)
   }
@@ -229,8 +229,8 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
     metaFeatures$interactioncoef <- ComputeInteractionCoefImportance(predictions = predictionsTrain, 
                                                                 modelStats = modelStats)
     # Adjust dimensionality for test data.
-    metaFeatures$interactioncoef <- t(matrix(rep(metaFeatures$interactioncoef[1,], nrow(predictionsTest),
-                                          ncol = nrow(predictionsTest))))
+    metaFeatures$interactioncoef <- t(matrix(rep(metaFeatures$interactioncoef[1,], nrow(predictionsTest)),
+                                          ncol = nrow(predictionsTest)))
     rownames(metaFeatures$interactioncoef) <- rownames(predictionsTest)
     colnames(metaFeatures$interactioncoef) <- colnames(predictionsTest)
   }
@@ -240,8 +240,8 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
                                                         modelStats = modelStats)
     
     # Adjust dimensionality for test data.
-    metaFeatures$analytecoef <- t(matrix(rep(metaFeatures$analytecoef[1,], nrow(predictionsTest),
-                                                 ncol = nrow(predictionsTest))))
+    metaFeatures$analytecoef <- t(matrix(rep(metaFeatures$analytecoef[1,], nrow(predictionsTest)),
+                                                 ncol = nrow(predictionsTest)))
     rownames(metaFeatures$analytecoef) <- rownames(predictionsTest)
     colnames(metaFeatures$analytecoef) <- colnames(predictionsTest)
   }
@@ -564,11 +564,11 @@ FindOptimalSubspaceClustering <- function(type1Similarity, type2Similarity,
   }
   else{
     # Initialize.
-    L_mod <- NULL
-    dendro <- NULL
-    optimal_eigens <- NULL
-    optimal_alpha <- NULL
-    coph_cor <- NULL
+    L_mod <- matrix()
+    dendro <- -1
+    optimal_eigens <- -1
+    optimal_alpha <- -1
+    coph_cor <- matrix()
     
     # Do grid search.
     for(eig in seq(from=1,to=dim(type1Similarity)[1],by=eigStep)){
@@ -590,7 +590,7 @@ FindOptimalSubspaceClustering <- function(type1Similarity, type2Similarity,
         coph_cor_i <- stats::cor(coph_i, d)
         
         # If cophenetic correlation is higher than previous, save.
-        if(is.null(coph_cor) || coph_cor_i > coph_cor){
+        if(length(coph_cor) > 1 || is.na(coph_cor_i > coph_cor) || coph_cor_i > coph_cor){
           coph_cor <- coph_cor_i
           L_mod <- L_mod_i
           dendro <- dend

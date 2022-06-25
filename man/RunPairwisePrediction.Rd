@@ -12,8 +12,8 @@ p ~ (m - (beta0 + beta1(g) + beta4...n(covariates)) / (beta2 + beta3(g))}
 RunPairwisePrediction(
   inputResults,
   inputData,
-  stype = NULL,
-  covar = NULL,
+  stype = "",
+  covar = c(),
   independentVarType = 2,
   outcomeType = 1
 )

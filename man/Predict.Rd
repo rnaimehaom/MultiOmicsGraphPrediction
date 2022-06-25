@@ -12,7 +12,9 @@ Predict(
   minCutoff,
   maxCutoff,
   useCutoff = FALSE,
-  useActivation = TRUE
+  useActivation = TRUE,
+  independentVarType,
+  outcomeType
 )
 }
 \arguments{
@@ -33,6 +35,10 @@ IntLimData class type.}
 
 \item{useActivation}{Whether or not to use the activation function if the phenotype
 to predict is a factor. Default is TRUE. We set to FALSE during training.}
+
+\item{independentVarType}{The independent variable type (1 or 2)}
+
+\item{outcomeType}{The outcome type (1 or 2)}
 }
 \description{
 Run a prediction on new data using the graph learning model.

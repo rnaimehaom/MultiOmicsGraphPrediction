@@ -302,7 +302,10 @@ predictions <- DoTestSetupAndPrediction(inputDataTrain = inputDataTrain,
                                         metaFeatureList = metaFeatureList,
                                         stype = stype,
                                         independentVarType = independentVarType, 
-                                        outcomeType = outcomeType)
+                                        outcomeType = outcomeType,
+                                        useCutoff = TRUE)
 print(optimalModel@pairs)
 print(predictions)
+print(inputDataTest@sampleMetaData[,stype])
+plot(predictions, inputDataTest@sampleMetaData[,stype], xlab = "Predicted", ylab = "True")
 ```

@@ -12,7 +12,7 @@ InitializeGraphLearningModel(
   learningRate = 0.2,
   activationType = "none",
   optimizationType = "SGD",
-  initialMetaFeatureWeights = NULL
+  initialMetaFeatureWeights = 0
 )
 }
 \arguments{
@@ -33,7 +33,7 @@ InitializeGraphLearningModel(
 "adagrad", or "adam". Default is "SGD".}
 
 \item{initialMetaFeatureWeights}{Initial weights for model meta-features. Default
-is NULL, which results in each meta-feature being given equal weight.}
+is 0, which results in each meta-feature being given equal weight.}
 
 \item{metaFeatures}{Calculated metafeatures.}
 }

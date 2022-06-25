@@ -37,7 +37,7 @@ BuildCoRegulationGraph <- function(inputResults, vertexSize=15){
 #'  model and processing results (output of ProcessResults()).
 BuildGraphDataFrame <- function(inputResults){
   
-  graph_data_frame <- NULL
+  graph_data_frame <- data.frame()
   if(nrow(inputResults) > 0){
     # Add the analytes to the data frame.
     edge_df = data.frame(from = inputResults[,1], 

@@ -187,20 +187,20 @@ PlotGraphWeightsHeatmapAllFolds <- function(inputResults, inputData){
 #' Plot the graph with positive associations colored blue and negative associations
 #' colored red.
 #' @param graph The co-regulation graph.
-#' @param saveInFile Location where the file should be saved. If NULL, then the output
-#' is plotted without being saved. Default is NULL.
+#' @param saveInFile Location where the file should be saved. If "", then the output
+#' is plotted without being saved. Default is "".
 #' @param vertices List of vectors of vertices to plot. This is used if one
-#' wishes to focus on a subset of vertices. If NULL, then all vertices are plotted.
-#' Default is NULL.
+#' wishes to focus on a subset of vertices. If c(), then all vertices are plotted.
+#' Default is c().
 #' @param truncateTo Vertex names are truncated to the first "truncateTo" characters.
-#' Default is 4. If NULL, names are not truncated.
+#' Default is 4. If -1, names are not truncated.
 #' @param title Title of plot
 #' @export
-PlotCoRegulationGraph <- function(graph, title, saveInFile = NULL, vertices = NULL,
+PlotCoRegulationGraph <- function(graph, title, saveInFile = "", vertices = c(),
                                   truncateTo = 4){
   
   # Extract subgraph.
-  if(!is.null(vertices) && !is.null(vertices)){
+  if(length(vertices) > 0){
     vert_id <- lapply(vertices, function(v){
       return(match(v, igraph::V(graph)$name))
     })
@@ -209,14 +209,14 @@ PlotCoRegulationGraph <- function(graph, title, saveInFile = NULL, vertices = NU
   
   # Truncate names.
   graph_labels <- igraph::V(graph)$name
-  if(!is.null(truncateTo)){
+  if(truncateTo > -1){
     graph_labels <- unlist(lapply(igraph::V(graph)$name, function(v){
       return(paste0(substr(v, 1, truncateTo), "."))
     }))
   }
   
   # Save or plot.
-  if(is.null(saveInFile)){
+  if(saveInFile == ""){
     plot(graph, main = title, layout = igraph::layout.random, 
          vertex.label = graph_labels)
   }else{
@@ -230,15 +230,15 @@ PlotCoRegulationGraph <- function(graph, title, saveInFile = NULL, vertices = NU
 
 #' Wrapper for PlotCoRegulationGraph.
 #' @param graph The co-regulation graph.
-#' @param saveInDir Directory where file should be saved. If NULL, then the output
-#' is plotted without being saved. Default is NULL
+#' @param saveInDir Directory where file should be saved. If "", then the output
+#' is plotted without being saved. Default is ""
 #' @param vertices List of vectors of vertices to plot. This is used if one
-#' wishes to focus on a subset of vertices. If NULL, then all vertices are plotted.
-#' Default is NULL
+#' wishes to focus on a subset of vertices. If c(), then all vertices are plotted.
+#' Default is c()
 #' @param truncateTo Vertex names are truncated to the first "truncateTo" characters.
-#' Default is 4. If NULL, names are not truncated.
+#' Default is 4. If -1, names are not truncated.
 #' @export
-PlotCoRegulationGraphAllFolds <- function(graph, saveInDir = NULL, vertices = NULL,
+PlotCoRegulationGraphAllFolds <- function(graph, saveInDir = "", vertices = c(),
                                   truncateTo = 4){
   for(i in 1:length(graph)){
     g <- graph[[i]]
@@ -257,21 +257,21 @@ PlotCoRegulationGraphAllFolds <- function(graph, saveInDir = NULL, vertices = NU
 #' FilterData()) with gene expression, metabolite abundances, 
 #' and associated meta-data
 #' @param stype The outcome type or phenotype of interest
-#' @param saveInDir Directory where files should be saved. If NULL, then the output
-#' is plotted without being saved. Default is NULL.
+#' @param saveInDir Directory where files should be saved. If "", then the output
+#' is plotted without being saved. Default is "".
 #' @param vertices List of vectors of vertices to plot. This is used if one
-#' wishes to focus on a subset of vertices. If NULL, then all vertices are plotted.
-#' Default is NULL.
+#' wishes to focus on a subset of vertices. If c(), then all vertices are plotted.
+#' Default is c().
 #' @param truncateTo Vertex names are truncated to the first "truncateTo" characters.
-#' Default is 4. If NULL, names are not truncated.
+#' Default is 4. If -1, names are not truncated.
 #' @param includeLabels whether or not to include labels. Defaults to TRUE.
 #' @param cutoffs Cutoff weight values, which can be included for visibility.
-#' Default is NULL.
+#' Default is c(0,0), which means no cutoff is used.
 #' @param vertexSize Vertex size to use in display.
 #' @export
-PlotGraphPredictions <- function(graph, inputData, stype, saveInDir = NULL, 
-                                 vertices = NULL, truncateTo = 4, includeLabels = TRUE,
-                                 cutoffs = NULL, vertexSize = 10){
+PlotGraphPredictions <- function(graph, inputData, stype, saveInDir = "", 
+                                 vertices = c(), truncateTo = 4, includeLabels = TRUE,
+                                 cutoffs = c(0,0), vertexSize = 10){
   for(j in 1:length(graph)){
     g <- graph[[j]]
     
@@ -291,7 +291,7 @@ PlotGraphPredictions <- function(graph, inputData, stype, saveInDir = NULL,
     # Color.
     edges <- igraph::E(g)
     wt <- edges$weight
-    if(!is.null(cutoffs)){
+    if(cutoffs[1] != 0 || cutoffs[2] != 0){
       wt[which(wt<(-1))]<-cutoffs[1]
       wt[which(wt>1)]<-cutoffs[2]
     }
@@ -333,16 +333,16 @@ PlotGraphPredictions <- function(graph, inputData, stype, saveInDir = NULL,
 #' @param inputDataFolds List of named lists (output of 
 #' CreateCrossValidationFolds()) with gene expression, metabolite abundances, 
 #' and associated meta-data
-#' @param saveInDir Directory where file should be saved. If NULL, then the output
-#' is plotted without being saved. Default is NULL.
+#' @param saveInDir Directory where file should be saved. If "", then the output
+#' is plotted without being saved. Default is "".
 #' @param vertices List of vectors of vertices to plot. This is used if one
-#' wishes to focus on a subset of vertices. If NULL, then all vertices are plotted.
-#' Default is NULL.
+#' wishes to focus on a subset of vertices. If c(), then all vertices are plotted.
+#' Default is c().
 #' @param truncateTo Vertex names are truncated to the first "truncateTo" characters.
-#' Default is 4. If NULL, names are not truncated.
+#' Default is 4. If -1, names are not truncated.
 #' @export
 PlotGraphPredictionsAllFolds <- function(graphs, inputDataFolds,
-                                         saveInDir = NULL, vertices = NULL,
+                                         saveInDir = "", vertices = c(),
                                          truncateTo = 4){
   for(i in 1:length(graphs)){
     # Create temporary directory.
@@ -359,29 +359,28 @@ PlotGraphPredictionsAllFolds <- function(graphs, inputDataFolds,
 #' Plot the line graph for each sample with nodes colored according to prediction.
 #' Include a color scale for the predictions.
 #' @param modelResults A ModelResults object.
-#' @param saveInDir Directory where file should be saved. If NULL, then the output
-#' is plotted without being saved. Default is NULL.
+#' @param saveInDir Directory where file should be saved. If "", then the output
+#' is plotted without being saved. Default is ""
 #' @param stype Outcome / phenotype
-#' @param subset The subset of predictors to include. If NULL, then all nodes
+#' @param subset The subset of predictors to include. If c(), then all nodes
 #' will be plotted.
 #' @param analytes List of vectors of analytes to plot. This is used if one
-#' wishes to focus on a subset of analytes If NULL, then all vertices are plotted.
-#' Default is NULL.
+#' wishes to focus on a subset of analytes If c(), then all vertices are plotted.
+#' Default is c().
 #' @param truncateTo Analyte names are truncated to the first "truncateTo" characters.
-#' Default is 4. If NULL, names are not truncated.
+#' Default is 4. If -1, names are not truncated.
 #' @param weights Whether or not to encode weights in the opacity of the nodes.
 #' Defaults to FALSE.
-#' @param analytes analytes of interest. Default is NULL
 #' @param includeLabels whether or not to include labels. Defaults to TRUE.
 #' @param cutoffs Cutoff weight values, which can be included for visibility.
-#' Default is NULL.
+#' Default is c(0,0), or no cutoff.
 #' @param vertexSize Vertex size to use in display.
-#' @param sampSubset Samples to plot.
+#' @param sampSubset Samples to plot. If c(), all samples are plotted.
 #' @export
-PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
+PlotLineGraph <- function(modelResults, stype, subset = c(), saveInDir = "",
                           truncateTo = 2, weights = FALSE,
-                          analytes = NULL, includeLabels = TRUE, cutoffs = NULL,
-                          vertexSize = 10, sampSubset = NULL){
+                          analytes = c(), includeLabels = TRUE, cutoffs = c(0,0),
+                          vertexSize = 10, sampSubset = c()){
   # Extract graph and predictions.
   line.graph <- modelResults@model.input@line.graph
   node.wise.prediction <- modelResults@model.input@node.wise.prediction
@@ -406,12 +405,12 @@ PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
       node_df$frame.color <- color
       wt <- node.wise.prediction[j,]
       final_graph <- igraph::graph_from_data_frame(edge_df, vertices = node_df)
-      if(!is.null(subset)){
+      if(length(subset) > 0){
         final_graph <- igraph::induced_subgraph(final_graph, subset)
         wt <- node.wise.prediction[j,names(igraph::V(final_graph))]
       }
       
-      if(!is.null(cutoffs)){
+      if(cutoffs[1] != 0 || cutoffs[2] != 0){
         wt[which(wt<cutoffs[1])]<-cutoffs[1]
         wt[which(wt>cutoffs[2])]<-cutoffs[2]
       }
@@ -488,19 +487,19 @@ PlotLineGraph <- function(modelResults, stype, subset = NULL, saveInDir = NULL,
 
 #' Wrapper for PlotLineGraph.
 #' @param modelInputs A list of ModelInput objects.
-#' @param saveInDir Directory where file should be saved. If NULL, then the output
-#' is plotted without being saved. Default is NULL.
+#' @param saveInDir Directory where file should be saved. If "", then the output
+#' is plotted without being saved. Default is "".
 #' @param stype Outcome / phenotype
 #' @param analytes List of vectors of analytes to plot. This is used if one
-#' wishes to focus on a subset of analytes If NULL, then all vertices are plotted.
-#' Default is NULL.
+#' wishes to focus on a subset of analytes If c(), then all vertices are plotted.
+#' Default is c().
 #' @param truncateTo Analyte names are truncated to the first "truncateTo" characters.
-#' Default is 2. If NULL, names are not truncated.
+#' Default is 2. If c(), names are not truncated.
 #' @param weights The list of weights assigned to each node. This is encoded using opacity.
-#' If NULL, all nodes are opaque. Default is NULL.
+#' If c(), all nodes are opaque. Default is c().
 #' @export
-PlotLineGraphAllFolds <- function(modelInputs, stype, saveInDir = NULL, analytes = NULL,
-                                         truncateTo = 2, weights=NULL){
+PlotLineGraphAllFolds <- function(modelInputs, stype, saveInDir = "", analytes = c(),
+                                         truncateTo = 2, weights=c()){
   # Plot the line graphs.
   for(i in 1:length(modelInputs)){
     

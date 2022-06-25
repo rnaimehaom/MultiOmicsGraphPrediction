@@ -9,11 +9,11 @@ PlotGraphPredictions(
   graph,
   inputData,
   stype,
-  saveInDir = NULL,
-  vertices = NULL,
+  saveInDir = "",
+  vertices = c(),
   truncateTo = 4,
   includeLabels = TRUE,
-  cutoffs = NULL,
+  cutoffs = c(0, 0),
   vertexSize = 10
 )
 }
@@ -26,20 +26,20 @@ and associated meta-data}
 
 \item{stype}{The outcome type or phenotype of interest}
 
-\item{saveInDir}{Directory where files should be saved. If NULL, then the output
-is plotted without being saved. Default is NULL.}
+\item{saveInDir}{Directory where files should be saved. If "", then the output
+is plotted without being saved. Default is "".}
 
 \item{vertices}{List of vectors of vertices to plot. This is used if one
-wishes to focus on a subset of vertices. If NULL, then all vertices are plotted.
-Default is NULL.}
+wishes to focus on a subset of vertices. If c(), then all vertices are plotted.
+Default is c().}
 
 \item{truncateTo}{Vertex names are truncated to the first "truncateTo" characters.
-Default is 4. If NULL, names are not truncated.}
+Default is 4. If -1, names are not truncated.}
 
 \item{includeLabels}{whether or not to include labels. Defaults to TRUE.}
 
 \item{cutoffs}{Cutoff weight values, which can be included for visibility.
-Default is NULL.}
+Default is c(0,0), which means no cutoff is used.}
 
 \item{vertexSize}{Vertex size to use in display.}
 }

@@ -91,7 +91,9 @@ CompositePrediction <- function(pairs, modelResults, minCutoff, maxCutoff, useCu
                        minCutoff = minCutoff, 
                        maxCutoff = maxCutoff, 
                        useCutoff = useCutoff,
-                      useActivation = FALSE)
+                      useActivation = FALSE,
+    independentVarType = modelResults@model.input@independent.var.type, 
+    outcomeType = modelResults@model.input@outcome)
   return(final_val)
 }
 
@@ -129,7 +131,7 @@ ComputeSignificance <- function(pred, trueVal, pruningMethod = "odds.ratio",
 ComputeTScore <- function(pred, trueVal, includeVarianceTest = FALSE){
   trueVal <- trueVal[which(!is.nan(pred))]
   pred <- pred[which(!is.nan(pred))]
-  tScore <- NA
+  tScore <- -1000
   if(length(trueVal)>0 && length(pred)>0){
     
     # Compute the absolute error values.
@@ -162,10 +164,6 @@ ComputeTScore <- function(pred, trueVal, includeVarianceTest = FALSE){
     #     print(paste(tScore, sum(errorDiff), sqrt((nSse - errorDiffSquared) / (n-1))))
     #   }
     # }
-  }
-  # If all terms are NA, then categorize this as a very low t-score.
-  else{
-    tScore <- -1000
   }
   
   # Plot histogram.
@@ -364,7 +362,7 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
       # Calculate the overlap of this model with all other models.
       overlapsWithModel1 <- unlist(lapply(1:length(pairsInEachPredictor), function(j){
         model2 <- pairsInEachPredictor[[j]]
-        overlap <- NA
+        overlap <- 0
         if(i < j){
           overlap <- length(intersect(model1, model2)) / pmin(length(model1), length(model2))
         }

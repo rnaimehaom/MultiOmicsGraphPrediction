@@ -64,12 +64,14 @@ DoTestSetupAndPrediction <- function(inputDataTrain, inputDataTest, model, stype
   
   # Predict testing values.
   predictions <- Predict(pairs = model@pairs,
-                         inputData = data$testing, 
+                         inputData = inputDataTest, 
                          metafeatures = metafeaturesTest, 
                          model = model,
                                 useCutoff = useCutoff,
                                 minCutoff = predictionCutoffs$min,
-                                maxCutoff = predictionCutoffs$max)
+                                maxCutoff = predictionCutoffs$max,
+                         outcomeType = outcomeType,
+                         independentVarType = independentVarType)
   return(predictions)
 }
 
@@ -117,19 +119,21 @@ SplitTrainingAndTesting <- function(inputData, testingSamples){
 #' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
 #' @param useActivation Whether or not to use the activation function if the phenotype
 #' to predict is a factor. Default is TRUE. We set to FALSE during training.
+#' @param independentVarType The independent variable type (1 or 2)
+#' @param outcomeType The outcome type (1 or 2)
 #' @export
 Predict <- function(pairs, inputData, metafeatures, model, minCutoff, maxCutoff, useCutoff = FALSE,
-                    useActivation = TRUE){
+                    useActivation = TRUE, independentVarType, outcomeType){
   
   # Set variables for further analysis.
   covar <- model@model.input@covariates
   covariates <- model@model.input@model.properties
   analyteTgtVals <- inputData@analyteType1
-  if(model@model.input@outcome == 2){
+  if(outcomeType == 2){
     analyteTgtVals <- inputData@analyteType2
   }
   analyteSrcVals <- inputData@analyteType2
-  if(model@model.input@independent.var.type == 1){
+  if(independentVarType == 1){
     analyteSrcVals <- inputData@analyteType1
   }
   covariateVals <- inputData@sampleMetaData

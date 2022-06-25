@@ -19,7 +19,6 @@ FormatInput(
   stype,
   verbose = FALSE,
   covariates = list(),
-  predictorBounds = c(NA, NA),
   outcome = 2,
   independent.var.type = 2
 )
@@ -45,10 +44,6 @@ TRUE or FALSE. Default is FALSE.}
 
 \item{covariates}{A list of covariates to include in the model. These will be in the
 sampleMetaData slot of the inputData variable.}
-
-\item{predictorBounds}{Upper and lower bounds for predictors. Predictors outside
-of these bounds for a sample will not be included in the final prediction for that sample. 
-Defaults to c(NA,NA), meaning that no predictors will be removed.}
 
 \item{outcome}{The outcome used in the IntLIM models.}
 

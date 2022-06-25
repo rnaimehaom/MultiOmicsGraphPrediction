@@ -8,8 +8,8 @@ colored red.}
 PlotCoRegulationGraph(
   graph,
   title,
-  saveInFile = NULL,
-  vertices = NULL,
+  saveInFile = "",
+  vertices = c(),
   truncateTo = 4
 )
 }
@@ -18,15 +18,15 @@ PlotCoRegulationGraph(
 
 \item{title}{Title of plot}
 
-\item{saveInFile}{Location where the file should be saved. If NULL, then the output
-is plotted without being saved. Default is NULL.}
+\item{saveInFile}{Location where the file should be saved. If "", then the output
+is plotted without being saved. Default is "".}
 
 \item{vertices}{List of vectors of vertices to plot. This is used if one
-wishes to focus on a subset of vertices. If NULL, then all vertices are plotted.
-Default is NULL.}
+wishes to focus on a subset of vertices. If c(), then all vertices are plotted.
+Default is c().}
 
 \item{truncateTo}{Vertex names are truncated to the first "truncateTo" characters.
-Default is 4. If NULL, names are not truncated.}
+Default is 4. If -1, names are not truncated.}
 }
 \description{
 Plot the graph with positive associations colored blue and negative associations
