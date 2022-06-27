@@ -18,8 +18,6 @@ each node corresponds to a pair of analytes.}
 \item{\code{true.phenotypes}}{data frame of true phenotypes given analyte pairs
 and clinical covariates}
 
-\item{\code{outcome.type}}{"numeric" or "categorical"}
-
 \item{\code{coregulation.graph}}{the original co-regulation graph for the input data.}
 
 \item{\code{line.graph}}{the line graph of the input data.}
@@ -36,6 +34,6 @@ the analyte data, and the analyte meta data.}
 
 \item{\code{stype}}{Outcome/phenotype column name.}
 
-\item{\code{stype.class}}{Class of outcome/phenotype (either factor or numeric).}
+\item{\code{stype.class}}{Class of outcome/phenotype (either "numeric" or "character").}
 }}
 

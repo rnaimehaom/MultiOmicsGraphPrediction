@@ -4,16 +4,8 @@
 #' 2. Run pairwise prediction on the training data.
 #' 3. Compute metafeatures on the test data.
 #' 4. Predict the test values using the learned model.
-#' @param inputDataTrain An object of the IntLimData class corresponding to the training set.
 #' @param inputDataTest An object of the IntLimData class corresponding to the test set.
 #' @param model An object of the ModelResults class corresponding to the optimized model.
-#' @param stype The variable to predict.
-#' @param covar The clinical covariates to include in the model. These should be the same
-#' covariates that were included when running the IntLIM linear models.
-#' @param independentVarType The independent variable type (1 or 2)
-#' @param outcomeType The outcome type (1 or 2)
-#' @param metaFeatureList A list of the valid metrics to include. Valid metrics are
-#' "pdf", "localerr", "globalerr", and "pathway".
 #' @param k The number of nearest neighbors to consider in localerr.
 #' @param eigStep The number of eigenvectors to step by during the evaluation
 #' in localerr.
@@ -23,38 +15,38 @@
 #' @param colIdOut The ID of the column that has the analyte ID's for the
 #' outcome variable. If blank, then the existing ID's are used.
 #' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+#' @return A vector of final prediction values for the test data.
 #' @export
-DoTestSetupAndPrediction <- function(inputDataTrain, inputDataTest, model, stype,
-                                     outcomeType = 1,
-                                     independentVarType = 2,
-                                     metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
+DoTestSetupAndPrediction <- function(inputDataTest, model,
                                      k = 2, eigStep = 1,
                                      colIdInd = "databaseId",
                                      colIdOut = "databaseId",
-                                     covar = c(),
                                      useCutoff = FALSE){
+  # Get list of metafeatures.
+  metaFeatureList <- names(model@model.input@metaFeatures)
+  
   # Calculate prediction cutoffs.
-  predictionCutoffs <- CalculatePredictionCutoffs(modelResults = modelResults)
+  predictionCutoffs <- CalculatePredictionCutoffs(modelResults = model)
   
   # Run pairwise prediction for training data.
   pred.cv <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = model@model.input@model.properties,
-                                                              inputData = inputDataTrain,
-                                                              stype = stype,
-                                                              covar = covar,
-                                                              independentVarType = independentVarType,
-                                                              outcomeType = outcomeType)
+                                                              inputData = model@model.input@input.data,
+                                                              stype = model@model.input@stype,
+                                                              covar = model@model.input@covariates,
+                                                              independentVarType = model@model.input@independent.var.type,
+                                                              outcomeType = model@model.input@outcome)
   pred.cv.test <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = model@model.input@model.properties,
                                                                    inputData = inputDataTest,
-                                                                   stype = stype,
-                                                                   covar = covar,
-                                                                   independentVarType = independentVarType,
-                                                                   outcomeType = outcomeType)
+                                                                   stype = model@model.input@stype,
+                                                                   covar = model@model.input@covariates,
+                                                                   independentVarType = model@model.input@independent.var.type,
+                                                                   outcomeType = model@model.input@outcome)
   
   # Get metafeatures for testing.
   metafeaturesTest <- MultiOmicsGraphPrediction::GetTestMetaFeatures(predictionsTrain = pred.cv,
                                                                      predictionsTest = pred.cv.test,
-                                                                     stype = stype,
-                                                                     inputDataTrain = inputDataTrain,
+                                                                     stype = model@model.input@stype,
+                                                                     inputDataTrain = model@model.input@input.data,
                                                                      inputDataTest = inputDataTest,
                                                                      metaFeatureList = metaFeatureList,
                                                                      k = k, eigStep = eigStep,
@@ -70,8 +62,8 @@ DoTestSetupAndPrediction <- function(inputDataTrain, inputDataTest, model, stype
                                 useCutoff = useCutoff,
                                 minCutoff = predictionCutoffs$min,
                                 maxCutoff = predictionCutoffs$max,
-                         outcomeType = outcomeType,
-                         independentVarType = independentVarType)
+                         outcomeType = model@model.input@outcome,
+                         independentVarType = model@model.input@independent.var.type)
   return(predictions)
 }
 
@@ -81,6 +73,7 @@ DoTestSetupAndPrediction <- function(inputDataTrain, inputDataTest, model, stype
 #' useful helper for cross-validation.
 #' @param inputData An object of the IntLimData class.
 #' @param testingSamples Calculated importance metrics.
+#' @return A list of two IntLimData objects: a training set and a testing set.
 #' @export
 SplitTrainingAndTesting <- function(inputData, testingSamples){
   
@@ -121,6 +114,7 @@ SplitTrainingAndTesting <- function(inputData, testingSamples){
 #' to predict is a factor. Default is TRUE. We set to FALSE during training.
 #' @param independentVarType The independent variable type (1 or 2)
 #' @param outcomeType The outcome type (1 or 2)
+#' @return A vector of predictions
 #' @export
 Predict <- function(pairs, inputData, metafeatures, model, minCutoff, maxCutoff, useCutoff = FALSE,
                     useActivation = TRUE, independentVarType, outcomeType){
@@ -184,17 +178,8 @@ Predict <- function(pairs, inputData, metafeatures, model, minCutoff, maxCutoff,
       weighted_sum <- rep(0, nrow(weights))
       for(i in 1:length(pairs)){
         pair <- pairs[[i]]
-        tryCatch({
-          weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
-            covariateVals[,c]
-        }, error = function(e){
-          print(e)
-          print(weighted_sum)
-          print(weights[,pair])
-          print(rep(covariates[pair, c], nrow(weights)))
-          print(covariateVals[,c])
-        })
-        
+        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
+          covariateVals[,c]
       }
       return(weighted_sum)
     })
@@ -210,7 +195,7 @@ Predict <- function(pairs, inputData, metafeatures, model, minCutoff, maxCutoff,
   # types are converted into factors, and since only binary factors are accepted by
   # the package, the values will be 1 (for the alphanumerically lowest level) and 2
   # (for the alphanumerically highest level).
-  if(model@model.input@outcome.type == "categorical" && useActivation == TRUE){
+  if(model@model.input@stype.class == "categorical" && useActivation == TRUE){
     if(model@activation.type == "softmax"){
       Y.pred <- round(SoftmaxWithCorrection(Y.pred))
     }else if(model@activation.type == "tanh"){

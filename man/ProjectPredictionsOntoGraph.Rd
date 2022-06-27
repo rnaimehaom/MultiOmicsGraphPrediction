@@ -14,6 +14,11 @@ results in a prediction for each subject.}
 \item{coRegulationGraph}{An igraph object. This graph is the co-regulation graph
 generated using IntLIM analysis of analyte pairs.}
 }
+\value{
+A list of igraph objects, one per sample, where each node is an analyte
+and each edge is a prediction. The weight of the edge is the predicted value
+using the pair of analytes represented by the edge.
+}
 \description{
 Given a graph and a phenotype prediction for each significant pair, generate a 
 new graph with the phenotype predictions included as the edge weights.

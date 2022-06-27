@@ -10,37 +10,19 @@ runs prediction on the test data. To do this:
 4. Predict the test values using the learned model.}
 \usage{
 DoTestSetupAndPrediction(
-  inputDataTrain,
   inputDataTest,
   model,
-  stype,
-  outcomeType = 1,
-  independentVarType = 2,
-  metaFeatureList = c("pdf", "interactionpval", "interactioncoef", "analytecoef",
-    "localerr"),
   k = 2,
   eigStep = 1,
   colIdInd = "databaseId",
   colIdOut = "databaseId",
-  covar = c(),
   useCutoff = FALSE
 )
 }
 \arguments{
-\item{inputDataTrain}{An object of the IntLimData class corresponding to the training set.}
-
 \item{inputDataTest}{An object of the IntLimData class corresponding to the test set.}
 
 \item{model}{An object of the ModelResults class corresponding to the optimized model.}
-
-\item{stype}{The variable to predict.}
-
-\item{outcomeType}{The outcome type (1 or 2)}
-
-\item{independentVarType}{The independent variable type (1 or 2)}
-
-\item{metaFeatureList}{A list of the valid metrics to include. Valid metrics are
-"pdf", "localerr", "globalerr", and "pathway".}
 
 \item{k}{The number of nearest neighbors to consider in localerr.}
 
@@ -54,10 +36,10 @@ independent variable. If blank, then the existing ID's are used.}
 \item{colIdOut}{The ID of the column that has the analyte ID's for the
 outcome variable. If blank, then the existing ID's are used.}
 
-\item{covar}{The clinical covariates to include in the model. These should be the same
-covariates that were included when running the IntLIM linear models.}
-
 \item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
+}
+\value{
+A vector of final prediction values for the test data.
 }
 \description{
 Sets up the test data so that it is in the correct format, then

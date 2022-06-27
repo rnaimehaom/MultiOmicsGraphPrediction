@@ -8,7 +8,6 @@
 #' @slot node.wise.prediction graph of co-regulation results from IntLIM
 #' @slot true.phenotypes data frame of true phenotypes given analyte pairs
 #' and clinical covariates
-#' @slot outcome.type "numeric" or "categorical"
 #' @slot coregulation.graph the original co-regulation graph for the input data.
 #' @slot line.graph the line graph of the input data.
 #' @slot metaFeatures A list of calculated meta-feature data frames for each sample
@@ -18,7 +17,7 @@
 #' the analyte data, and the analyte meta data.
 #' @slot covariates A list of covariates to use in the models.
 #' @slot stype Outcome/phenotype column name.
-#' @slot stype.class Class of outcome/phenotype (either factor or numeric).
+#' @slot stype.class Class of outcome/phenotype (either "numeric" or "character").
 methods::setClass(
   Class="ModelInput",
   representation(A.hat="matrix",
@@ -26,7 +25,6 @@ methods::setClass(
                  true.phenotypes="numeric",
                  coregulation.graph="matrix",
                  line.graph="matrix",
-                 outcome.type="character",
                  metaFeatures="list",
                  model.properties = "data.frame",
                  input.data = "IntLimData",
@@ -43,7 +41,6 @@ methods::setClass(
 #' @rdname ModelResults-class
 #' @exportClass ModelResults
 #' @slot model.input An object of the modelInput class.
-#' @slot pooling.filter A matrix that pools convolution results.
 #' @slot iteration.tracking A data frame to track the iteration, weight, and error
 #' values for each iteration of training.
 #' @slot max.iterations Maximum number of iterations.
@@ -53,10 +50,7 @@ methods::setClass(
 #' @slot current.metaFeature.weights Metafeature weights used in the current iteration.
 #' @slot previous.weights Weights used in the previous iteration.
 #' @slot current.gradient Gradient calculated for this iteration.
-#' @slot weights.after.pooling Whether to include the weights after the pooling
-#' layer (as opposed to before). Must be a boolean.
-#' @slot outcome.prediction The prediction of the outcome.
-#' @slot optimization.type One of "BGD", "momentum", "adagrad", or "adam"
+#' @slot optimization.type One of "SGD", "momentum", "adagrad", or "adam"
 #' @slot current.iteration Iteration (changes at each time step)
 #' @slot previous.momentum Momentum value used in momentum optimization
 #' @slot previous.update.vector Previous value used to update weights, used in ADAM
@@ -76,7 +70,6 @@ methods::setClass(
                  current.gradient="matrix",
                  previous.update.vector="matrix",
                  current.iteration="numeric",
-                 outcome.prediction="numeric",
                  optimization.type="character",
                  sum.square.gradients="matrix",
                  previous.momentum="matrix",

@@ -40,6 +40,9 @@ to predict is a factor. Default is TRUE. We set to FALSE during training.}
 
 \item{outcomeType}{The outcome type (1 or 2)}
 }
+\value{
+A vector of predictions
+}
 \description{
 Run a prediction on new data using the graph learning model.
 }

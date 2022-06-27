@@ -15,6 +15,11 @@ ObtainCompositeModels(pairsInEachPredictor, importantModels)
 \item{importantModels}{A list of all pairs that were found to be important in the
 previous layer.}
 }
+\value{
+A list with the following elements: A list of sets comprising the trimmed
+models, a list of sets comprising the untrimmed models, and a mapping from
+the predictors in the previous stage to the current stage.
+}
 \description{
 Obtain the list of pairs in a composite model. Do this by merging the two
 composite models with the most overlap. Use the full models so that we

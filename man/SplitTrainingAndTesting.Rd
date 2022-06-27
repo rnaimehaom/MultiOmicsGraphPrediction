@@ -14,6 +14,9 @@ SplitTrainingAndTesting(inputData, testingSamples)
 
 \item{testingSamples}{Calculated importance metrics.}
 }
+\value{
+A list of two IntLimData objects: a training set and a testing set.
+}
 \description{
 Splits input data into training and testing sets given a specified
 set of testing samples. Alternatively, separate training and testing

@@ -3,10 +3,19 @@
 \name{FormatInput}
 \alias{FormatInput}
 \title{Format the input for graph-based learning. This input consists of:
-1. The Laplacian of a line graph built from the co-regulation graphs, where 
+- The Laplacian of a line graph built from the co-regulation graphs, where 
 each node corresponds to a pair of analytes.
-2. A prediction value for each node of the line graph, for each sample X.
-3. The true prediction values Y for each sample X.}
+- A prediction value for each node of the line graph, for each sample X.
+- The true prediction values Y for each sample X.
+- The co-regulation graph.
+- The line graph built from the co-regulation graphs.
+- The input data (analyte levels, covariates, and phenotype).
+- The model results from IntLIM for each predictor.
+- The metafeatures for each model from IntLIM.
+- The phenotype / outcome column name in the input data.
+- The type of the outcome / phenotype ("numeric" or "categorical").
+- The analyte type used as the outcome variable for each model (1 or 2).
+- The analyte type used as the independent variable for each model (1 or 2).}
 \usage{
 FormatInput(
   predictionGraphs,
@@ -49,12 +58,25 @@ sampleMetaData slot of the inputData variable.}
 
 \item{independent.var.type}{The independent variable type used in the IntLIM models.}
 }
+\value{
+An object of the ModelInput class. This object will contain the input data,
+graph information, and individual predictor properties and their metafeatures.
+}
 \description{
 Format the input for graph-based learning. This input consists of:
-1. The Laplacian of a line graph built from the co-regulation graphs, where 
+- The Laplacian of a line graph built from the co-regulation graphs, where 
 each node corresponds to a pair of analytes.
-2. A prediction value for each node of the line graph, for each sample X.
-3. The true prediction values Y for each sample X.
+- A prediction value for each node of the line graph, for each sample X.
+- The true prediction values Y for each sample X.
+- The co-regulation graph.
+- The line graph built from the co-regulation graphs.
+- The input data (analyte levels, covariates, and phenotype).
+- The model results from IntLIM for each predictor.
+- The metafeatures for each model from IntLIM.
+- The phenotype / outcome column name in the input data.
+- The type of the outcome / phenotype ("numeric" or "categorical").
+- The analyte type used as the outcome variable for each model (1 or 2).
+- The analyte type used as the independent variable for each model (1 or 2).
 }
 \section{Slots}{
 

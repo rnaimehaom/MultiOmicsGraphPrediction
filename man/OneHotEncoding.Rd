@@ -15,6 +15,10 @@ OneHotEncoding(inputData, covar = c())
 \item{covar}{The clinical covariates to include in the model. These should be the same
 covariates that were included when running the IntLIM linear models.}
 }
+\value{
+A list with two elements: (1) the new set of covariates, and (2)
+the new sample meta data, as encoded.
+}
 \description{
 Perform one-hot encoding of the sample metadata. This is useful when categorical
 covariates are used. This one-hot encoding will be used later in predictions,

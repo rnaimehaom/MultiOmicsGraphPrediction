@@ -17,8 +17,6 @@ GetMetaFeatures(
   alphaMin = 0,
   alphaMax = 1,
   alphaStep = 0.1,
-  analyteNamesOut = "",
-  analyteNamesInd = "",
   stype = "",
   colIdInd = "",
   colIdOut = ""
@@ -32,7 +30,8 @@ columns are predictors.}
 ReadData.}
 
 \item{metaFeatureList}{A list of the valid metrics to include. Valid metrics are
-"pdf", "localerr", "globalerr", and "pathway".}
+"pdf", "localerr", "globalerr", "pathway", "reaction", "interactionpval", 
+"interactioncoef", and "analytecoef".}
 
 \item{modelStats}{A data frame that includes the interaction p-values and
 interaction coefficients for each pair (such as the one output by IntLIM's
@@ -50,14 +49,6 @@ Note that this must be less than the number of samples in localerr. Default = 10
 
 \item{alphaStep}{The value of alpha to step by during the evaluation in localerr.
 Default = 0.1.}
-
-\item{analyteNamesOut}{A data frame mapping the analyte identifier for the
-outcome analyte from the IntLIM model to an identifier that can be mapped
-to RaMP. Used in pathway importance.}
-
-\item{analyteNamesInd}{A data frame mapping the analyte identifier for the
-independent variable analyte from the IntLIM model to an identifier that can be mapped
-to RaMP. Used in pathway importance.}
 
 \item{stype}{Phenotype or outcome to use in models.}
 

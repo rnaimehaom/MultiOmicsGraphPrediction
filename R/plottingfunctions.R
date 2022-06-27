@@ -174,16 +174,6 @@ PlotGraphWeightsHeatmap <- function(inputResults, inputData){
   print(plt)
 }
 
-#' A wrapper for PlotGraphWeights that applies the function across all folds.
-#' @param inputResults The IntLIM results (from RunIntLimAllFolds())
-#' @param inputData The input data (from CreateCrossValFolds())
-#' @export
-PlotGraphWeightsHeatmapAllFolds <- function(inputResults, inputData){
-  return(lapply(1:length(inputResults), function(i){
-    PlotGraphWeightsHeatmap(inputResults = inputResults[[i]], inputData = inputData[[i]])
-  }))
-}
-
 #' Plot the graph with positive associations colored blue and negative associations
 #' colored red.
 #' @param graph The co-regulation graph.
@@ -225,28 +215,6 @@ PlotCoRegulationGraph <- function(graph, title, saveInFile = "", vertices = c(),
          vertex.label = graph_labels)
     grDevices::dev.off()
     print(paste("Saved plot to", saveInFile))
-  }
-}
-
-#' Wrapper for PlotCoRegulationGraph.
-#' @param graph The co-regulation graph.
-#' @param saveInDir Directory where file should be saved. If "", then the output
-#' is plotted without being saved. Default is ""
-#' @param vertices List of vectors of vertices to plot. This is used if one
-#' wishes to focus on a subset of vertices. If c(), then all vertices are plotted.
-#' Default is c()
-#' @param truncateTo Vertex names are truncated to the first "truncateTo" characters.
-#' Default is 4. If -1, names are not truncated.
-#' @export
-PlotCoRegulationGraphAllFolds <- function(graph, saveInDir = "", vertices = c(),
-                                  truncateTo = 4){
-  for(i in 1:length(graph)){
-    g <- graph[[i]]
-    if(!is.null(saveInDir)){
-      fileName <- paste(saveInDir, paste0("coreg_graph", i, ".png"))
-    }
-    PlotCoRegulationGraph(graph=g, saveInFile=saveInDir, vertices=vertices,
-                          truncateTo=truncateTo, title=paste("Fold", i))
   }
 }
 
@@ -328,43 +296,14 @@ PlotGraphPredictions <- function(graph, inputData, stype, saveInDir = "",
   }
 }
 
-#' Wrapper for PlotGraphPredictions.
-#' @param graphs The graph with predictions projected onto it.
-#' @param inputDataFolds List of named lists (output of 
-#' CreateCrossValidationFolds()) with gene expression, metabolite abundances, 
-#' and associated meta-data
-#' @param saveInDir Directory where file should be saved. If "", then the output
-#' is plotted without being saved. Default is "".
-#' @param vertices List of vectors of vertices to plot. This is used if one
-#' wishes to focus on a subset of vertices. If c(), then all vertices are plotted.
-#' Default is c().
-#' @param truncateTo Vertex names are truncated to the first "truncateTo" characters.
-#' Default is 4. If -1, names are not truncated.
-#' @export
-PlotGraphPredictionsAllFolds <- function(graphs, inputDataFolds,
-                                         saveInDir = "", vertices = c(),
-                                         truncateTo = 4){
-  for(i in 1:length(graphs)){
-    # Create temporary directory.
-    saveInDir_tmp <- saveInDir
-    if(!is.null(saveInDir)){
-      saveInDir_tmp <- paste(saveInDir, paste0("fold",i), sep = "//")
-    }
-    PlotGraphPredictions(graph=graphs[[i]], inputDataFolds[[i]]$training,
-                         saveInDir=saveInDir_tmp,
-                         vertices=vertices, truncateTo=truncateTo)
-  }
-}
-
 #' Plot the line graph for each sample with nodes colored according to prediction.
 #' Include a color scale for the predictions.
 #' @param modelResults A ModelResults object.
 #' @param saveInDir Directory where file should be saved. If "", then the output
 #' is plotted without being saved. Default is ""
-#' @param stype Outcome / phenotype
 #' @param subset The subset of predictors to include. If c(), then all nodes
 #' will be plotted.
-#' @param analytes List of vectors of analytes to plot. This is used if one
+#' @param analytes List of analytes to plot. This is used if one
 #' wishes to focus on a subset of analytes If c(), then all vertices are plotted.
 #' Default is c().
 #' @param truncateTo Analyte names are truncated to the first "truncateTo" characters.
@@ -377,7 +316,7 @@ PlotGraphPredictionsAllFolds <- function(graphs, inputDataFolds,
 #' @param vertexSize Vertex size to use in display.
 #' @param sampSubset Samples to plot. If c(), all samples are plotted.
 #' @export
-PlotLineGraph <- function(modelResults, stype, subset = c(), saveInDir = "",
+PlotLineGraph <- function(modelResults, subset = c(), saveInDir = "",
                           truncateTo = 2, weights = FALSE,
                           analytes = c(), includeLabels = TRUE, cutoffs = c(0,0),
                           vertexSize = 10, sampSubset = c()){
@@ -483,101 +422,6 @@ PlotLineGraph <- function(modelResults, stype, subset = c(), saveInDir = "",
       }
     }
   }
-}
-
-#' Wrapper for PlotLineGraph.
-#' @param modelInputs A list of ModelInput objects.
-#' @param saveInDir Directory where file should be saved. If "", then the output
-#' is plotted without being saved. Default is "".
-#' @param stype Outcome / phenotype
-#' @param analytes List of vectors of analytes to plot. This is used if one
-#' wishes to focus on a subset of analytes If c(), then all vertices are plotted.
-#' Default is c().
-#' @param truncateTo Analyte names are truncated to the first "truncateTo" characters.
-#' Default is 2. If c(), names are not truncated.
-#' @param weights The list of weights assigned to each node. This is encoded using opacity.
-#' If c(), all nodes are opaque. Default is c().
-#' @export
-PlotLineGraphAllFolds <- function(modelInputs, stype, saveInDir = "", analytes = c(),
-                                         truncateTo = 2, weights=c()){
-  # Plot the line graphs.
-  for(i in 1:length(modelInputs)){
-    
-    # Set up output directory.
-    saveInDir_tmp <- saveInDir
-    if(!is.null(saveInDir)){
-      saveInDir_tmp <- paste(saveInDir, paste0("fold",i), sep = "//")
-    }
-    
-    # Set up weights.
-    wt <- weights
-    if(!is.null(wt)){
-      wt <- weights[[i]]
-    }
-    
-    # Plot.
-    PlotLineGraph(modelInput=modelInputs[[i]], stype=stype, saveInDir=saveInDir_tmp,
-                  analytes=analytes[[i]], truncateTo=truncateTo, weights=wt)
-  }
-}
-
-#' Plots a color-coded dendrogram of predictions for a given sample. The
-#' dendrogram is defined by the line graph, and the colors correspond to the
-#' prediction made by each pair.
-#' @param modelInput A ModelInput object.
-#' @param hierarchicalClustering The output of the doHierarchicalClustering
-#' function.
-#' @param sampleIndex Index of sample.
-#' @param predictionLimits A vector of the upper and lower limits to plot.
-#' Predictions falling outside of this range will be modified to fall within
-#' this range. This is only for the purposes of plotting, so that outlier
-#' predictions do not obscure differences within the rest of the plot.
-#' @export
-PlotPredictionDendrogram <- function(modelInput, hierarchicalClustering, sampleIndex, 
-                                     predictionLimits){
-  utils::globalVariables(c("yend", "label", "x", "y", "xend", "y.x", "pred"))
-  
-  # Process dendrogram.
-  dendrogram_ends <- list()
-  dendrogram_segments <- list()
-  dend <- stats::as.dendrogram(hierarchicalClustering)
-  dendrogram_data <- ggdendro::dendro_data(dend)
-  dendrogram_segments <- dendrogram_data$segments
-  dendrogram_ends <- dplyr::filter(dendrogram_segments, yend == 0)
-  dendrogram_ends <- dplyr::left_join(dendrogram_ends, dendrogram_data$labels, by = "x")
-  dendrogram_ends <- dplyr::rename(dendrogram_ends, node_name = label)
-  
-  # Plot prediction dendrogram.
-  all_wt <- dendrogram_ends
-  preds <- modelInput@node.wise.prediction[,sampleIndex]
-  names(preds) <- rownames(modelInput@node.wise.prediction)
-  all_wt$pred <- preds[dendrogram_ends$node_name]
-  all_wt$pred[which(all_wt$pred > predictionLimits[2])] <- predictionLimits[2]
-  all_wt$pred[which(all_wt$pred < predictionLimits[1])] <- predictionLimits[1]
-  
-  # Make the plot.
-  ggplot2::ggplot() + 
-    ggplot2::geom_segment(data = dendrogram_segments, 
-                          ggplot2::aes_(x=x, y=y, xend=xend, yend=yend)) +
-    ggplot2::geom_segment(data = all_wt, 
-                          ggplot2::aes_(x=x, y=y.x, xend=xend, yend=yend, color=pred)) +
-    ggplot2::scale_color_gradient(low = "#AAFF00", high = "#023020")+
-    ggplot2::scale_y_reverse() +
-    ggplot2::coord_flip() +
-    ggplot2::theme_bw() +
-    ggplot2::theme(panel.border = ggplot2::element_blank(), 
-                   panel.grid.major = ggplot2::element_blank(),
-                   panel.grid.minor = ggplot2::element_blank(), 
-                   axis.title.x=ggplot2::element_blank(),
-                   axis.title.y=ggplot2::element_blank(), 
-                   axis.text.x=ggplot2::element_blank(),
-                   axis.text.y=ggplot2::element_blank(), 
-                   axis.ticks.x=ggplot2::element_blank(),
-                   axis.ticks.y=ggplot2::element_blank()) +
-    ggplot2::labs(color='Prediction') +
-    ggplot2::ggtitle(paste(colnames(modelInput@node.wise.prediction)[sampleIndex], "-", 
-                  "True Phenotype is",
-                  formatC(modelInput@true.phenotypes[sampleIndex], digits = 2)))
 }
 
 #' Plots a dendrogram of the optimal subspace clustering.

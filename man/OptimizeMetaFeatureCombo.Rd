@@ -8,10 +8,6 @@ exclude pooling and combine in a single layer using a linear combination).}
 OptimizeMetaFeatureCombo(
   modelResults,
   verbose = TRUE,
-  pruningMethod = "odds.ratio",
-  binCount = 10,
-  margin = 0.1,
-  includeVarianceTest = FALSE,
   modelRetention = "stringent",
   useCutoff = FALSE
 )
@@ -21,22 +17,15 @@ OptimizeMetaFeatureCombo(
 
 \item{verbose}{Whether to print results as you run the model.}
 
-\item{pruningMethod}{Set to "information.gain", "odds.ratio", or "error.t.test"}
-
-\item{binCount}{The number of bins to divide your original data into. Default is 10.
-Used in information gain pruning only.}
-
-\item{margin}{The margin of error for a prediction to be considered "correct".
-Default is 0.1. Used in odds ratio pruning only.}
-
-\item{includeVarianceTest}{Scale the t-score by the f-statistic (the ratio of variances).
-Only applicable when the pruning method is error.t.test. Default is FALSE.}
-
 \item{modelRetention}{Strategy for model retention. "stringent" (the default)
 retains only models that improve the prediction score. "lenient" also retains models that
 neither improve nor reduce the prediction score.}
 
 \item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
+}
+\value{
+A ModelResults object, with all of the tracking information from each
+iteration filled in.
 }
 \description{
 Optimize the combination of predictors by metafeatures alone (in other words,

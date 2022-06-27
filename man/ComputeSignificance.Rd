@@ -5,29 +5,17 @@
 \title{Compute the significance value for a given prediction. You may use information
 gain, odds ratio, or t-statistic.}
 \usage{
-ComputeSignificance(
-  pred,
-  trueVal,
-  pruningMethod = "odds.ratio",
-  binCount = 10,
-  margin = 0.1,
-  includeVarianceTest = FALSE
-)
+ComputeSignificance(pred, trueVal, pruningMethod = "error.t.test")
 }
 \arguments{
 \item{trueVal}{The true values (predictions or outcomes) of the input data.}
 
-\item{pruningMethod}{Set to "information.gain", "odds.ratio", or "error.t.test"}
+\item{pruningMethod}{The method to use for pruning. Right now, only "error.t.test" is valid.}
 
-\item{binCount}{The number of bins to divide your original data into. Default is 10.}
-
-\item{margin}{The margin of error for a prediction to be considered "correct".
-Default is 0.1}
+\item{pairs}{A list of pairs to include in the composite model.}
 
 \item{includeVarianceTest}{Scale the t-score by the f-statistic (the ratio of variances).
 Only applicable when the pruning method is error.t.test. Default is FALSE.}
-
-\item{pairs}{A list of pairs to include in the composite model.}
 }
 \description{
 Compute the significance value for a given prediction. You may use information

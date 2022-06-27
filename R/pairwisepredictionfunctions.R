@@ -1,19 +1,22 @@
 #' Given each significant pairwise model and the input data, predict the phenotype
-#' for each sample. Recall that IntLIM models take the following form:
-#' m ~ beta0 + beta1(g) + beta2(phenotype) + beta3(g:phenotype) + beta4...n(covariates)
+#' for each sample. Recall that IntLIM models take the following form, where a_i
+#' and a_j are a pair of analytes.
+#' a_i ~ beta0 + beta1(a_j) + beta2(phenotype) + beta3(a_j:phenotype) + beta4...n(covariates)
 #' Therefore, to predict phenotype given the betas learned by IntLIM, we use the
 #' following model:
-#' p ~ (m - (beta0 + beta1(g) + beta4...n(covariates)) / (beta2 + beta3(g))
+#' p ~ (a_i - (beta0 + beta1(a_j) + beta4...n(covariates)) / (beta2 + beta3(a_j))
 #' @param inputResults The data frame of filtered results from IntLIM
 #'  model and processing results (output of ProcessResults()). All results must
 #'  include learned covariate weights (i.e. must be run with save.covar.pvals = TRUE)
-#' @param inputData An object with the following fields:
+#' @param inputData An IntLimData object that includes the input.
 #' @param stype The phenotype (outcome) to predict. This can be either a categorical
 #' or numeric outcome.
 #' @param covar The clinical covariates to include in the model. These should be the same
 #' covariates that were included when running the IntLIM linear models.
 #' @param independentVarType The independent variable type (1 or 2)
 #' @param outcomeType The outcome type (1 or 2)
+#' @return A data frame of predictions, where each column is a sample and each
+#' row is a predictor.
 #' @export
 RunPairwisePrediction <- function(inputResults, inputData, stype="", covar=c(),
                                   independentVarType = 2, outcomeType = 1){
@@ -116,6 +119,9 @@ RunPairwisePrediction <- function(inputResults, inputData, stype="", covar=c(),
 #' results in a prediction for each subject.
 #' @param coRegulationGraph An igraph object. This graph is the co-regulation graph
 #' generated using IntLIM analysis of analyte pairs.
+#' @return A list of igraph objects, one per sample, where each node is an analyte
+#' and each edge is a prediction. The weight of the edge is the predicted value
+#' using the pair of analytes represented by the edge. 
 #' @export
 ProjectPredictionsOntoGraph <- function(predictions, coRegulationGraph){
   
@@ -161,6 +167,8 @@ ProjectPredictionsOntoGraph <- function(predictions, coRegulationGraph){
 #' @param inputData An object with the following fields:
 #' @param covar The clinical covariates to include in the model. These should be the same
 #' covariates that were included when running the IntLIM linear models.
+#' @return A list with two elements: (1) the new set of covariates, and (2)
+#' the new sample meta data, as encoded.
 #' @export
 OneHotEncoding <- function(inputData, covar=c()){
   # Extract the covariate values from the input data.

@@ -38,7 +38,8 @@ Note that this must be less than the number of samples. Default = 10.}
 Default = 0.1.}
 }
 \value{
-A list of vectors (one for each sample) with an importance metric.
+A data frame with the importance metric for each sample and each
+predictor.
 }
 \description{
 Computes the importance as the median absolute error for local predictors

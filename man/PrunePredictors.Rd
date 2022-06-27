@@ -10,10 +10,7 @@ PrunePredictors(
   modelResults,
   verbose = FALSE,
   makePlots = FALSE,
-  pruningMethod = "odds.ratio",
-  binCount = 10,
-  margin = 0.1,
-  includeVarianceTest = includeVarianceTest,
+  pruningMethod = "error.t.test",
   tolerance = 1e-05,
   modelRetention = "stringent",
   minCutoff,
@@ -32,16 +29,7 @@ PrunePredictors(
 
 \item{makePlots}{Whether or not to plot the pruned model at each step.}
 
-\item{pruningMethod}{Set to "information.gain", "odds.ratio", or "error.t.test"}
-
-\item{binCount}{The number of bins to divide your original data into. Default is 10.
-Used in information gain pruning only.}
-
-\item{margin}{The margin of error for a prediction to be considered "correct".
-Default is 0.1. Used in odds ratio pruning only.}
-
-\item{includeVarianceTest}{Scale the t-score by the f-statistic (the ratio of variances).
-Only applicable when the pruning method is error.t.test. Default is FALSE.}
+\item{pruningMethod}{The method to use for pruning. Right now, only "error.t.test" is valid.}
 
 \item{tolerance}{Tolerance factor when computing equality of two numeric values.}
 
@@ -56,7 +44,7 @@ neither improve nor reduce the prediction score.}
 \item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
 }
 \value{
-A list of informative pairs
+A list of sets, where each set is a neighborhood of nodes.
 }
 \description{
 Given multiple composite predictors, prune the predictors that are not needed.

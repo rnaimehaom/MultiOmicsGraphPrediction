@@ -16,7 +16,8 @@ interaction coefficients, and other coefficients for each pair (such as the one 
 ProcessResults function)}
 }
 \value{
-A list of vectors (one for each sample) with an importance metric.
+A data frame with the importance metric for each sample and each
+predictor. The metric will be the same for all samples in this case.
 }
 \description{
 Compute the importance using absolute value of analyte term coefficient. Specifically,

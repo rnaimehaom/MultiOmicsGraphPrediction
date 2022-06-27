@@ -17,6 +17,9 @@ CreateLineGraph(predictionsByEdge, graphWithPredictions, edgeTypeList)
 - "shared.independent.analyte"
 - "analyte.chain"}
 }
+\value{
+An adjacency matrix for the line graph.
+}
 \description{
 Create a line graph given the original, unweighted graph. In a line graph,
 edges are nodes, and edges connected by a node are edges.

@@ -11,6 +11,9 @@ ComputeClassificationError(true.Y, pred.Y)
 
 \item{pred.Y}{The predicted phenotype of each sample.}
 }
+\value{
+A vector of classification errors.
+}
 \description{
 Compute classification error.
 }

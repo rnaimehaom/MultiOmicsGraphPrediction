@@ -1,9 +1,7 @@
 #' Find edges that share nodes and add them to a data frame.
 #' @param modelInputs An object of the ModelInput class.
-#' @param metaFeatures Calculated metafeatures.
 #' @param iterations Maximum number of iterations. Default is 1,000.
 #' @param convergenceCutoff Cutoff for convergence. Default is 0.001.
-#' @param stype.class One of either "character" or "numeric". Default is "numeric".
 #' @param learningRate Learning rate to use during training. Default is 0.2
 #' @param activationType Activation function. May be "softmax", "sigmoid", 
 #' "tanh", or "none". Default is "none", meaning stype.class is numeric.
@@ -11,11 +9,13 @@
 #' "adagrad", or "adam". Default is "SGD".
 #' @param initialMetaFeatureWeights Initial weights for model meta-features. Default
 #' is 0, which results in each meta-feature being given equal weight.
+#' @return An object of the ModelResults class. This object will later be filled in
+#' with the weights and errors from each iteration as well as the initial
+#' settings and data and the final result.
 #' @export
 InitializeGraphLearningModel <- function(modelInputs,
                                          iterations = 1000,
                                          convergenceCutoff = 0.0000000001,
-                                         stype.class = "numeric", 
                                          learningRate = 0.2,
                                          activationType = "none", 
                                          optimizationType = "SGD",
@@ -63,10 +63,19 @@ InitializeGraphLearningModel <- function(modelInputs,
 
 #' 
 #' Format the input for graph-based learning. This input consists of:
-#' 1. The Laplacian of a line graph built from the co-regulation graphs, where 
+#' - The Laplacian of a line graph built from the co-regulation graphs, where 
 #' each node corresponds to a pair of analytes.
-#' 2. A prediction value for each node of the line graph, for each sample X.
-#' 3. The true prediction values Y for each sample X.
+#' - A prediction value for each node of the line graph, for each sample X.
+#' - The true prediction values Y for each sample X.
+#' - The co-regulation graph.
+#' - The line graph built from the co-regulation graphs.
+#' - The input data (analyte levels, covariates, and phenotype).
+#' - The model results from IntLIM for each predictor.
+#' - The metafeatures for each model from IntLIM.
+#' - The phenotype / outcome column name in the input data.
+#' - The type of the outcome / phenotype ("numeric" or "categorical").
+#' - The analyte type used as the outcome variable for each model (1 or 2).
+#' - The analyte type used as the independent variable for each model (1 or 2).
 #' @slot metaFeatures A list of calculated meta-features for each sample
 #' @slot modelProperties A data frame that includes model information, i.e. R^2,
 #' interaction term p-value, and coefficients.
@@ -88,6 +97,8 @@ InitializeGraphLearningModel <- function(modelInputs,
 #' TRUE or FALSE. Default is FALSE.
 #' @param outcome The outcome used in the IntLIM models.
 #' @param independent.var.type The independent variable type used in the IntLIM models.
+#' @return An object of the ModelInput class. This object will contain the input data,
+#' graph information, and individual predictor properties and their metafeatures.
 #' @export
 FormatInput <- function(predictionGraphs, coregulationGraph, metaFeatures, modelProperties,
                         inputData, stype.class, edgeTypeList, stype, verbose = FALSE, covariates = list(),
@@ -150,8 +161,7 @@ FormatInput <- function(predictionGraphs, coregulationGraph, metaFeatures, model
   
   # Create a ModelInput object and return it.
   newModelInput <- methods::new("ModelInput", A.hat=A_hat, node.wise.prediction=predictions_flattened,
-                                true.phenotypes=Y, outcome.type=stype.class, 
-                                coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
+                                true.phenotypes=Y, coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
                                 line.graph=as.matrix(A), input.data = inputData, model.properties = modelProperties,
                                 metaFeatures = metaFeatures, stype = stype, covariates = covariates, stype.class = stype.class,
                                 outcome = outcome, independent.var.type = independent.var.type)
@@ -166,6 +176,7 @@ FormatInput <- function(predictionGraphs, coregulationGraph, metaFeatures, model
 #' - "shared.outcome.analyte"
 #' - "shared.independent.analyte"
 #' - "analyte.chain"
+#' @return An adjacency matrix for the line graph.
 CreateLineGraph <- function(predictionsByEdge, graphWithPredictions, edgeTypeList){
   # Step 1: Define vertices.
   line_graph_vertices <- predictionsByEdge$Node
@@ -213,6 +224,8 @@ CreateLineGraph <- function(predictionsByEdge, graphWithPredictions, edgeTypeLis
 #' @param graphWithPredictions Original graph data frame.
 #' @param nodeType1 Either "to" or "from".
 #' @param nodeType2 Either "to or "from".
+#' @return A data frame of all nodes (analyte pairs / predictors) that
+#' share an analyte, with the columns "to" and "from".
 FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeType1,
                                   nodeType2){
   # Convert predictions to data frame.
@@ -247,21 +260,14 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
 #' exclude pooling and combine in a single layer using a linear combination).
 #' @param modelResults An object of the ModelResults class.
 #' @param verbose Whether to print results as you run the model.
-#' @param pruningMethod Set to "information.gain", "odds.ratio", or "error.t.test"
-#' @param binCount The number of bins to divide your original data into. Default is 10.
-#' Used in information gain pruning only.
-#' @param margin The margin of error for a prediction to be considered "correct".
-#' Default is 0.1. Used in odds ratio pruning only.
-#' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
-#' Only applicable when the pruning method is error.t.test. Default is FALSE.
 #' @param modelRetention Strategy for model retention. "stringent" (the default)
 #' retains only models that improve the prediction score. "lenient" also retains models that
 #' neither improve nor reduce the prediction score.
 #' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+#' @return A ModelResults object, with all of the tracking information from each
+#' iteration filled in.
 #' @export
-OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
-                                    pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
-                                    includeVarianceTest = FALSE, modelRetention = "stringent",
+OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE, modelRetention = "stringent",
                                     useCutoff = FALSE){
   
   # Calculate prediction cutoffs.
@@ -273,13 +279,11 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                               modelResults@previous.metaFeature.weights)^2))
   
   # Get the initial pruned models.
+  pruningMethod <- "error.t.test"
   pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
   prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                                                          verbose = FALSE, makePlots = FALSE,
+                                                                          verbose = FALSE,
                                                                        pruningMethod = pruningMethod,
-                                                                       binCount = binCount,
-                                                                       margin = margin,
-                                                                       includeVarianceTest = includeVarianceTest,
                                                                        modelRetention = modelRetention,
                                                                        useCutoff = useCutoff,
                                                                        minCutoff = predictionCutoffs$min,
@@ -290,7 +294,7 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
                          useCutoff = useCutoff,
                          minCutoff = predictionCutoffs$min,
                          maxCutoff = predictionCutoffs$max)
-  if(modelResults@model.input@outcome.type == "categorical"){
+  if(modelResults@model.input@stype.class == "categorical"){
     modelResults@iteration.tracking$Error[1] <- 
       ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
   }else{
@@ -344,7 +348,6 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
       modelResults@current.metaFeature.weights <- newModelResults@current.metaFeature.weights
       modelResults@previous.metaFeature.weights <- newModelResults@previous.metaFeature.weights
       modelResults@current.gradient <- newModelResults@current.gradient
-      modelResults@outcome.prediction <- newModelResults@outcome.prediction
       modelResults@previous.momentum <- newModelResults@previous.momentum
       modelResults@previous.update.vector <- newModelResults@previous.update.vector
       modelResults@iteration.tracking <- newModelResults@iteration.tracking
@@ -357,7 +360,7 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
 
     # Compute the prediction error over all samples.
     modelResults@iteration.tracking$Iteration[modelResults@current.iteration+1] <- modelResults@current.iteration
-    if(modelResults@model.input@outcome.type == "categorical"){
+    if(modelResults@model.input@stype.class == "categorical"){
       modelResults@iteration.tracking$Error[modelResults@current.iteration+1] <- 
         ComputeClassificationError(modelResults@model.input@true.phenotypes, Y.pred)
     }else{
@@ -368,11 +371,7 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
     
     # Get the new pruned models.
     prunedModels <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                                                        verbose = FALSE, makePlots = FALSE,
-                                                                        pruningMethod = pruningMethod,
-                                                                        binCount = binCount,
-                                                                        margin = margin,
-                                                                        includeVarianceTest = includeVarianceTest,
+                                                                        verbose = FALSE,
                                                                         modelRetention = modelRetention,
                                                                         useCutoff = useCutoff,
                                                                         minCutoff = predictionCutoffs$min,
@@ -390,7 +389,6 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
         sortedNodes <- sortedNodes[1:5]
       }
       print(paste0("Nodes include: ", paste(sortedNodes, collapse = ", ")))
-      #plot(unlist(Y.pred), as.vector(modelResults@model.input@true.phenotypes))
     }
     
     # Update the iteration.
@@ -412,51 +410,10 @@ OptimizeMetaFeatureCombo <- function(modelResults, verbose = TRUE,
   return(modelResults)
 }
 
-#' Run a prediction on new data using the graph learning model, and compute
-#' the absolute error delta values.
-#' @param weights The list of all learned weights.
-#' @param convolutions Number of convolutions to perform. This should be the
-#' same number of convolutions used in learning the weights.
-#' @param modelInput A list of objects of the ModelInput class.
-#' @param minimum The minimum prediction value to allow. Default is NULL.
-#' @param maximum The maximum prediction value to allow. Default is NULL.
-#' @export
-GetErrorDeltas <- function(weights, modelInput, convolutions, minimum = NULL, 
-                           maximum = NULL){
-  # Convolve the input.
-  Y.formula <- modelInput@node.wise.prediction
-  if(convolutions > 0){
-    
-    # Modify the convolutional matrix if more than
-    # one convolution is desired.
-    if(convolutions > 1){
-      for(c in 2:convolutions){
-        modelInput@A.hat <- modelInput@A.hat %*% modelInput@A.hat
-      }
-    }
-    
-    # Do convolution.
-    Y.formula <- modelInput@A.hat %*% Y.formula
-  }
-  deltas <- unlist(lapply(1:length(modelInput@true.phenotypes),function(j){
-    solution <- sum(Y.formula[,j] * weights)
-    # Adjust to fit minimum and maximum.
-    if(!is.null(minimum)){
-      solution[which(solution < minimum)] <- minimum
-    }
-    if(!is.null(maximum)){
-      solution[which(solution > maximum)] <- maximum
-    }  
-    phenotype <- modelInput@true.phenotypes[j]
-    return(unlist(unname(abs(solution - phenotype))))
-  }))
-  names(deltas) <- names(modelInput@true.phenotypes)
-  return(deltas)
-}
-
 #' Compute classification error.
 #' @param true.Y The true phenotype of each sample.
 #' @param pred.Y The predicted phenotype of each sample.
+#' @return A vector of classification errors.
 #' @export
 ComputeClassificationError <- function(true.Y, pred.Y){
   # Find false and true positives and negatives.
@@ -473,6 +430,7 @@ ComputeClassificationError <- function(true.Y, pred.Y){
 #' Compute the normalized root mean squared error.
 #' @param true.Y The true phenotype of each sample.
 #' @param pred.Y The predicted phenotype of each sample.
+#' @return A vector of RMSE.
 #' @export
 ComputeRMSE <- function(true.Y, pred.Y){
   RMSD <- sqrt(sum((true.Y - pred.Y)^2) / length(true.Y))

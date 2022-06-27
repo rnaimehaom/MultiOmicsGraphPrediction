@@ -9,8 +9,8 @@ analytes have a positive or negative co-regulation, and the shape of the analyte
 BuildGraphDataFrame(inputResults)
 }
 \arguments{
-\item{inputResults}{A list of data frames. Each object must include
-model and processing results (output of ProcessResults()).}
+\item{inputResults}{A data frame containing the analyte names for each model
+and the coefficients, p-values, and R^2 values.}
 }
 \description{
 Construct a data frame that includes all information needed to build an igraph

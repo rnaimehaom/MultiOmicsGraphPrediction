@@ -1,0 +1,223 @@
+---
+title: "AsthmaDemo_preprocessing.Rmd"
+author: "Tara Eicher"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Set up.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+result_dir <- "~\\asthma_vignette_results"
+dir.create(result_dir)
+```
+
+# Install the packages.
+```{r eval = FALSE}
+if(!require("devtools")){
+  install.packages("devtools")
+}
+library("devtools")
+if(!require("MultiOmicsGraphPrediction")){
+  install_github("ncats/MultiOmicsGraphPrediction")
+}
+library(MultiOmicsGraphPrediction)
+```
+
+# Filter metabolites and genes.
+
+This data includes GACRS gene expression and metabolite abundance levels for 320 patients. The outcome of interest is lung function. We received the following analyte pairs of interest from Rachel Kelly:
+- IDO1 and IDO2 and the tryptophan kynurenine pathway. The tryptophan kynurenine pathway includes the following pathways in RaMP:
+  - NAD biosynthesis II (from tryptophan)
+  - NAD+ biosynthesis
+  - Tryptophan catabolism
+  - Tryptophan catabolism leading to NAD+ production
+  - Tryptophan metabolism
+- ORMDL3 and sphingolipids and ceramides.
+  - Sphingolipids: 
+
+```{r}
+# Genes and metabolites of interest (metabolites are from RaMP).
+genes.tryptophan.kynurenine <- c("IDO1", "IDO2")
+nad.biosynthesis.ii.from.tryptophan <- c("hmdb:HMDB0000045", "hmdb:HMDB0000148", 
+                                         "hmdb:HMDB0000161", "hmdb:HMDB0000232", 
+                                         "hmdb:HMDB0000538", "hmdb:HMDB0000641", 
+                                         "hmdb:HMDB0000684", "hmdb:HMDB0000929")
+nad.plus.biosynthesis <- c("hmdb:HMDB0000232", "hmdb:HMDB0000684", 
+                           "hmdb:HMDB0000929", "hmdb:HMDB0001406")
+tryptophan.catabolism <- c("hmdb:HMDB0000243", "hmdb:HMDB0000684", 
+                           "hmdb:HMDB0000715", "hmdb:HMDB0002302")
+tryptophan.catabolism.leading.to.nad.plus.production <- c("hmdb:HMDB0000161", 
+                                                          "hmdb:HMDB0000197", 
+                                                          "hmdb:HMDB0000232", 
+                                                          "hmdb:HMDB0000259", 
+                                                          "hmdb:HMDB0000684", 
+                                                          "hmdb:HMDB0000715", 
+                                                          "hmdb:HMDB0000881", 
+                                                          "hmdb:HMDB0000929", 
+                                                          "hmdb:HMDB0001123", 
+                                                          "hmdb:HMDB0001406")
+tryptophan.metabolism <- c("hmdb:HMDB0000148", "hmdb:HMDB0000161", "hmdb:HMDB0000197", 
+                           "hmdb:HMDB0000232", "hmdb:HMDB0000259", "hmdb:HMDB0000538", 
+                           "hmdb:HMDB0000684", "hmdb:HMDB0000715", "hmdb:HMDB0000881", 
+                           "hmdb:HMDB0000929", "hmdb:HMDB0001123")
+
+genes.sphingolipid.ceramide <- c("ORMDL3")
+sphingolipids <- c("hmdb:HMDB0000277", "hmdb:HMDB0001348", "hmdb:HMDB0004949",
+                   "hmdb:HMDB0004952", "hmdb:HMDB0004953", "hmdb:HMDB0004956",
+                   "hmdb:HMDB0010169", "hmdb:HMDB0011697", "hmdb:HMDB0012102",
+                   "hmdb:HMDB0012107", "hmdb:HMDB0012097", "hmdb:HMDB0012101",
+                   "hmdb:HMDB0012103", "hmdb:HMDB0012104", "hmdb:HMDB0000252",
+                   "hmdb:HMDB0000269", "hmdb:HMDB0000277", "hmdb:HMDB0001348",
+                   "hmdb:HMDB0004949", "hmdb:HMDB0004952", "hmdb:HMDB0004953",
+                   "hmdb:HMDB0004956", "hmdb:HMDB0010169", "hmdb:HMDB0011697",
+                   "hmdb:HMDB0012102", "hmdb:HMDB0012107", "hmdb:HMDB0012097",
+                   "hmdb:HMDB0012101", "hmdb:HMDB0012103", "hmdb:HMDB0012104")
+
+ceramides <- c("hmdb:HMDB0004949", "hmdb:HMDB0004952", "hmdb:HMDB0004953",
+               "hmdb:HMDB0004956", "hmdb:HMDB0004949", "hmdb:HMDB0004952",
+               "hmdb:HMDB0004953", "hmdb:HMDB0004956")
+
+# Match lists to actual metabolites present in the database.
+metab.fdata <- read.csv("/Volumes/eichertd$/asthma_data/cra/metabfdata.csv")
+genes.of.interest <- c(genes.tryptophan.kynurenine, genes.sphingolipid.ceramide)
+getMetabIds <- function(idList){
+  return(unlist(lapply(idList, function(id){
+    retVal <- NA
+    whichId <- which(metab.fdata$HMDB_ID == id)
+    if(length(whichId) > 0){
+      retVal <- metab.fdata$id[whichId]
+    }
+    return(retVal)
+  })))
+}
+getMetabNames <- function(idList){
+  return(make.names(unlist(lapply(idList, function(id){
+    retVal <- NA
+    whichId <- which(metab.fdata$HMDB_ID == id)
+    if(length(whichId) > 0){
+      retVal <- metab.fdata$Metabolite[whichId]
+    }
+    return(retVal)
+  }))))
+}
+nad.biosynthesis.ii.from.tryptophan.ids <- getMetabIds(nad.biosynthesis.ii.from.tryptophan)
+nad.plus.biosynthesis.ids <- getMetabIds(nad.plus.biosynthesis)
+tryptophan.catabolism.ids <- getMetabIds(tryptophan.catabolism)
+tryptophan.catabolism.leading.to.nad.plus.production.ids <- getMetabIds(tryptophan.catabolism.leading.to.nad.plus.production)
+tryptophan.metabolism.ids <- getMetabIds(tryptophan.metabolism)
+sphingolipids.ids <- getMetabIds(sphingolipids)
+ceramides.ids <- getMetabIds(ceramides)
+
+nad.biosynthesis.ii.from.tryptophan.names <- getMetabIds(nad.biosynthesis.ii.from.tryptophan)
+print(nad.biosynthesis.ii.from.tryptophan.names)
+nad.plus.biosynthesis.names <- getMetabIds(nad.plus.biosynthesis)
+print(nad.plus.biosynthesis.names)
+tryptophan.catabolism.names <- getMetabIds(tryptophan.catabolism)
+print(tryptophan.catabolism.names)
+tryptophan.catabolism.leading.to.nad.plus.production.names <- getMetabIds(tryptophan.catabolism.leading.to.nad.plus.production)
+print(tryptophan.catabolism.leading.to.nad.plus.production.names)
+tryptophan.metabolism.names <- getMetabIds(tryptophan.metabolism)
+print(tryptophan.metabolism.names)
+sphingolipids.names <- getMetabIds(sphingolipids)
+print(sphingolipids.names)
+ceramides.names <- getMetabIds(ceramides)
+print(ceramides.names)
+
+# Read analyte files.
+metabs <- read.csv("/Volumes/eichertd$/asthma_data/cra/named_metabdata.csv", row.names = 1)
+genes <- read.csv("/Volumes/eichertd$/asthma_data/cra/transcriptdata.csv", row.names = 1)
+pdata <- read.csv("/Volumes/eichertd$/asthma_data/cra/pdata.csv", row.names = 1)
+fdata.gene <- read.csv("/Volumes/eichertd$/asthma_data/cra/genefdata.csv", row.names = 1)
+row.names(pdata) <- make.names(row.names(pdata))
+```
+
+```{r}
+# Filter metabolites.
+all.ids <- c(nad.biosynthesis.ii.from.tryptophan.ids, nad.plus.biosynthesis.ids,
+             tryptophan.catabolism.ids, tryptophan.catabolism.leading.to.nad.plus.production.ids,
+             tryptophan.metabolism.ids, sphingolipids.ids, ceramides.ids)
+all.ids <- unique(all.ids[which(!is.na(all.ids))])
+all.names <- c(nad.biosynthesis.ii.from.tryptophan.names, nad.plus.biosynthesis.names,
+             tryptophan.catabolism.names, tryptophan.catabolism.leading.to.nad.plus.production.names,
+             tryptophan.metabolism.names, sphingolipids.names, ceramides.names)
+all.names <- unique(all.names[which(!is.na(all.names))])
+metabs <- metabs[all.ids,]
+rownames(metabs) <- all.names
+colnames(metabs) <- sample(colnames(metabs), ncol(metabs))
+csvtrain <- metabs[,1:254]
+csvtest <- metabs[,255:318]
+write.csv(csvtrain, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/metabDataAsthma.train.csv")
+write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/metabDataAsthma.test.csv")
+
+# Filter genes.
+csvtrain <- genes[genes.of.interest,1:254]
+csvtest <- genes[genes.of.interest,255:318]
+write.csv(csvtrain, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/geneDataAsthma.train.csv")
+write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/geneDataAsthma.test.csv")
+
+# Filter pdata.
+csvtrain <- pdata[1:254,]
+csvtest <- pdata[255:318,]
+write.csv(csvtrain, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/pDataAsthma.train.csv")
+write.csv(csvtest, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/pDataAsthma.test.csv")
+
+# Filter fdata.
+fdataFilt <- metab.fdata[all.ids,]
+rownames(fdataFilt) <- make.names(rownames(fdataFilt))
+fdataFilt$id <- all.names
+write.csv(fdataFilt, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/fDataMetabAsthma.csv")
+fdataGenes <- fdata.gene[genes.of.interest,]
+write.csv(fdataGenes, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/fDataGeneAsthma.csv")
+
+# Write reference file.
+refdata.train <- data.frame(type = c("analyteType2", "analyteType1", "analyteType2MetaData", "analyteType1MetaData", "sampleMetaData"),
+                      filenames = c("metabDataAsthma.train.csv", "geneDataAsthma.train.csv", "fDataMetabAsthma.csv", "fDataGeneAsthma.csv", "pDataAsthma.train.csv"))
+refdata.test <- data.frame(type = c("analyteType2", "analyteType1", "analyteType2MetaData", "analyteType1MetaData", "sampleMetaData"),
+                      filenames = c("metabDataAsthma.test.csv", "geneDataAsthma.test.csv", "fDataMetabAsthma.csv", "fDataGeneAsthma.csv", "pDataAsthma.test.csv"))
+write.csv(refdata.train, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/Asthma.train.csv", row.names = FALSE)
+write.csv(refdata.test, "/Volumes/eichertd$/Ensemble_prediction/inst/extdata/Asthma.test.csv", row.names = FALSE)
+```
+
+## Plot Analyte Pair Distribution
+```{r}
+# List analytes of interest.
+metabolites_of_interest <- c(rep("2'-deoxyuridine 5'-triphosphate", 7), rep("citric acid", 11),
+                             rep("malic acid", 6), rep("succinate", 9))
+genes_of_interest <- c(c("FURIN", "UMPS", "UPP1", "UPP2", "UCK1", "RRM2", "TYMS"),
+                       c("CNDP1", "APRT", "SLCO2B1", "CLYBL", "BHMT", "PDE5A", "IL4I1", "HS3ST3A1", "HS3ST3B1", "OR10H3"),
+                       c("MDH2", "FH", "ME2", "ME1", "ME3", "MDH1"),
+                       c("TMLHE", "ALKBH2", "PHYH", "P4HA2", "P4HA1", "BBOX1", "PLOD1", "PLOD2", "PLOD3", "P3H1"))
+
+# Plot analyte pairs.
+for(i in 1:length(metabolites_of_interest)){
+  numeric_metab <- as.numeric(metabs[metabolites_of_interest[i],])
+  numeric_gene <- as.numeric(genes[genes_of_interest[i],])
+  which_neither_na <- intersect(which(!is.na(numeric_metab)), which(!is.na(numeric_gene)))
+  str(numeric_gene)
+  plot(y = numeric_metab[which_neither_na], 
+       x = numeric_gene[which_neither_na],
+       xlab = genes_of_interest[i], ylab = metabolites_of_interest[i])
+}
+```
+
+## Plot Analyte Distribution With Respect to 5-FU
+```{r}
+metabolites_of_interest <- c("2'-deoxyuridine 5'-triphosphate", "citric acid",
+                             "malic acid", "succinate", "cysteine")
+genes_of_interest <- c("FURIN", "UMPS", "UPP1", "UPP2", "UCK1", "RRM2", "TYMS",
+                       "CNDP1", "APRT", "SLCO2B1", "CLYBL", "BHMT", "PDE5A", "IL4I1", "HS3ST3A1", "HS3ST3B1", "OR10H3",
+                       "MDH2", "FH", "ME2", "ME1", "ME3", "MDH1",
+                       "TMLHE", "ALKBH2", "PHYH", "P4HA2", "P4HA1", "BBOX1", "PLOD1", "PLOD2", "PLOD3", "P3H1",
+                       "E2F1", "TP53", "TNFSF10")
+
+# Plot analyte pairs.
+for(i in 1:length(metabolites_of_interest)){
+  plot(y = metabs[metabolites_of_interest[i], shared_samps], x = pdata$drug5FU, 
+       ylab = metabolites_of_interest[i], xlab = "Mean Tegafur Score")
+}
+for(i in 1:length(genes_of_interest)){
+  plot(y = genes[genes_of_interest[i], shared_samps], x = pdata$drug5FU, 
+       ylab = genes_of_interest[i], xlab = "Mean Tegafur Score")
+}
+```

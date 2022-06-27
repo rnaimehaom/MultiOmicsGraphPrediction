@@ -69,12 +69,6 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred, minCutoff, maxCuto
     modelResults@current.metaFeature.weights <- prevWeights - update.vec
     modelResults@previous.momentum <- m
     modelResults@previous.update.vector <- v
-  }else if(modelResults@optimization.type == "newton"){
-    # Calculate Hessian and update weights.
-    hessian <- computeHessianSingleLayer(modelResults, convolution, pooling)
-    update <- MASS::ginv(hessian) %*% modelResults@current.gradient
-    modelResults@current.metaFeature.weights <- prevWeights - 
-      (modelResults@learning.rate * update)
   }
   
   # Update the weights for this iteration.
@@ -84,65 +78,6 @@ Backpropagate <- function(modelResults, prunedModels, Y.pred, minCutoff, maxCuto
   
   # Return.
   return(modelResults)
-}
-
-#' Compute the Hessian for a single layer neural network.
-#' Note that this function is currently not implemented for categorical outcomes.
-#' @param modelResults An object of the ModelResults class.
-#' @param convolution Whether or not to perform convolution
-#' @param pooling Whether or not to perform pooling
-computeHessianSingleLayer <- function(modelResults, convolution, pooling){
-  # Components for derivative.
-  A.hat <- modelResults@model.input@A.hat
-  X <- modelResults@model.input@node.wise.prediction
-  Theta.old <- matrix(rep(modelResults@current.metaFeature.weights, dim(X)[2]), ncol = dim(X)[2])
-  Y <- modelResults@model.input@true.phenotypes
-  
-  # Convolve X.
-  conv <- lapply(1:dim(X)[2], function(i){
-    ret_val <- X[,i]
-    if(convolution == TRUE){
-      ret_val <- A.hat %*% X[,i]
-    }
-    return(ret_val)
-  })
-  
-  # Compute filter.
-  S <- modelResults@pooling.filter@filter
-  S_all <- modelResults@pooling.filter@individual.filters
-  
-  # Compute the convolution values.
-  convolution.val <- lapply(1:length(conv), function(i){
-    return(conv[[i]])
-  })
-  if(pooling == TRUE){
-    convolution.val <- lapply(1:length(S_all), function(i){
-      S.flat <- rowSums(S_all[[i]])
-      ret_val <- conv[[i]] * S.flat
-      if(modelResults@weights.after.pooling == TRUE){
-        ret_val <- t(conv[[i]]) %*% S_all[[i]]
-      }
-      return(ret_val)
-    })
-  }
-  
-  # Create array, where each matrix is one sample. These will be summed
-  # together to obtain the Hessian.
-  hessian.single.samples <- lapply(1:dim(X)[2], function(i){
-    mat.X <- matrix(rep(X[,i], dim(X)[1]), nrow = dim(X)[1], ncol = dim(X)[1])
-    return(mat.X * t(mat.X))
-  })
-  
-  # Sum these together to obtain the Hessian.
-  hessian <- hessian.single.samples[[1]]
-  if(length(hessian.single.samples)>1){
-    for(i in 2:length(hessian.single.samples)){
-      hessian <- hessian + hessian.single.samples[[i]]
-    }
-  }
-  
-  # Return Hessian.
-  return(hessian)
 }
 
 #' Compute the gradient for a single layer neural network.
@@ -261,7 +196,7 @@ computeGradient <- function(modelResults, prunedModels, minCutoff, maxCutoff, us
 
     # If data are categorical, compute the derivative of the activation function.
     derivPredByAct <- 1
-    if(modelResults@model.input@stype.class == "factor"){
+    if(modelResults@model.input@stype.class == "categorical"){
       derivPredByAct <- DerivativeOfActivation(modelResults@activation.type, P_hat)
     }
     return(PhatDeriv * derivPredByAct * subgraphDerivDF)
@@ -363,7 +298,7 @@ DerivativeOfActivation <- function(activationType, pred){
   # Compute activation function.
   activation <- as.matrix(pred)
   d.act.d.pred <- as.matrix(rep(1, length(pred)))
-  if(modelResults@model.input@outcome.type == "categorical"){
+  if(modelResults@model.input@stype.class == "categorical"){
     if(modelResults@activation.type == "softmax"){
       activation <- SoftmaxWithCorrection(pred)
       # Set maximum and minimum values to prevent infinite and infinitecimal values.
@@ -441,7 +376,7 @@ DoPrediction <- function(modelResults, prunedModels, minCutoff = minCutoff, maxC
   # types are converted into factors, and since only binary factors are accepted by
   # the package, the values will be 1 (for the alphanumerically lowest level) and 2
   # (for the alphanumerically highest level).
-  if(modelResults@model.input@outcome.type == "factor"){
+  if(modelResults@model.input@stype.class == "categorical"){
     if(modelResults@activation.type == "softmax"){
       Y.pred <- round(SoftmaxWithCorrection(Y.pred))
     }else if(modelResults@activation.type == "tanh"){
@@ -481,7 +416,6 @@ DoSingleTrainingIteration <- function(modelResults, prunedModels, minCutoff, max
                          minCutoff = minCutoff,
                          maxCutoff = maxCutoff,
                          useCutoff = useCutoff)
-  modelResults@outcome.prediction <- as.numeric(as.matrix(Y.pred))
 
   # Backpropagate and calculate the error.
   modelResults <- Backpropagate(modelResults = modelResults,

@@ -8,7 +8,6 @@ InitializeGraphLearningModel(
   modelInputs,
   iterations = 1000,
   convergenceCutoff = 1e-10,
-  stype.class = "numeric",
   learningRate = 0.2,
   activationType = "none",
   optimizationType = "SGD",
@@ -22,8 +21,6 @@ InitializeGraphLearningModel(
 
 \item{convergenceCutoff}{Cutoff for convergence. Default is 0.001.}
 
-\item{stype.class}{One of either "character" or "numeric". Default is "numeric".}
-
 \item{learningRate}{Learning rate to use during training. Default is 0.2}
 
 \item{activationType}{Activation function. May be "softmax", "sigmoid", 
@@ -34,8 +31,11 @@ InitializeGraphLearningModel(
 
 \item{initialMetaFeatureWeights}{Initial weights for model meta-features. Default
 is 0, which results in each meta-feature being given equal weight.}
-
-\item{metaFeatures}{Calculated metafeatures.}
+}
+\value{
+An object of the ModelResults class. This object will later be filled in
+with the weights and errors from each iteration as well as the initial
+settings and data and the final result.
 }
 \description{
 Find edges that share nodes and add them to a data frame.

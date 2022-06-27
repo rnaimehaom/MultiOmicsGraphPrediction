@@ -2,7 +2,8 @@
 % Please edit documentation in R/metafeaturefunctions.R
 \name{GetPredictorIDs}
 \alias{GetPredictorIDs}
-\title{Function for obtaining database identifiers for each predictor.}
+\title{Function for obtaining database identifiers for each predictor. Used
+in functional analysis.}
 \usage{
 GetPredictorIDs(preds, inputData, colIdInd, colIdOut)
 }
@@ -19,6 +20,12 @@ outcome variable. If blank, then the existing ID's are used.}
 \item{predictions}{Prediction data frame, where rows are samples, and
 columns are predictors.}
 }
+\value{
+A data frame with two columns. The indId column contains the ID's
+for the independent analyte, and the outId column contains the ID's for
+the outcome analyte.
+}
 \description{
-Function for obtaining database identifiers for each predictor.
+Function for obtaining database identifiers for each predictor. Used
+in functional analysis.
 }

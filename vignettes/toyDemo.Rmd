@@ -111,7 +111,7 @@ myres.r2 <- IntLIM::ProcessResults(inputResults = myres, inputData = inputData,
                                        pvalcutoff = 1, rsquaredCutoff = peak.r2)
 # Build graph.
 coreg.r2 <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2)
-MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2, "", saveInFile = NULL, vertices = NULL)
+MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2, "", saveInFile = "")
 View(myres.r2)
 ```
 
@@ -222,8 +222,7 @@ modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInp
 pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
 
 propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE,
-                                               modelRetention = "stringent")
+                                               verbose = TRUE, modelRetention = "stringent")
 print(propagatedGraph)
 print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
 ```
@@ -271,8 +270,7 @@ modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInp
 pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
 
 propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE,
-                                               modelRetention = "lenient")
+                                               verbose = TRUE, modelRetention = "lenient")
 print(propagatedGraph)
 print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
 ```
@@ -282,8 +280,7 @@ Because the final predictors are exact, there is no need to adjust the weights s
 other models contribute more to the final prediction. Therefore, the optimization
 converges immediately and returns the same set of predictors as the first iteration.
 ```{r}
-optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults,pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE,
-                                                                    modelRetention = "stringent")
+optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults, verbose = TRUE, modelRetention = "stringent")
 ```
 
 # Test Performance Using Leave-One-Out Cross-Validation
@@ -313,7 +310,51 @@ for(sample in rownames(inputData@sampleMetaData)){
   outcomeType <- 1
   independentVarType <- 2
   
-  # Run prediction.
+  # # Run prediction.
+  # myres.cv <- IntLIM::RunIntLim(inputData = data$training,stype=stype,
+  #                                save.covar.pvals = TRUE, 
+  #                                outcome = outcomeType, 
+  #                                independent.var.type = independentVarType, 
+  #                                continuous = TRUE)
+  # myres.all.cv <- IntLIM::ProcessResults(inputResults = myres.cv, inputData = data$training, 
+  #                                      pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
+  # myres.r2.density.cv <- density(myres.all.cv$rsquared)
+  # peak.r2.cv <- myres.r2.density.cv$x[which.max(myres.r2.density.cv$y)]
+  # myres.r2 <- IntLIM::ProcessResults(inputResults = myres.cv, inputData = data$training, 
+  #                                        pvalcutoff = 1, rsquaredCutoff = peak.r2.cv)
+  # # Build graph.
+  # coreg.r2.cv <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2.cv)
+  # MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2.cv, "", saveInFile = "")
+  # pred.cv <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2.cv, 
+  #                                                        inputData = data$training,
+  #                                                        stype = stype,
+  #                                                        independentVarType = independentVarType,
+  #                                                        outcomeType = outcomeType)
+  # projectedGraph.cv <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg.r2.cv,
+  #                                                                        predictions = pred.cv)
+  # metaFeatures.cv <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred.cv, 
+  #                                                                stype = stype,
+  #                                                                inputData = data$training, 
+  #                                                                metaFeatureList = metaFeatureList,
+  #                                                                k = 2, eigStep = 1,
+  #                                                                modelStats = myres.r2.cv,
+  #                                                                colIdInd = "databaseId",
+  #                                                                colIdOut = "databaseId")
+  # modelInput.cv <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph.cv, 
+  #                                                    coregulationGraph = coreg.r2.cv,
+  #                                                    inputData = data$training, 
+  #                                                    stype.class = "numeric",
+  #                                                    stype = stype,
+  #                                                    edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
+  #                                                    metaFeatures = metaFeatures.cv,
+  #                                                    modelProperties = myres.r2.cv,
+  #                                                    outcome = outcomeType,
+  #                                                    independent.var.type = independentVarType)
+  # modelResults.cv <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput.cv, learningRate = 0.2)
+  # pairsPredAll.cv <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults.cv@model.input, percentOverlapCutoff = 50)
+  # 
+  # propagatedGraph.cv <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll.cv, modelResults = modelResults.cv,
+  #                                                verbose = TRUE, modelRetention = "stringent")
   modelResults.cv <- DoModelSetup(inputData = data$training,
                                   stype = stype,
                                   outcomeType = outcomeType,
@@ -321,17 +362,11 @@ for(sample in rownames(inputData@sampleMetaData)){
                                   continuous = TRUE,
                                   metaFeatureList = metaFeatureList,
                                   learningRate = 0.2)
-  optimalModel.cv <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv,
-                                                                   pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = FALSE)
+  optimalModel.cv <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv, verbose = TRUE, modelRetention = "stringent")
 
   # Predict testing values.
-  predictions <- DoTestSetupAndPrediction(inputDataTrain = data$training, 
-                                          inputDataTest = data$testing, 
-                                          model = optimalModel.cv, 
-                                          metaFeatureList = metaFeatureList,
-                                          stype = stype,
-                                          independentVarType = independentVarType, 
-                                          outcomeType = outcomeType)
+  predictions <- DoTestSetupAndPrediction(inputDataTest = data$testing, 
+                                          model = optimalModel.cv)
   print(optimalModel.cv@pairs)
   print(paste(sample, predictions, data$testing@sampleMetaData$age))
 }
@@ -360,17 +395,12 @@ for(sample in rownames(inputData@sampleMetaData)){
                                   metaFeatureList = metaFeatureList,
                                   learningRate = 0.2)
   optimalModel.cv <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults.cv,
-                                                                   pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = FALSE,
+                                                                   verbose = FALSE,
                                                                    useCutoff = TRUE)
 
   # Predict testing values.
-  predictions <- DoTestSetupAndPrediction(inputDataTrain = data$training, 
-                                          inputDataTest = data$testing, 
+  predictions <- DoTestSetupAndPrediction(inputDataTest = data$testing, 
                                           model = optimalModel.cv, 
-                                          metaFeatureList = metaFeatureList,
-                                          stype = stype,
-                                          independentVarType = independentVarType, 
-                                          outcomeType = outcomeType,
                                           useCutoff = TRUE)
   print(optimalModel.cv@pairs)
   print(paste(sample, predictions, data$testing@sampleMetaData$age))

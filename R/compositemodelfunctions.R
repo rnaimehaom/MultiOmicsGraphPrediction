@@ -2,14 +2,7 @@
 #' @param pairs A list of pairs to include in the composite model.
 #' @param modelResults A ModelResults object.
 #' @param verbose Whether or not to print out each step.
-#' @param makePlots Whether or not to plot the pruned model at each step.
-#' @param pruningMethod Set to "information.gain", "odds.ratio", or "error.t.test"
-#' @param binCount The number of bins to divide your original data into. Default is 10.
-#' Used in information gain pruning only.
-#' @param margin The margin of error for a prediction to be considered "correct".
-#' Default is 0.1. Used in odds ratio pruning only.
-#' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
-#' Only applicable when the pruning method is error.t.test. Default is FALSE.
+#' @param pruningMethod The method to use for pruning. Right now, only "error.t.test" is valid.
 #' @param modelRetention Strategy for model retention. "stringent" (the default)
 #' retains only models that improve the prediction score. "lenient" also retains models that
 #' neither improve nor reduce the prediction score.
@@ -18,9 +11,8 @@
 #' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
 #' @return A final predicted value for each sample in the input data
 #' @export
-DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose = FALSE, makePlots = FALSE,
-                                      pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
-                                      includeVarianceTest = FALSE, modelRetention = "stringent",
+DoSignificancePropagation <- function(pairs, modelResults, covar = c(), verbose = FALSE,
+                                      pruningMethod = "error.t.test", modelRetention = "stringent",
                                       minCutoff, maxCutoff, useCutoff = FALSE){
   # Initialize consolidated pairs.
   consolidated <- list(compositeModels = pairs, expandedCompositeModels = pairs, 
@@ -34,11 +26,7 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               previousModels = prevModels,
                                                               modelResults = modelResults, 
                                                               verbose = verbose,
-                                                              makePlots = makePlots,
                                                               pruningMethod = pruningMethod,
-                                                              binCount = binCount,
-                                                              margin = margin,
-                                                              includeVarianceTest = includeVarianceTest,
                                                               modelRetention = modelRetention,
                                                               minCutoff = minCutoff,
                                                               maxCutoff = maxCutoff,
@@ -58,11 +46,7 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = NULL, verbose
                                                               previousModels = prevModels,
                                                               modelResults = modelResults, 
                                                               verbose = verbose,
-                                                              makePlots = makePlots,
                                                               pruningMethod = pruningMethod,
-                                                              binCount = binCount,
-                                                              margin = margin,
-                                                              includeVarianceTest = includeVarianceTest,
                                                               modelRetention = modelRetention,
                                                               minCutoff = minCutoff,
                                                               maxCutoff = maxCutoff,
@@ -101,21 +85,13 @@ CompositePrediction <- function(pairs, modelResults, minCutoff, maxCutoff, useCu
 #' gain, odds ratio, or t-statistic.
 #' @param pairs A list of pairs to include in the composite model.
 #' @param trueVal The true values (predictions or outcomes) of the input data.
-#' @param pruningMethod Set to "information.gain", "odds.ratio", or "error.t.test"
-#' @param binCount The number of bins to divide your original data into. Default is 10.
-#' @param margin The margin of error for a prediction to be considered "correct".
-#' Default is 0.1
+#' @param pruningMethod The method to use for pruning. Right now, only "error.t.test" is valid.
 #' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
 #' Only applicable when the pruning method is error.t.test. Default is FALSE.
 #' @export
-ComputeSignificance <- function(pred, trueVal, pruningMethod = "odds.ratio",
-                                binCount = 10, margin = 0.1, includeVarianceTest = FALSE){
-  if(pruningMethod == "information.gain"){
-    return(ComputeInfoGain(pred = pred, trueVal = trueVal, binCount = binCount))
-  }else if(pruningMethod == "odds.ratio"){
-    return(ComputeOddsRatio(pred = pred, trueVal = trueVal, margin = margin))
-  }else if(pruningMethod == "error.t.test"){
-    return(ComputeTScore(pred = pred, trueVal = trueVal, includeVarianceTest = includeVarianceTest))
+ComputeSignificance <- function(pred, trueVal, pruningMethod = "error.t.test"){
+  if(pruningMethod == "error.t.test"){
+    return(ComputeTScore(pred = pred, trueVal = trueVal))
   }else{
     stop(paste(pruningMethod, "is not a valid pruning method."))
   }
@@ -138,14 +114,6 @@ ComputeTScore <- function(pred, trueVal, includeVarianceTest = FALSE){
     meanTrue <- rep(mean(trueVal), length(pred))
     meanAbsError <- abs(trueVal - meanTrue)
     predAbsError <- abs(trueVal - pred)
-
-    # Find the difference between mean errors and prediction errors.
-    # https://www.cuemath.com/data/paired-t-test/
-    # errorDiff <- meanAbsError - predAbsError
-    # n <- length(errorDiff)
-    # nSse <- n * sum(errorDiff ^ 2)
-    # errorDiffSquared <- sum(errorDiff) ^ 2
-    # tScore <- sum(errorDiff) / sqrt((nSse - errorDiffSquared) / (n-1))
     
     # Compute Welch's t-test.
     n <- length(meanAbsError)
@@ -154,135 +122,16 @@ ComputeTScore <- function(pred, trueVal, includeVarianceTest = FALSE){
     stdevMeanAbsError <- sd(meanAbsError) / sqrt(n)
     stdevPredAbsError <- sd(predAbsError) / sqrt(n)
     tScore <- (meanMeanAbsError - meanPredAbsError) / sqrt((stdevMeanAbsError ^ 2) + (stdevPredAbsError ^ 2))
-    
-    # If variance test is also included, compute f-statistic and add.
-    # if(includeVarianceTest == TRUE){
-    #   fScore <- var(predAbsError) / var(meanAbsError)
-    #   tScoreOld <- tScore
-    #   tScore <- tScore - fScore
-    #   if(tScore > 7.93){
-    #     print(paste(tScore, sum(errorDiff), sqrt((nSse - errorDiffSquared) / (n-1))))
-    #   }
-    # }
   }
-  
-  # Plot histogram.
-  # predHist <- hist(predAbsError, plot = FALSE, breaks = 10)
-  # meanHist <- hist(meanAbsError, plot = FALSE, breaks = 10)
-  # overallMin <- pmin(min(predAbsError), min(meanAbsError))
-  # overallMax <- pmax(max(predAbsError), max(predAbsError))
-  # overallMaxHeight <- length(predAbsError)
-  # plot(meanHist, col=rgb(0,0,1,1/4), xlim=c(overallMin, overallMax), ylim = c(0, overallMaxHeight),
-  #      main = tScore)
-  # plot(predHist, col=rgb(1,0,0,1/4), add=T)
   
   return(tScore)
-}
-
-#' Compute the odds for a given prediction. The odds ratio
-#' is computed as the odds of predicting correctly (within a margin) using
-#' the subgraph against correct prediction using the mean true prediction.
-#' @param pairs A list of pairs to include in the composite model.
-#' @param trueVal The true values (predictions or outcomes) of the input data.
-#' @param margin The margin of error for a prediction to be considered "correct".
-#' Default is 0.1
-#' @export
-ComputeOddsRatio <- function(pred, trueVal, margin = 0.1){
-  trueVal <- trueVal[which(!is.nan(pred))]
-  pred <- pred[which(!is.nan(pred))]
-  odds <- NA
-
-  if(length(trueVal)>0 && length(pred)>0){
-    
-    # Compute the odds that the mean prediction is within the margin of error.
-    meanTrue <- rep(mean(trueVal), length(pred))
-    meanAbsError <- abs(trueVal - meanTrue)
-    oddsForMean <- length(which(meanAbsError < margin)) / length(meanAbsError)
-    
-    # Compute the odds that the prediction is within the margin of error.
-    predAbsError <- abs(trueVal - pred)
-    oddsForPred <- length(which(predAbsError < margin)) / length(predAbsError)
-    
-    # Compute the odds ratio. 
-    odds <- oddsForPred / oddsForMean
-  }
-  # If all terms are NA, then categorize this as 0 odds of correct prediction.
-  else{
-    odds <- 0
-  }
-  return(odds)
-}
-
-#' Compute the information gain for a given prediction. The information gain
-#' is computed as the difference between the entropy of the true values and the
-#' conditional entropy of the true value given the prediction. 
-#' @param pairs A list of pairs to include in the composite model.
-#' @param trueVal The true values (predictions or outcomes) of the input data.
-#' @param binCount The number of bins to divide your original data into. Default is 10.
-#' @export
-ComputeInfoGain <- function(pred, trueVal, binCount = 10){
-  trueVal <- trueVal[which(!is.nan(pred))]
-  pred <- pred[which(!is.nan(pred))]
-  IG <- NULL
-  
-  if(length(trueVal)>0 && length(pred)>0){
-    
-    # Get bin size of true values given bin count. Split into bins.
-    binSize <- (max(trueVals) - min(trueVals)) / binCount
-    trueBins <- seq(min(trueVals), max(trueVals) + binSize, binSize)
-    
-    # Compute probability of true value taking each possible bin value.
-    trueProbs <- hist(trueVals, breaks = trueBins, plot = FALSE)$density
-    trueProbs <- trueProbs / sum(trueProbs)
-    
-    # Compute original entropy. Zero probability terms will be NA.
-    entropyTerms <- unlist(lapply(trueProbs, function(p){
-      return(-1 * p * log2(p))
-    }))
-    originalEntropy <- sum(entropyTerms, na.rm = TRUE)
-    
-    # Split the predictions into bins and find the probability of the prediction
-    # taking each possible bin value.
-    predBins <- seq(min(pred), max(pred) + binSize, binSize)
-    predProbs <- hist(pred, breaks = predBins, plot = FALSE)$density
-    predProbs <- predProbs / sum(predProbs)
-
-    # Find the joint probability of each true and predicted bin value combination.
-    jointProbs <- as.matrix(do.call(cbind, lapply(1:(length(trueBins)-1), function(tb){
-      
-      # Find the joint probability with each predicted bin, given the true bin.
-      whichInBin <- intersect(which(trueVals >= trueBins[tb]), which(trueVals < trueBins[tb + 1]))
-      predProbPerBin <- unlist(lapply(1:(length(predBins)-1), function(pb){
-        whichInProbBin <- intersect(which(pred >= predBins[pb]), which(pred < predBins[pb + 1]))
-        probInBothBins <- length(intersect(whichInBin, whichInProbBin)) / length(pred)
-        return(probInBothBins)
-      }))
-      return(as.data.frame(predProbPerBin))
-    })))
-    
-    # Compute joint entropy.
-    predProbVec <- matrix(rep(predProbs, length(trueProbs)), ncol = length(trueProbs))
-    # Due to rounding errors, we may occasionally get values > 0. This is fixed by clipping at 0.
-    logTerm <- pmin(0, log2(jointProbs / predProbVec))
-    entropyTerms <- -1 * jointProbs * logTerm
-    positionsOfInterest <- intersect(which(!is.nan(entropyTerms)), which(!is.infinite(entropyTerms)))
-    entropyTermsToAdd <- entropyTerms[positionsOfInterest]
-    conditionalEntropy <- sum(entropyTermsToAdd, na.rm = TRUE)
-
-    # Compute information gain.
-    IG <- originalEntropy - conditionalEntropy
-  }
-  # If all terms are NA, then categorize this as an information loss.
-  else{
-    IG <- -1
-  }
-  return(IG)
 }
 
 #' Obtain the list of pairs in a composite model.
 #' @param modelInput A ModelInput object
 #' @param percentOverlapCutoff Neighborhoods that have this percent overlap
 #' with another neighborhood will be removed from consideration. Default is 100.
+#' @return A list of sets, where each set is a neighborhood of nodes.
 #' @export
 ObtainSubgraphNeighborhoods <- function(modelInput, percentOverlapCutoff = 100){
   # Convert to graph.
@@ -341,6 +190,9 @@ ObtainSubgraphNeighborhoods <- function(modelInput, percentOverlapCutoff = 100){
 #' @param pairsInEachPredictor A list of pairs contained within each predictor.
 #' @param importantModels A list of all pairs that were found to be important in the
 #' previous layer.
+#' @return A list with the following elements: A list of sets comprising the trimmed
+#' models, a list of sets comprising the untrimmed models, and a mapping from
+#' the predictors in the previous stage to the current stage.
 #' @export
 ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
   
@@ -376,34 +228,36 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
       return(overlapsWithModel1df)
     })
     overlaps <- do.call(cbind, overlapsList)
-    
+
     # Find maximum overlap pair.
-    unlistedOverlaps <- unlist(overlaps)
-    combs <- expand.grid(rownames(overlaps), colnames(overlaps))
-    names(unlistedOverlaps) <- paste(combs$Var2, combs$Var1, sep = ".")
-    unlistedOverlaps <- unlistedOverlaps[which(!is.na(unlistedOverlaps))]
-    pairToMerge <- as.numeric(strsplit(names(unlistedOverlaps)[which.max(unlistedOverlaps)], split = ".", fixed = T)[[1]])
-    
-    # Replace old predictor information with new.
-    newPredictor <- unique(unlist(compositePredictors[pairToMerge]))
-    newFull <- unique(unlist(compositeFull[pairToMerge]))
-    compositePredictors[[min(pairToMerge)]] <- newPredictor
-    compositeFull[[min(pairToMerge)]] <- newFull
-    compositePredictors <- compositePredictors[-max(pairToMerge)]
-    compositeFull <- compositeFull[-max(pairToMerge)]
-
-    # Update the mappings.
-    pairMapping[which(pairMapping$from %in% pairToMerge), "to"] <- min(pairToMerge)
-
-    # Reassign mapping numbers.
-    seq <- pairMapping$to
-    compositePredictorIds <- sort(unique(pairMapping$to))
-    pairMappingCopy <- pairMapping
-    for(num in 1:length(compositePredictorIds)){
-      pairMapping$to[which(pairMappingCopy$to == compositePredictorIds[num])] <- num
+    if(max(overlaps) > 0){
+      unlistedOverlaps <- unlist(overlaps)
+      combs <- expand.grid(rownames(overlaps), colnames(overlaps))
+      names(unlistedOverlaps) <- paste(combs$Var2, combs$Var1, sep = ".")
+      unlistedOverlaps <- unlistedOverlaps[which(!is.na(unlistedOverlaps))]
+      pairToMerge <- as.numeric(strsplit(names(unlistedOverlaps)[which.max(unlistedOverlaps)], split = ".", fixed = T)[[1]])
+      
+      # Replace old predictor information with new.
+      newPredictor <- unique(unlist(compositePredictors[pairToMerge]))
+      newFull <- unique(unlist(compositeFull[pairToMerge]))
+      compositePredictors[[min(pairToMerge)]] <- newPredictor
+      compositeFull[[min(pairToMerge)]] <- newFull
+      compositePredictors <- compositePredictors[-max(pairToMerge)]
+      compositeFull <- compositeFull[-max(pairToMerge)]
+      
+      # Update the mappings.
+      pairMapping[which(pairMapping$from %in% pairToMerge), "to"] <- min(pairToMerge)
+      
+      # Reassign mapping numbers.
+      seq <- pairMapping$to
+      compositePredictorIds <- sort(unique(pairMapping$to))
+      pairMappingCopy <- pairMapping
+      for(num in 1:length(compositePredictorIds)){
+        pairMapping$to[which(pairMappingCopy$to == compositePredictorIds[num])] <- num
+      }
     }
   }
-  
+
   # Return the data.
   return(list(compositeModels = compositePredictors, expandedCompositeModels = compositeFull, mapping = pairMapping))
 }
@@ -414,13 +268,7 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
 #' @param modelResults A ModelResults object.
 #' @param verbose Whether or not to print out each step.
 #' @param makePlots Whether or not to plot the pruned model at each step.
-#' @param pruningMethod Set to "information.gain", "odds.ratio", or "error.t.test"
-#' @param binCount The number of bins to divide your original data into. Default is 10.
-#' Used in information gain pruning only.
-#' @param margin The margin of error for a prediction to be considered "correct".
-#' Default is 0.1. Used in odds ratio pruning only.
-#' @param includeVarianceTest Scale the t-score by the f-statistic (the ratio of variances).
-#' Only applicable when the pruning method is error.t.test. Default is FALSE.
+#' @param pruningMethod The method to use for pruning. Right now, only "error.t.test" is valid.
 #' @param tolerance Tolerance factor when computing equality of two numeric values.
 #' @param modelRetention Strategy for model retention. "stringent" (the default)
 #' retains only models that improve the prediction score. "lenient" also retains models that
@@ -428,11 +276,10 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
 #' @param minCutoff Mininum cutoff for the prediction.
 #' @param maxCutoff Maximum cutoff for the prediction.
 #' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
-#' @return A list of informative pairs
+#' @return A list of sets, where each set is a neighborhood of nodes.
 #' @export
 PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE,
-                            pruningMethod = "odds.ratio", binCount = 10, margin = 0.1,
-                            includeVarianceTest = includeVarianceTest, tolerance = 1e-5,
+                            pruningMethod = "error.t.test", tolerance = 1e-5,
                             modelRetention = "stringent", minCutoff, maxCutoff, useCutoff = FALSE){
   
   # Extract relevant information.
@@ -453,10 +300,7 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
                                                                      useCutoff = useCutoff)
     significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel), 
                                                                    trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
-                                                                   pruningMethod = pruningMethod,
-                                                                   binCount = binCount,
-                                                                   margin = margin,
-                                                                   includeVarianceTest = includeVarianceTest)
+                                                                   pruningMethod = pruningMethod)
     if(verbose == TRUE){
       print(paste(list("Original", pruningMethod, "is", significance), collapse = " "))
     }
@@ -482,10 +326,7 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
                                                                        useCutoff = useCutoff)
       significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
                                                                      trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
-                                                                     pruningMethod = pruningMethod,
-                                                                     binCount = binCount,
-                                                                     margin = margin,
-                                                                     includeVarianceTest = includeVarianceTest)
+                                                                     pruningMethod = pruningMethod)
       return(significance)
     }))
     modelRemovalOrder <- order(individualPerformance)
@@ -510,10 +351,7 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
                                                                          useCutoff = useCutoff)
         significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
                                                                        trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
-                                                                       pruningMethod = pruningMethod,
-                                                                       binCount = binCount,
-                                                                       margin = margin,
-                                                                       includeVarianceTest = includeVarianceTest)
+                                                                       pruningMethod = pruningMethod)
       }
       
       # If the significance of the new model is greater than or equal to the full model, remove the pair.

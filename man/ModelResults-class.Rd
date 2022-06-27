@@ -12,8 +12,6 @@ ModelResults class
 \describe{
 \item{\code{model.input}}{An object of the modelInput class.}
 
-\item{\code{pooling.filter}}{A matrix that pools convolution results.}
-
 \item{\code{iteration.tracking}}{A data frame to track the iteration, weight, and error
 values for each iteration of training.}
 
@@ -31,12 +29,7 @@ values for each iteration of training.}
 
 \item{\code{current.gradient}}{Gradient calculated for this iteration.}
 
-\item{\code{weights.after.pooling}}{Whether to include the weights after the pooling
-layer (as opposed to before). Must be a boolean.}
-
-\item{\code{outcome.prediction}}{The prediction of the outcome.}
-
-\item{\code{optimization.type}}{One of "BGD", "momentum", "adagrad", or "adam"}
+\item{\code{optimization.type}}{One of "SGD", "momentum", "adagrad", or "adam"}
 
 \item{\code{current.iteration}}{Iteration (changes at each time step)}
 

@@ -22,7 +22,8 @@ independent variable. If blank, then the existing ID's are used.}
 outcome variable. If blank, then the existing ID's are used.}
 }
 \value{
-A list of vectors (one for each sample) with an importance metric.
+A data frame with the importance metric for each sample and each
+predictor. The metric will be the same for all samples in this case.
 }
 \description{
 Compute the importance using pathway membership. Predictor pairs that share

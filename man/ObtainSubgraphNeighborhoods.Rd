@@ -12,6 +12,9 @@ ObtainSubgraphNeighborhoods(modelInput, percentOverlapCutoff = 100)
 \item{percentOverlapCutoff}{Neighborhoods that have this percent overlap
 with another neighborhood will be removed from consideration. Default is 100.}
 }
+\value{
+A list of sets, where each set is a neighborhood of nodes.
+}
 \description{
 Obtain the list of pairs in a composite model.
 }

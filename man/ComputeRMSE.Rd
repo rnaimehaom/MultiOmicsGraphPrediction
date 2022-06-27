@@ -11,6 +11,9 @@ ComputeRMSE(true.Y, pred.Y)
 
 \item{pred.Y}{The predicted phenotype of each sample.}
 }
+\value{
+A vector of RMSE.
+}
 \description{
 Compute the normalized root mean squared error.
 }

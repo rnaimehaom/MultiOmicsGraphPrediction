@@ -12,7 +12,8 @@ ComputePDFImportance(predictions)
 columns are predictors.}
 }
 \value{
-A list of vectors (one for each sample) with an importance metric.
+A data frame with the importance metric for each sample and each
+predictor.
 }
 \description{
 Computes the importance as the density in the probability density function,

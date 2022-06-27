@@ -16,7 +16,8 @@ interaction coefficients for each pair (such as the one output by IntLIM's
 ProcessResults function)}
 }
 \value{
-A list of vectors (one for each sample) with an importance metric.
+A data frame with the importance metric for each sample and each
+predictor. The metric will be the same for all samples in this case.
 }
 \description{
 Compute the importance using absolute value of interaction term coefficient. Specifically,

@@ -20,6 +20,10 @@ FindEdgesSharingNodes(
 
 \item{nodeType2}{Either "to or "from".}
 }
+\value{
+A data frame of all nodes (analyte pairs / predictors) that
+share an analyte, with the columns "to" and "from".
+}
 \description{
 Find edges that share nodes and add them to a data frame.
 }

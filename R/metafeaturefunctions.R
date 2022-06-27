@@ -2,7 +2,8 @@
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
 #' @param metaFeatureList A list of the valid metrics to include. Valid metrics are
-#' "pdf", "localerr", "globalerr", and "pathway".
+#' "pdf", "localerr", "globalerr", "pathway", "reaction", "interactionpval", 
+#' "interactioncoef", and "analytecoef".
 #' @param k The number of nearest neighbors to consider in localerr.
 #' @param inputData The input data read in using the function IntLIM function
 #' ReadData.
@@ -13,12 +14,6 @@
 #' @param alphaMax The highest value of alpha to investigate in localerr. Default = 1.
 #' @param alphaStep The value of alpha to step by during the evaluation in localerr.
 #' Default = 0.1.
-#' @param analyteNamesOut A data frame mapping the analyte identifier for the
-#' outcome analyte from the IntLIM model to an identifier that can be mapped
-#' to RaMP. Used in pathway importance.
-#' @param analyteNamesInd A data frame mapping the analyte identifier for the
-#' independent variable analyte from the IntLIM model to an identifier that can be mapped
-#' to RaMP. Used in pathway importance.
 #' @param modelStats A data frame that includes the interaction p-values and
 #' interaction coefficients for each pair (such as the one output by IntLIM's
 #' ProcessResults function)
@@ -44,8 +39,6 @@ GetMetaFeatures <- function(predictions, inputData,
                                        alphaMin = 0,
                                        alphaMax = 1, 
                                        alphaStep = 0.1,
-                                       analyteNamesOut = "",
-                                       analyteNamesInd = "",
                                     stype = "",
                                     colIdInd = "",
                                     colIdOut = ""){
@@ -113,7 +106,8 @@ GetMetaFeatures <- function(predictions, inputData,
 #' @param predictionsTest Prediction data frame for testing data, where rows are samples, and
 #' columns are predictors.
 #' @param metricList A list of the valid metrics to include. Valid metrics are
-#' "pdf", "localerr", "globalerr", and "pathway".
+#' "pdf", "localerr", "globalerr", "pathway", "reaction", "interactionpval", 
+#' "interactioncoef", and "analytecoef".
 #' @param k The number of nearest neighbors to consider in localerr.
 #' @param inputDataTrain The training data (in IntLimData format).
 #' @param inputDataTest The testing data (in IntLimData format).
@@ -124,12 +118,6 @@ GetMetaFeatures <- function(predictions, inputData,
 #' @param alphaMax The highest value of alpha to investigate in localerr. Default = 1.
 #' @param alphaStep The value of alpha to step by during the evaluation in localerr.
 #' Default = 0.1.
-#' @param analyteNamesOut A data frame mapping the analyte identifier for the
-#' outcome analyte from the IntLIM model to an identifier that can be mapped
-#' to RaMP. Used in pathway importance.
-#' @param analyteNamesInd A data frame mapping the analyte identifier for the
-#' independent variable analyte from the IntLIM model to an identifier that can be mapped
-#' to RaMP. Used in pathway importance.
 #' @param modelStats A data frame that includes the interaction p-values and
 #' interaction coefficients for each pair (such as the one output by IntLIM's
 #' ProcessResults function)
@@ -155,8 +143,6 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
                                     alphaMin = 0,
                                     alphaMax = 1, 
                                     alphaStep = 0.1,
-                                    analyteNamesOut = "",
-                                    analyteNamesInd = "",
                                     stype = "",
                                     colIdInd = "",
                                     colIdOut = ""){
@@ -183,7 +169,7 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
   }
   if("globalerr" %in% metaFeatureList){  
     print("Computing Global Error importance")
-    metaFeatures$globalerr <- ComputeGlobalErrorImportance(predictions = predictionsTrain, 
+    metaFeatures$globalerr <- ComputeGlobalErrorImportanceTest(predictions = predictionsTrain, 
                                                       true = inputDataTrain@sampleMetaData[,stype])
     # Adjust dimensionality for test data.
     metaFeatures$globalerr <- t(matrix(rep(metaFeatures$globalerr[1,], nrow(predictionsTest),
@@ -253,7 +239,8 @@ GetTestMetaFeatures <- function(predictionsTrain, predictionsTest, inputDataTrai
 #' normalized over all densities.
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
-#' @return A list of vectors (one for each sample) with an importance metric.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor.
 #' @export
 ComputePDFImportance <- function(predictions){
   
@@ -289,7 +276,8 @@ ComputePDFImportance <- function(predictions){
   return(importance)
 }
 
-#' Function for obtaining database identifiers for each predictor.
+#' Function for obtaining database identifiers for each predictor. Used
+#' in functional analysis.
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
 #' @param inputData Input data, which may include database ID mappings for
@@ -298,6 +286,9 @@ ComputePDFImportance <- function(predictions){
 #' independent variable. If blank, then the existing ID's are used.
 #' @param colIdOut The ID of the column that has the analyte ID's for the
 #' outcome variable. If blank, then the existing ID's are used.
+#' @return A data frame with two columns. The indId column contains the ID's
+#' for the independent analyte, and the outId column contains the ID's for
+#' the outcome analyte.
 GetPredictorIDs <- function(preds, inputData, colIdInd, colIdOut){
   # Get prediction names.
   indAnalytes <- unlist(lapply(colnames(preds), function(pair){
@@ -336,7 +327,8 @@ GetPredictorIDs <- function(preds, inputData, colIdInd, colIdOut){
 #' independent variable. If blank, then the existing ID's are used.
 #' @param colIdOut The ID of the column that has the analyte ID's for the
 #' outcome variable. If blank, then the existing ID's are used.
-#' @return A list of vectors (one for each sample) with an importance metric.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor. The metric will be the same for all samples in this case.
 ComputePathwayImportance <- function(predictions, inputData, colIdInd,
                                      colIdOut){
   
@@ -376,7 +368,8 @@ ComputePathwayImportance <- function(predictions, inputData, colIdInd,
 #' independent variable. If blank, then the existing ID's are used.
 #' @param colIdOut The ID of the column that has the analyte ID's for the
 #' outcome variable. If blank, then the existing ID's are used.
-#' @return A list of vectors (one for each sample) with an importance metric.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor. The metric will be the same for all samples in this case.
 ComputeReactionImportance <- function(predictions, inputData, colIdInd,
                                       colIdOut){
   # Obtain names of predictors.
@@ -415,7 +408,8 @@ ComputeReactionImportance <- function(predictions, inputData, colIdInd,
 #' @param modelStats A data frame that includes the interaction p-values and
 #' interaction coefficients for each pair (such as the one output by IntLIM's
 #' ProcessResults function)
-#' @return A list of vectors (one for each sample) with an importance metric.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor. The metric will be the same for all samples in this case.
 ComputePvalImportance <- function(predictions, modelStats){
   
   # Measure importance for each predictor.
@@ -456,7 +450,8 @@ ComputePvalImportance <- function(predictions, modelStats){
 #' @param modelStats A data frame that includes the interaction p-values and
 #' interaction coefficients for each pair (such as the one output by IntLIM's
 #' ProcessResults function)
-#' @return A list of vectors (one for each sample) with an importance metric.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor. The metric will be the same for all samples in this case.
 ComputeInteractionCoefImportance <- function(predictions, modelStats){
   
   # Measure importance for each predictor.
@@ -497,7 +492,8 @@ ComputeInteractionCoefImportance <- function(predictions, modelStats){
 #' @param modelStats A data frame that includes the interaction p-values,
 #' interaction coefficients, and other coefficients for each pair (such as the one output by IntLIM's
 #' ProcessResults function)
-#' @return A list of vectors (one for each sample) with an importance metric.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor. The metric will be the same for all samples in this case.
 ComputeAnalyteCoefImportance <- function(predictions, modelStats){
   
   # Measure importance for each predictor.
@@ -795,7 +791,8 @@ CosineSimilarityToTrainingOnSingleDataType <- function(trainingData, testingData
 #' @param alphaMax The highest value of alpha to investigate. Default = 1.
 #' @param alphaStep The value of alpha to step by during the evalutation.
 #' Default = 0.1.
-#' @return A list of vectors (one for each sample) with an importance metric.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor.
 #' @export
 ComputeLocalErrorImportance <- function(predictions, true, k,
                                        inputData, eigStep = 10, alphaMin = 0,
@@ -866,7 +863,8 @@ ComputeLocalErrorImportance <- function(predictions, true, k,
 #' @param alphaMax The highest value of alpha to investigate. Default = 1.
 #' @param alphaStep The value of alpha to step by during the evalutation.
 #' Default = 0.1.
-#' @return A list of vectors (one for each sample) with an importance metric.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor.
 #' @export
 ComputeLocalErrorImportanceTest <- function(predictions, true, k,
                                         inputDataTrain, inputDataTest, 
@@ -933,7 +931,8 @@ ComputeLocalErrorImportanceTest <- function(predictions, true, k,
 #' @param predictions Prediction data frame, where rows are samples, and
 #' columns are predictors.
 #' @param true Named vector of the true outcome values.
-#' @return A list of vectors (one for each sample) with an importance metric.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor.
 #' @export
 ComputeGlobalErrorImportance <- function(predictions, true){
   
@@ -947,6 +946,53 @@ ComputeGlobalErrorImportance <- function(predictions, true){
                        nrow = length(true),
                        ncol = ncol(pred))
     trueVals <- trueVals[-samp,]
+    
+    err <- abs(trueVals - pred)
+    medErr <- unlist(lapply(1:ncol(err), function(c){
+      return(stats::median(err[,c]))
+    }))
+    importance <- 1 - medErr
+    
+    # Get the 1 - error percentile over all pairs.
+    percentileVals <- seq(1, 100, by = 1) / 100
+    quantiles <- stats::quantile(importance, percentileVals)
+    percentiles <- unlist(lapply(importance, function(c){
+      cvec <- rep(c, length(quantiles))
+      which_match <- which.min(abs(cvec - quantiles))
+      return(percentileVals[which_match])
+    }))
+    importance <- percentiles
+    
+    # Return.
+    cat(".")
+    return(importance)
+  })
+  importanceFinal <- t(do.call(cbind, importanceAll))
+  rownames(importanceFinal) <- rownames(predictions)
+  colnames(importanceFinal) <- colnames(predictions)
+  return(importanceFinal)
+}
+
+#' Computes the importance as the median absolute error for all predictors
+#' samples in the training data.
+#' @param predictions Prediction data frame, where rows are samples, and
+#' columns are predictors.
+#' @param true Named vector of the true outcome values.
+#' @return A data frame with the importance metric for each sample and each
+#' predictor. For this metric, the value will be the same for all samples.
+#' @export
+ComputeGlobalErrorImportanceTest <- function(predictions, true){
+  
+  # Compute the importance for each sample.
+  importanceAll <- lapply(1:nrow(predictions), function(samp){
+    # Prediction
+    pred <- predictions
+    
+    # Error
+    trueVals <- matrix(rep(true, length(pred)),
+                       nrow = length(true),
+                       ncol = ncol(pred))
+    trueVals <- trueVals
     
     err <- abs(trueVals - pred)
     medErr <- unlist(lapply(1:ncol(err), function(c){

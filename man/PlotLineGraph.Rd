@@ -7,7 +7,6 @@ Include a color scale for the predictions.}
 \usage{
 PlotLineGraph(
   modelResults,
-  stype,
   subset = c(),
   saveInDir = "",
   truncateTo = 2,
@@ -22,8 +21,6 @@ PlotLineGraph(
 \arguments{
 \item{modelResults}{A ModelResults object.}
 
-\item{stype}{Outcome / phenotype}
-
 \item{subset}{The subset of predictors to include. If c(), then all nodes
 will be plotted.}
 
@@ -36,7 +33,7 @@ Default is 4. If -1, names are not truncated.}
 \item{weights}{Whether or not to encode weights in the opacity of the nodes.
 Defaults to FALSE.}
 
-\item{analytes}{List of vectors of analytes to plot. This is used if one
+\item{analytes}{List of analytes to plot. This is used if one
 wishes to focus on a subset of analytes If c(), then all vertices are plotted.
 Default is c().}
 

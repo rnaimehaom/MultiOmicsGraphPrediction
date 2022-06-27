@@ -7,13 +7,9 @@
 DoSignificancePropagation(
   pairs,
   modelResults,
-  covar = NULL,
+  covar = c(),
   verbose = FALSE,
-  makePlots = FALSE,
-  pruningMethod = "odds.ratio",
-  binCount = 10,
-  margin = 0.1,
-  includeVarianceTest = FALSE,
+  pruningMethod = "error.t.test",
   modelRetention = "stringent",
   minCutoff,
   maxCutoff,
@@ -27,18 +23,7 @@ DoSignificancePropagation(
 
 \item{verbose}{Whether or not to print out each step.}
 
-\item{makePlots}{Whether or not to plot the pruned model at each step.}
-
-\item{pruningMethod}{Set to "information.gain", "odds.ratio", or "error.t.test"}
-
-\item{binCount}{The number of bins to divide your original data into. Default is 10.
-Used in information gain pruning only.}
-
-\item{margin}{The margin of error for a prediction to be considered "correct".
-Default is 0.1. Used in odds ratio pruning only.}
-
-\item{includeVarianceTest}{Scale the t-score by the f-statistic (the ratio of variances).
-Only applicable when the pruning method is error.t.test. Default is FALSE.}
+\item{pruningMethod}{The method to use for pruning. Right now, only "error.t.test" is valid.}
 
 \item{modelRetention}{Strategy for model retention. "stringent" (the default)
 retains only models that improve the prediction score. "lenient" also retains models that

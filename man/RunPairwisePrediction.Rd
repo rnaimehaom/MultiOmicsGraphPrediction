@@ -3,11 +3,12 @@
 \name{RunPairwisePrediction}
 \alias{RunPairwisePrediction}
 \title{Given each significant pairwise model and the input data, predict the phenotype
-for each sample. Recall that IntLIM models take the following form:
-m ~ beta0 + beta1(g) + beta2(phenotype) + beta3(g:phenotype) + beta4...n(covariates)
+for each sample. Recall that IntLIM models take the following form, where a_i
+and a_j are a pair of analytes.
+a_i ~ beta0 + beta1(a_j) + beta2(phenotype) + beta3(a_j:phenotype) + beta4...n(covariates)
 Therefore, to predict phenotype given the betas learned by IntLIM, we use the
 following model:
-p ~ (m - (beta0 + beta1(g) + beta4...n(covariates)) / (beta2 + beta3(g))}
+p ~ (a_i - (beta0 + beta1(a_j) + beta4...n(covariates)) / (beta2 + beta3(a_j))}
 \usage{
 RunPairwisePrediction(
   inputResults,
@@ -23,7 +24,7 @@ RunPairwisePrediction(
 model and processing results (output of ProcessResults()). All results must
 include learned covariate weights (i.e. must be run with save.covar.pvals = TRUE)}
 
-\item{inputData}{An object with the following fields:}
+\item{inputData}{An IntLimData object that includes the input.}
 
 \item{stype}{The phenotype (outcome) to predict. This can be either a categorical
 or numeric outcome.}
@@ -35,11 +36,16 @@ covariates that were included when running the IntLIM linear models.}
 
 \item{outcomeType}{The outcome type (1 or 2)}
 }
+\value{
+A data frame of predictions, where each column is a sample and each
+row is a predictor.
+}
 \description{
 Given each significant pairwise model and the input data, predict the phenotype
-for each sample. Recall that IntLIM models take the following form:
-m ~ beta0 + beta1(g) + beta2(phenotype) + beta3(g:phenotype) + beta4...n(covariates)
+for each sample. Recall that IntLIM models take the following form, where a_i
+and a_j are a pair of analytes.
+a_i ~ beta0 + beta1(a_j) + beta2(phenotype) + beta3(a_j:phenotype) + beta4...n(covariates)
 Therefore, to predict phenotype given the betas learned by IntLIM, we use the
 following model:
-p ~ (m - (beta0 + beta1(g) + beta4...n(covariates)) / (beta2 + beta3(g))
+p ~ (a_i - (beta0 + beta1(a_j) + beta4...n(covariates)) / (beta2 + beta3(a_j))
 }
