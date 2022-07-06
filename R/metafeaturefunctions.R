@@ -387,13 +387,18 @@ ComputeReactionImportance <- function(predictions, inputData, colIdInd,
                                       colIdOut){
   # Obtain names of predictors.
   predNames <- GetPredictorIDs(predictions, inputData, colIdInd, colIdOut)
-  rxnAll <- rampFastCata(predNames[,"outId"])$rxn_partner_ids
+  uniqueOutIds <- unique(predNames[,"outId"])
+  rxnAll <- RaMP::rampFastCata(uniqueOutIds)$rxn_partner_ids
+  names(rxnAll) <- uniqueOutIds
   
   # Find which pairs share reactions.
   sharesRxn <- unlist(lapply(1:nrow(predNames), function(i){
+    if(i %% (ceiling(nrow(predNames) / 10)) == 0){
+      cat(".")
+    }
     shares <- FALSE
     tryCatch({
-      rxnResult <- rxnAll[i,"outId"]$rxn_partner_ids
+      rxnResult <- rxnAll[[predNames[i, "outId"]]]
       rxnResultAll <- unlist(lapply(rxnResult, function(res){
         return(strsplit(res, "; ")[[1]])
       }))
