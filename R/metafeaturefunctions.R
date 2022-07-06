@@ -334,14 +334,27 @@ ComputePathwayImportance <- function(predictions, inputData, colIdInd,
   
   # Obtain names of predictors.
   predNames <- GetPredictorIDs(predictions, inputData, colIdInd, colIdOut)
-
+  allPathways <- RaMP::getPathwayFromAnalyte(unique(c(predNames[,"indId"], predNames[,"outId"])))
+  
+  # Find the pathways associated with each analyte.
+  namesInd <- unique(predNames[,"indId"])
+  pwayResultInd <- lapply(namesInd, function(analyte){
+    return(allPathways$pathwayId[which(allPathways$inputId == analyte)])
+  })
+  names(pwayResultInd) <- namesInd
+  namesOut <- unique(predNames[,"outId"])
+  pwayResultOut <- lapply(namesOut, function(analyte){
+    return(allPathways$pathwayId[which(allPathways$inputId == analyte)])
+  })
+  names(pwayResultOut) <- namesOut
+  
   # Find which pairs share pathways.
   sharesPathway <- unlist(lapply(1:nrow(predNames), function(i){
+    if(i %% (ceiling(nrow(predNames) / 10)) == 0){
+      cat(".")
+    }
     shares <- FALSE
-    pwayResult <- RaMP::getPathwayFromAnalyte(c(predNames[i,"indId"], predNames[i,"outId"]))
-    pwayResultInd <- pwayResult$pathwayId[which(pwayResult$inputId == predNames[i,"indId"])]
-    pwayResultOut <- pwayResult$pathwayId[which(pwayResult$inputId == predNames[i,"outId"])]
-    if(length(intersect(pwayResultInd, pwayResultOut)) > 0){
+    if(length(intersect(pwayResultInd[[predNames[i,"indId"]]], pwayResultOut[[predNames[i,"outId"]]])) > 0){
       shares <- TRUE
     }
     return(shares)
@@ -374,12 +387,13 @@ ComputeReactionImportance <- function(predictions, inputData, colIdInd,
                                       colIdOut){
   # Obtain names of predictors.
   predNames <- GetPredictorIDs(predictions, inputData, colIdInd, colIdOut)
+  rxnAll <- rampFastCata(predNames[,"outId"])$rxn_partner_ids
   
   # Find which pairs share reactions.
   sharesRxn <- unlist(lapply(1:nrow(predNames), function(i){
     shares <- FALSE
     tryCatch({
-      rxnResult <- rampFastCata(predNames[i,"outId"])$rxn_partner_ids
+      rxnResult <- rxnAll[i,"outId"]$rxn_partner_ids
       rxnResultAll <- unlist(lapply(rxnResult, function(res){
         return(strsplit(res, "; ")[[1]])
       }))
