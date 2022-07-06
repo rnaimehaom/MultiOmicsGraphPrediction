@@ -28,19 +28,36 @@
 #' - "shared.independent.analyte"
 #' - "analyte.chain"
 #' @param learningRate Learning rate to use during training. Default is 0.2
+#' @param maxIterations Maximum number of iterations. Default is 1,000.
+#' @param convergenceCutoff Cutoff for convergence. Default is 0.001.
+#' @param learningRate Learning rate to use during training. Default is 0.2
+#' @param activationType Activation function. May be "softmax", "sigmoid", 
+#' "tanh", or "none". Default is "none", meaning stype.class is numeric.
+#' @param optimizationType Type of optimization. May be "SGD", "momentum",
+#' "adagrad", or "adam". Default is "SGD".
+#' @param initialMetaFeatureWeights Initial weights for model meta-features. Default
+#' is 0, which results in each meta-feature being given equal weight.
 #' @export
 DoModelSetup <- function(inputData, stype,
                          outcomeType = 1,
-                                independentVarType = 2,
-                                continuous = TRUE,
-                                pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0,
-                                metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
-                                k = 2, eigStep = 1,
-                                colIdInd = "databaseId",
-                                colIdOut = "databaseId",
+                         independentVarType = 2,
+                         continuous = TRUE,
+                         pvalcutoff = 1, 
+                         rsquaredCutoff = 0, 
+                         interactionCoeffPercentile = 0,
+                         metaFeatureList = c("pdf","interactionpval", "interactioncoef", "analytecoef", "localerr"),
+                         k = 2, 
+                         eigStep = 1,
+                         colIdInd = "databaseId",
+                         colIdOut = "databaseId",
                          edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
-                                learningRate = 0.2,
-                         covar = c()){
+                         learningRate = 0.2,
+                         covar = c(),
+                         maxIterations = 1000,
+                         convergenceCutoff = 0.001,
+                         activationType = "none", 
+                         optimizationType = "SGD",
+                         initialMetaFeatureWeights = 0){
   
   # Run IntLIM.
   myres <- IntLIM::RunIntLim(inputData = inputData, 
@@ -112,7 +129,13 @@ DoModelSetup <- function(inputData, stype,
                                                           modelProperties = myres.filt,
                                                           outcome = outcomeType,
                                                           independent.var.type = independentVarType)
-  modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = learningRate)
+
+  modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInputs = modelInput, 
+                                                                          iterations = maxIterations,
+                                                                          learningRate = learningRate,
+                                                                          activationType = activationType,
+                                                                          optimizationType = optimizationType,
+                                                                          initialMetaFeatureWeights = initialMetaFeatureWeights)
   
   # Return initialized mode,
   return(modelResults)

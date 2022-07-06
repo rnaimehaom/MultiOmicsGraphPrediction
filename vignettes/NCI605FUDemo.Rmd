@@ -87,7 +87,7 @@ myres.r2 <- IntLIM::ProcessResults(inputResults = myres, inputData = inputDataTr
                                        pvalcutoff = 1, rsquaredCutoff = peak.r2)
 # Build graph.
 coreg.r2 <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2)
-MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2, "", saveInFile = NULL, vertices = NULL)
+MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2, "")
 ```
 
 # Perform One-Hot Encoding on Categorical Variables.
@@ -194,8 +194,7 @@ modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInp
 pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
 
 propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE,
-                                               modelRetention = "stringent")
+                                               verbose = TRUE, modelRetention = "stringent")
 print(propagatedGraph)
 print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
 ```
@@ -223,14 +222,13 @@ modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projecte
                                                      modelProperties = myres.r2,
                                                      outcome = 2,
                                                      independent.var.type = 1)
-modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2)
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2, iterations = 100)
 pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
 
 maxCutoff <- 1.1 * max(modelInput@input.data@sampleMetaData[,"drug5FU"])
 minCutoff <- 0.9 * min(modelInput@input.data@sampleMetaData[,"drug5FU"])
 propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                               verbose = TRUE, makePlots = FALSE, pruningMethod = "error.t.test", includeVarianceTest = TRUE,
-                                               modelRetention = "stringent", minCutoff = minCutoff, maxCutoff = maxCutoff, useCutoff = TRUE)
+                                               verbose = TRUE, modelRetention = "stringent", minCutoff = minCutoff, maxCutoff = maxCutoff, useCutoff = TRUE)
 predictions <- MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]], minCutoff = minCutoff,
                                                      maxCutoff = maxCutoff, useCutoff = TRUE)
 true <- modelInput@input.data@sampleMetaData[,"drug5FU"]
@@ -252,27 +250,26 @@ outcomeType <- 2
 independentVarType <- 1
 
 # Run prediction.
-modelResults <- DoModelSetup(inputData = inputDataTrain,
+modelResults <- MultiOmicsGraphPrediction::DoModelSetup(inputData = inputDataTrain,
                                 stype = stype,
+                                rsquaredCutoff = 0,
                                 outcomeType = outcomeType,
                                 independentVarType = independentVarType,
                                 continuous = TRUE,
                                 metaFeatureList = metaFeatureList,
-                                learningRate = 0.01)
-optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults,
-                                                                 pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE)
+                                learningRate = 0.01,
+                                maxIterations = 100)
+optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults, verbose = TRUE)
 
 # Predict testing values.
-predictions <- DoTestSetupAndPrediction(inputDataTrain = inputDataTrain, 
-                                        inputDataTest = inputDataTest, 
-                                        model = optimalModel, 
-                                        metaFeatureList = metaFeatureList,
-                                        stype = stype,
-                                        independentVarType = independentVarType, 
-                                        outcomeType = outcomeType)
+predictions <- DoTestSetupAndPrediction(inputDataTest = inputDataTest, 
+                                        model = optimalModel)
 print(optimalModel@pairs)
 print(predictions)
-print(inputDataTest@sampleMetaData$age)
+print(inputDataTest@sampleMetaData$drug5FU)
+print(MultiOmicsGraphPrediction::ComputeRMSE(true.Y = inputDataTest@sampleMetaData$drug5FU,
+                                             pred.Y = predictions))
+plot(predictions, inputDataTest@sampleMetaData$drug5FU, xlab = "Predicted 5-FU Drug Score", ylab = "True 5-FU Drug Score")
 ```
 
 # Learn Metafeature Weights with Prediction Cutoffs.
@@ -290,32 +287,24 @@ modelResults <- DoModelSetup(inputData = inputDataTrain,
                                 independentVarType = independentVarType,
                                 continuous = TRUE,
                                 metaFeatureList = metaFeatureList,
-                                learningRate = 1)
-optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults,
-                                                                 pruningMethod = "error.t.test", includeVarianceTest = TRUE, verbose = TRUE,
-                                                                 useCutoff = TRUE)
+                             rsquaredCutoff = 0,
+                             maxIterations = 100,
+                                learningRate = 0.01)
+optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults, useCutoff = TRUE)
 
 # Predict testing values.
-predictions <- DoTestSetupAndPrediction(inputDataTrain = inputDataTrain, 
-                                        inputDataTest = inputDataTest, 
+predictions <- DoTestSetupAndPrediction(inputDataTest = inputDataTest, 
                                         model = optimalModel, 
-                                        metaFeatureList = metaFeatureList,
-                                        stype = stype,
-                                        independentVarType = independentVarType, 
-                                        outcomeType = outcomeType,
                                         useCutoff = TRUE)
 print(optimalModel@pairs)
 print(predictions)
-print(inputDataTest@sampleMetaData[,stype])
-plot(predictions, inputDataTest@sampleMetaData[,stype], xlab = "Predicted", ylab = "True")
+print(inputDataTest@sampleMetaData$drug5FU)
+print(MultiOmicsGraphPrediction::ComputeRMSE(true.Y = inputDataTest@sampleMetaData$drug5FU,
+                                             pred.Y = predictions))
+plot(predictions, inputDataTest@sampleMetaData$drug5FU, xlab = "Predicted 5-FU Drug Score", ylab = "True 5-FU Drug Score")
 ```
 
 # Random Forest
-
-We run random forest as a baseline on each cross-validation. We observe that,
-unlike the models constructed above, the random forest models learned do not
-predict the test data accurately. Furthermore, analyte importance differs
-across folds, so the same analytes are not selected consistently.
 ```{r}
 # Install packages.
 if(!require("caret")){
@@ -329,44 +318,34 @@ set.seed(1234)
 ```
 
 ```{r}
-for(sample in rownames(inputData@sampleMetaData)){
-  print(sample)
-  # Split into training and testing data.
-  data <- MultiOmicsGraphPrediction::SplitTrainingAndTesting(inputData = inputData, testingSamples = sample)
+# Set up Data.
+train.X.all <- as.matrix(cbind(t(inputDataTrain@analyteType1),t(inputDataTrain@analyteType2)))
+test.X.all <- as.matrix(cbind(t(inputDataTest@analyteType1),t(inputDataTest@analyteType2)))
+train.Y.all <- inputDataTrain@sampleMetaData[, "drug5FU"]
+test.Y.all <- inputDataTest@sampleMetaData[, "drug5FU"]
 
-  # Set up Data.
-  train.X.all <- as.matrix(cbind(t(data$training@analyteType1),t(data$training@analyteType2)))
-  test.X.all <- as.matrix(cbind(t(data$testing@analyteType1),t(data$testing@analyteType2)))
-  train.Y.all <- data$training@sampleMetaData[, "age"]
-  test.Y.all <- data$testing@sampleMetaData[, "age"]
-
-  # Run Random Forest
-  control <- caret::trainControl(method='none')
-  mtry <- sqrt(ncol(train.X.all))
-  tunegrid <- expand.grid(.mtry=mtry)
-  rf_fit <- caret::train(x = train.X.all, y = c(train.Y.all),
-                  method='rf',
-                  metric='RMSE',
-                  tuneGrid=tunegrid,
-                  trControl=control)
-  rf_models <- rf_fit[which(names(rf_fit) != "trainingData")]
-  rf_importance <- caret::varImp(rf_fit, scale = FALSE)
-  rf_test_predict <- predict(rf_fit, test.X.all)
-  rf_test_true <- test.Y.all
-  rf_rmse <- ComputeRMSE(test.Y.all, rf_test_predict)
-  print(rownames(rf_importance$importance)[order(-1 * rf_importance$importance$Overall)])
-  print(paste(sample, rf_test_predict, rf_test_true))
-}
+# Run Random Forest
+control <- caret::trainControl(method='none')
+mtry <- sqrt(ncol(train.X.all))
+tunegrid <- expand.grid(.mtry=mtry)
+rf_fit <- caret::train(x = train.X.all, y = c(train.Y.all),
+                method='rf',
+                metric='RMSE',
+                tuneGrid=tunegrid,
+                trControl=control)
+rf_models <- rf_fit[which(names(rf_fit) != "trainingData")]
+rf_importance <- caret::varImp(rf_fit, scale = FALSE)
+rf_test_predict <- predict(rf_fit, test.X.all)
+rf_test_true <- test.Y.all
+rf_rmse <- ComputeRMSE(test.Y.all, rf_test_predict)
+print(rownames(rf_importance$importance)[order(-1 * rf_importance$importance$Overall)])
+print(paste(sample, rf_test_predict, rf_test_true))
+print(rf_rmse)
+plot(rf_test_predict, rf_test_true, xlab = "Predicted 5-FU Drug Score", ylab = "True 5-FU Drug Score")
 ```
 
 
 # LASSO
-
-We run LASSO as a baseline on each cross-validation. LASSO does not predict
-the phenotype accurately for the cross-validation folds. As shown in the histograms,
-the most heavily weighted features differ for each fold but are fairly consistent
-across lambda values. In all but the 5th fold, the intercept is has greater
-magnitude than the features.
 ```{r}
 # Install packages.
 if(!require("glmnet")){
@@ -375,31 +354,27 @@ if(!require("glmnet")){
 ```
 
 ```{r}
-for(sample in rownames(inputData@sampleMetaData)){
-  print(sample)
-  # Split into training and testing data.
-  data <- MultiOmicsGraphPrediction::SplitTrainingAndTesting(inputData = inputData, testingSamples = sample)
+# Set up Data.
+train.X.all <- as.matrix(cbind(t(inputDataTrain@analyteType1),t(inputDataTrain@analyteType2)))
+test.X.all <- as.matrix(cbind(t(inputDataTest@analyteType1),t(inputDataTest@analyteType2)))
+train.Y.all <- inputDataTrain@sampleMetaData[, "drug5FU"]
+test.Y.all <- inputDataTest@sampleMetaData[, "drug5FU"]
 
-  # Set up Data.
-  train.X.all <- as.matrix(cbind(t(data$training@analyteType1),t(data$training@analyteType2)))
-  test.X.all <- as.matrix(cbind(t(data$testing@analyteType1),t(data$testing@analyteType2)))
-  train.Y.all <- data$training@sampleMetaData[, "age"]
-  test.Y.all <- data$testing@sampleMetaData[, "age"]
-
-  # Run LASSO
-  control <- caret::trainControl(method='none')
-  tunegrid <- expand.grid(alpha = 1, lambda = 0)
-  lasso_fit <- caret::train(x = train.X.all, y = c(train.Y.all),
-                     method='glmnet',
-                     metric='RMSE',
-                     tuneGrid=tunegrid,
-                     trControl=control)
-  lasso_models <- lasso_fit[which(names(lasso_fit) != "trainingData")]
-  lasso_importance <- coef(lasso_fit$finalModel)
-  lasso_test_predict <- predict(lasso_fit, test.X.all)
-  lasso_test_true <- test.Y.all
-  lasso_rmse <- ComputeRMSE(test.Y.all, rf_test_predict)
-  gplots::heatmap.2(as.matrix(lasso_importance), trace = "none", scale = "none")
-  print(paste(sample, lasso_test_predict, lasso_test_true))
-}
+# Run LASSO
+control <- caret::trainControl(method='none')
+tunegrid <- expand.grid(alpha = 1, lambda = 0)
+lasso_fit <- caret::train(x = train.X.all, y = c(train.Y.all),
+                   method='glmnet',
+                   metric='RMSE',
+                   tuneGrid=tunegrid,
+                   trControl=control)
+lasso_models <- lasso_fit[which(names(lasso_fit) != "trainingData")]
+lasso_importance <- coef(lasso_fit$finalModel)
+lasso_test_predict <- predict(lasso_fit, test.X.all)
+lasso_test_true <- test.Y.all
+lasso_rmse <- ComputeRMSE(test.Y.all, lasso_test_predict)
+gplots::heatmap.2(as.matrix(lasso_importance), trace = "none", scale = "none")
+print(paste(sample, lasso_test_predict, lasso_test_true))
+print(lasso_rmse)
+plot(lasso_test_predict, lasso_test_true, xlab = "Predicted 5-FU Drug Score", ylab = "True 5-FU Drug Score")
 ```

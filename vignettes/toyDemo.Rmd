@@ -228,33 +228,6 @@ print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults
 ```
 
 # Lenient Model Retention
-In this example, we use the t-score of the predicted values to determine whether
-or not to keep each model. We use a lenient model retention strategy, keeping
-models that neither improve nor reduce the score.
-
-The M2-based predictors are grouped together with G4 predictors in neighborhood 1.
-In neighborhood 1, all predictors are removed except (M2, [G4, G6, G8]), the exact predictors.
-
-The M4-based predictors are grouped together in neighborhood 2, along with the G7 predictors.
-In neighborhood 2, all predictors are removed except (M4, [G4, G6, G8, G1, G11]) and (M3, G7).
-
-The M3-based predictors are grouped together in neighborhood 3.
-In neighborhood 3, all predictors are removed except (M3, [G6, G8, G11]) and (M6, G3).
-
-The M1-based predictors are grouped together with G4 predictors in neighborhood 4.
-In neighborhood 4, all predictors are removed except (M2, G4) and (M1, [G4, G6, G8]).
-
-In the second iteration, neighborhoods 1 and 4 are combined to create the new neighborhood 1, and nothing is removed
-(because they are identical). Nothing is removed from the other neighborhoods.
-
-In the third iteration, neighborhoods 1 and 2 are combined to create the new neighborhood 1,
-but neighborhood 2 is removed because both contain exact predictors. Neighborhood
-3 becomes neighborhood 2.
-
-In the fourth iteration, neighborhoods 1 and 2 are combined to create the new neighborhood 1,
-but neighborhood 2 is removed.
-
-The single pair (M2, G4) gives an exact prediction for the entire data set as expected.
 ```{r}
 modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
                                                      coregulationGraph = coreg.r2,
@@ -309,52 +282,6 @@ for(sample in rownames(inputData@sampleMetaData)){
   stype <- "age"
   outcomeType <- 1
   independentVarType <- 2
-  
-  # # Run prediction.
-  # myres.cv <- IntLIM::RunIntLim(inputData = data$training,stype=stype,
-  #                                save.covar.pvals = TRUE, 
-  #                                outcome = outcomeType, 
-  #                                independent.var.type = independentVarType, 
-  #                                continuous = TRUE)
-  # myres.all.cv <- IntLIM::ProcessResults(inputResults = myres.cv, inputData = data$training, 
-  #                                      pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
-  # myres.r2.density.cv <- density(myres.all.cv$rsquared)
-  # peak.r2.cv <- myres.r2.density.cv$x[which.max(myres.r2.density.cv$y)]
-  # myres.r2 <- IntLIM::ProcessResults(inputResults = myres.cv, inputData = data$training, 
-  #                                        pvalcutoff = 1, rsquaredCutoff = peak.r2.cv)
-  # # Build graph.
-  # coreg.r2.cv <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2.cv)
-  # MultiOmicsGraphPrediction::PlotCoRegulationGraph(coreg.r2.cv, "", saveInFile = "")
-  # pred.cv <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2.cv, 
-  #                                                        inputData = data$training,
-  #                                                        stype = stype,
-  #                                                        independentVarType = independentVarType,
-  #                                                        outcomeType = outcomeType)
-  # projectedGraph.cv <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg.r2.cv,
-  #                                                                        predictions = pred.cv)
-  # metaFeatures.cv <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred.cv, 
-  #                                                                stype = stype,
-  #                                                                inputData = data$training, 
-  #                                                                metaFeatureList = metaFeatureList,
-  #                                                                k = 2, eigStep = 1,
-  #                                                                modelStats = myres.r2.cv,
-  #                                                                colIdInd = "databaseId",
-  #                                                                colIdOut = "databaseId")
-  # modelInput.cv <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph.cv, 
-  #                                                    coregulationGraph = coreg.r2.cv,
-  #                                                    inputData = data$training, 
-  #                                                    stype.class = "numeric",
-  #                                                    stype = stype,
-  #                                                    edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
-  #                                                    metaFeatures = metaFeatures.cv,
-  #                                                    modelProperties = myres.r2.cv,
-  #                                                    outcome = outcomeType,
-  #                                                    independent.var.type = independentVarType)
-  # modelResults.cv <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput.cv, learningRate = 0.2)
-  # pairsPredAll.cv <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults.cv@model.input, percentOverlapCutoff = 50)
-  # 
-  # propagatedGraph.cv <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll.cv, modelResults = modelResults.cv,
-  #                                                verbose = TRUE, modelRetention = "stringent")
   modelResults.cv <- DoModelSetup(inputData = data$training,
                                   stype = stype,
                                   outcomeType = outcomeType,

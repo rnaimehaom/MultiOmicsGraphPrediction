@@ -7,7 +7,7 @@
 InitializeGraphLearningModel(
   modelInputs,
   iterations = 1000,
-  convergenceCutoff = 1e-10,
+  convergenceCutoff = 0.001,
   learningRate = 0.2,
   activationType = "none",
   optimizationType = "SGD",

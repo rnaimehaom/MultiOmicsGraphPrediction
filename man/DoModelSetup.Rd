@@ -26,7 +26,12 @@ DoModelSetup(
   colIdOut = "databaseId",
   edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
   learningRate = 0.2,
-  covar = c()
+  covar = c(),
+  maxIterations = 1000,
+  convergenceCutoff = 0.001,
+  activationType = "none",
+  optimizationType = "SGD",
+  initialMetaFeatureWeights = 0
 )
 }
 \arguments{
@@ -66,6 +71,19 @@ in the line graph:
 
 \item{covar}{The clinical covariates to include in the model. These should be the same
 covariates that were included when running the IntLIM linear models.}
+
+\item{maxIterations}{Maximum number of iterations. Default is 1,000.}
+
+\item{convergenceCutoff}{Cutoff for convergence. Default is 0.001.}
+
+\item{activationType}{Activation function. May be "softmax", "sigmoid", 
+"tanh", or "none". Default is "none", meaning stype.class is numeric.}
+
+\item{optimizationType}{Type of optimization. May be "SGD", "momentum",
+"adagrad", or "adam". Default is "SGD".}
+
+\item{initialMetaFeatureWeights}{Initial weights for model meta-features. Default
+is 0, which results in each meta-feature being given equal weight.}
 }
 \description{
 This function performs the following tasks:

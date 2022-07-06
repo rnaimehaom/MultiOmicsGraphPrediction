@@ -15,7 +15,7 @@
 #' @export
 InitializeGraphLearningModel <- function(modelInputs,
                                          iterations = 1000,
-                                         convergenceCutoff = 0.0000000001,
+                                         convergenceCutoff = 0.001,
                                          learningRate = 0.2,
                                          activationType = "none", 
                                          optimizationType = "SGD",
