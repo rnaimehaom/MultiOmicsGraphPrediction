@@ -432,27 +432,22 @@ ComputeReactionImportance <- function(predictions, inputData, colIdInd,
 ComputePvalImportance <- function(predictions, modelStats){
   
   # Measure importance for each predictor.
-  pvals <- unlist(lapply(colnames(predictions), function(predictor){
-    
-    # Get gene and metabolite names.
-    srcAnalyte <- strsplit(predictor, "__")[[1]][1]
-    tgtAnalyte <- strsplit(predictor, "__")[[1]][2]
-    
-    # Get p-value.
-    return(modelStats[intersect(which(modelStats$Analyte1 == srcAnalyte), 
-                                which(modelStats$Analyte2 == tgtAnalyte)),
-                      "FDRadjPval"])
-  }))
+  pvals <- modelStats$FDRadjPval
+  names(pvals) <- paste(modelStats$Analyte1, modelStats$Analyte2, sep = "__")
+  pvals <- pvals[colnames(predictions)]
   
   # Get the p-value percentile over all pairs.
   percentileVals <- seq(1, 100, by = 1) / 100
   quantiles <- stats::quantile(pvals, percentileVals)
-  pvalPercentiles <- unlist(lapply(pvals, function(p){
-    pvec <- rep(p, length(quantiles))
-    which_match <- which.min(abs(pvec - quantiles))
-    return(percentileVals[which_match])
-  }))
-  importance <- 1 - pvalPercentiles
+  closestQuantile <- rep(-1, length(pvals))
+  smallestDifference <- rep(1, length(pvals))
+  for(i in 1:length(quantiles)){
+    diffs <- abs(pvals - quantiles[i])
+    which_better <- which(diffs < smallestDifference)
+    smallestDifference[which_better] <- diffs[which_better]
+    closestQuantile[which_better] <- percentileVals[i]
+  }
+  importance <- 1 - closestQuantile
   
   # Make copies for each sample.
   importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})
@@ -474,27 +469,22 @@ ComputePvalImportance <- function(predictions, modelStats){
 ComputeInteractionCoefImportance <- function(predictions, modelStats){
   
   # Measure importance for each predictor.
-  coefs <- unlist(lapply(colnames(predictions), function(predictor){
-    
-    # Get gene and metabolite names.
-    srcAnalyte <- strsplit(predictor, "__")[[1]][1]
-    tgtAnalyte <- strsplit(predictor, "__")[[1]][2]
-    
-    # Get coefficient.
-    return(modelStats[intersect(which(modelStats$Analyte1 == srcAnalyte), 
-                                which(modelStats$Analyte2 == tgtAnalyte)),
-                      "interaction_coeff"])
-  }))
+  coefs <- modelStats$interaction_coeff
+  names(coefs) <- paste(modelStats$Analyte1, modelStats$Analyte2, sep = "__")
+  coefs <- coefs[colnames(predictions)]
   
-  # Get the coefficient percentile over all pairs.
+  # Get the p-value percentile over all pairs.
   percentileVals <- seq(1, 100, by = 1) / 100
   quantiles <- stats::quantile(abs(coefs), percentileVals)
-  coefPercentiles <- unlist(lapply(abs(coefs), function(c){
-    cvec <- rep(c, length(quantiles))
-    which_match <- which.min(abs(cvec - quantiles))
-    return(percentileVals[which_match])
-  }))
-  importance <- coefPercentiles
+  closestQuantile <- rep(-1, length(coefs))
+  smallestDifference <- rep(max(abs(coefs)), length(coefs))
+  for(i in 1:length(quantiles)){
+    diffs <- abs(abs(coefs) - quantiles[i])
+    which_better <- which(diffs < smallestDifference)
+    smallestDifference[which_better] <- diffs[which_better]
+    closestQuantile[which_better] <- percentileVals[i]
+  }
+  importance <- closestQuantile
   
   # Make copies for each sample.
   importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})
@@ -516,27 +506,22 @@ ComputeInteractionCoefImportance <- function(predictions, modelStats){
 ComputeAnalyteCoefImportance <- function(predictions, modelStats){
   
   # Measure importance for each predictor.
-  coefs <- unlist(lapply(colnames(predictions), function(predictor){
-    
-    # Get gene and metabolite names.
-    srcAnalyte <- strsplit(predictor, "__")[[1]][1]
-    tgtAnalyte <- strsplit(predictor, "__")[[1]][2]
-    
-    # Get coefficient.
-    return(modelStats[intersect(which(modelStats$Analyte1 == srcAnalyte), 
-                                which(modelStats$Analyte2 == tgtAnalyte)),
-                      "type"])
-  }))
+  coefs <- modelStats$type
+  names(coefs) <- paste(modelStats$Analyte1, modelStats$Analyte2, sep = "__")
+  coefs <- coefs[colnames(predictions)]
   
-  # Get the coefficient percentile over all pairs.
+  # Get the p-value percentile over all pairs.
   percentileVals <- seq(1, 100, by = 1) / 100
   quantiles <- stats::quantile(abs(coefs), percentileVals)
-  coefPercentiles <- unlist(lapply(abs(coefs), function(c){
-    cvec <- rep(c, length(quantiles))
-    which_match <- which.min(abs(cvec - quantiles))
-    return(percentileVals[which_match])
-  }))
-  importance <- coefPercentiles
+  closestQuantile <- rep(-1, length(coefs))
+  smallestDifference <- rep(max(abs(coefs)), length(coefs))
+  for(i in 1:length(quantiles)){
+    diffs <- abs(abs(coefs) - quantiles[i])
+    which_better <- which(diffs < smallestDifference)
+    smallestDifference[which_better] <- diffs[which_better]
+    closestQuantile[which_better] <- percentileVals[i]
+  }
+  importance <- closestQuantile
   
   # Make copies for each sample.
   importanceAll <- lapply(rownames(predictions), function(samp){return(importance)})
