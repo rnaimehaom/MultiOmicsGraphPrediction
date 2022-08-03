@@ -135,52 +135,74 @@ ComputeTScore <- function(pred, trueVal, includeVarianceTest = FALSE){
 #' @export
 ObtainSubgraphNeighborhoods <- function(modelInput, percentOverlapCutoff = 100){
   # Convert to graph.
-  lineGraph <- igraph::graph_from_adjacency_matrix(modelInput@line.graph)
+  graph <- igraph::graph_from_adjacency_matrix(modelInput@coregulation.graph)
   
-  # For each node, find its neighbors. Ensure that the neighborhood is not a 
+  # Return the list of edges for each node so that they do not need to be looked
+  # up for each edge.
+  allNodes <- igraph::as_ids(igraph::V(graph))
+  print("Finding pairs containing each analyte")
+  edgesPerNode <- lapply(1:length(allNodes), function(i){
+    node <- allNodes[i]
+    nodeTargetEdges <- c()
+    nodeSourceEdges <- c()
+    whichTarget <- colnames(modelInput@coregulation.graph)[which(modelInput@coregulation.graph[node,] == 1)]
+    whichSource <- rownames(modelInput@coregulation.graph)[which(modelInput@coregulation.graph[,node] == 1)]
+    if(length(whichTarget) > 0){
+      nodeTargetEdges <- paste(node, whichTarget, sep = "|")
+    }
+    if(length(whichSource) > 0){
+      nodeSourceEdges <- paste(whichSource, node, sep = "|")
+    }
+    return(union(nodeTargetEdges, nodeSourceEdges))
+  })
+  names(edgesPerNode) <- allNodes
+  
+  # For each edge, find its nodes' neighbors. Ensure that the neighborhood is not a 
   # subset of any of the neighbors' neighborhoods. This prevents subset graphs
   # from being returned.
-  nodes <- igraph::as_ids(igraph::V(lineGraph))
-  nodesToCheckQueue <- nodes
-  nodesToCheckAgainst <- nodes
-  
-  while(length(nodesToCheckQueue) > 0){
-    # Select the next node to check. Find its neighborhoods.
-    node <- nodesToCheckQueue[[1]]
-    neighbors <- igraph::as_ids(igraph::neighbors(lineGraph, node))
-    nodeAndNeighbors <- union(neighbors, node)
+  edges <- igraph::as_ids(igraph::E(graph))
+  edgesToCheckQueue <- edges
+  edgesToCheckAgainst <- edges
+  while(length(edgesToCheckQueue) > 0){
+    # Select the next edge to check. Find its neighborhoods.
+    edge <- edgesToCheckQueue[[1]]
+    nodes <- igraph::ends(graph, edge)
+    edgeAndNeighbors <- union(edgesPerNode[nodes[1]], edgesPerNode[nodes[2]])
+    neighbors <- setdiff(edgeAndNeighbors, edge)
+    print(length(edgesToCheckQueue))
     
     # For neighbors that have not yet been checked, find their neighborhoods
-    # and compare to the current node's neighborhood.
-    neighborsToCheck <- intersect(neighbors, nodesToCheckAgainst)
+    # and compare to the current edge's neighborhood.
+    neighborsToCheck <- intersect(neighbors, edgesToCheckAgainst)
     isSubsetAny <- unlist(lapply(neighborsToCheck, function(nbr){
       isSubset <- 0
-      nbrNeighbors <- igraph::as_ids(igraph::neighbors(lineGraph, nbr))
-      nbrAndNeighbors <- union(nbrNeighbors, nbr)
-      if(length(intersect(nodeAndNeighbors, nbrAndNeighbors)) /
-         length(nodeAndNeighbors) * 100 >= percentOverlapCutoff){
+      nbrNodes <- igraph::ends(graph, nbr)
+      nbrAndNeighbors <- union(edgesPerNode[nbrNodes[1]], edgesPerNode[nbrNodes[2]])
+      if(length(intersect(edgeAndNeighbors, nbrAndNeighbors)) /
+         length(edgeAndNeighbors) * 100 >= percentOverlapCutoff){
         isSubset <- 1
       }
     }))
     
-    # Remove the current node from the queue
-    nodesToCheckQueue <- setdiff(nodesToCheckQueue, node)
+    # Remove the current edge from the queue
+    edgesToCheckQueue <- setdiff(edgesToCheckQueue, edge)
     
-    # If the current node is a subset of any of the other nodes, we don't
-    # want to check against it anymore. Remove it from the set of nodes
+    # If the current edge is a subset of any of the other edges, we don't
+    # want to check against it anymore. Remove it from the set of edges
     # to check against.
     if(sum(isSubsetAny) > 0){
-      nodesToCheckAgainst <- setdiff(nodesToCheckAgainst, node)
+      edgesToCheckAgainst <- setdiff(edgesToCheckAgainst, edge)
     }
   }
   
-  # For all remaining nodes that were not subsets, get their neighborhoods
+  # For all remaining edges that were not subsets, get their neighborhoods
   # and return them.
-  nodeNeighborhoods <- lapply(nodesToCheckAgainst, function(node){
-    neighbors <- igraph::as_ids(igraph::neighbors(lineGraph, node))
-    nodeAndNeighbors <- union(neighbors, node)
+  edgeNeighborhoods <- lapply(edgesToCheckAgainst, function(edge){
+    nodes <- igraph::ends(graph, edge)
+    edgeAndNeighbors <- union(edgesPerNode[nodes[1]], edgesPerNode[nodes[2]])
+    return(edgeAndNeighbors)
   })
-  return(nodeNeighborhoods)
+  return(edgeNeighborhoods)
 }
 
 #' Obtain the list of pairs in a composite model. Do this by merging the two

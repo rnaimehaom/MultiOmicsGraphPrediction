@@ -3,13 +3,10 @@
 #' @name ModelInput-class
 #' @rdname ModelInput-class
 #' @exportClass ModelInput
-#' @slot A.hat The Laplacian of a line graph built from the co-regulation graphs, where 
-#' each node corresponds to a pair of analytes.
-#' @slot node.wise.prediction graph of co-regulation results from IntLIM
+#' @slot edge.wise.prediction graph of co-regulation results from IntLIM
 #' @slot true.phenotypes data frame of true phenotypes given analyte pairs
 #' and clinical covariates
 #' @slot coregulation.graph the original co-regulation graph for the input data.
-#' @slot line.graph the line graph of the input data.
 #' @slot metaFeatures A list of calculated meta-feature data frames for each sample
 #' @slot model.properties A data frame that includes model information, i.e. R^2,
 #' interaction term p-value, and coefficients.
@@ -20,11 +17,9 @@
 #' @slot stype.class Class of outcome/phenotype (either "numeric" or "character").
 methods::setClass(
   Class="ModelInput",
-  representation(A.hat="matrix",
-                 node.wise.prediction="matrix",
+  representation(edge.wise.prediction="matrix",
                  true.phenotypes="numeric",
                  coregulation.graph="matrix",
-                 line.graph="matrix",
                  metaFeatures="list",
                  model.properties = "data.frame",
                  input.data = "IntLimData",

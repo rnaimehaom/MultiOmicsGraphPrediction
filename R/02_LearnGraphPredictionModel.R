@@ -36,7 +36,7 @@ InitializeGraphLearningModel <- function(modelInputs,
 
   # Initialize weights with uniform distribution.
   max_phen <- max(modelInputs@true.phenotypes)
-  num_nodes <- nrow(modelInputs@node.wise.prediction)
+  num_nodes <- nrow(modelInputs@edge.wise.prediction)
   weights <- as.matrix(rep(1 / weights_count, weights_count))
   if(initialMetaFeatureWeights != 0){
     weights <- initialMetaFeatureWeights
@@ -105,64 +105,31 @@ FormatInput <- function(predictionGraphs, coregulationGraph, metaFeatures, model
                         outcome = 2, independent.var.type = 2){
   
   # Extract edge-wise predictions.
-  predictions_by_node <- lapply(names(predictionGraphs), function(sampName){
+  predictions_by_edge <- lapply(names(predictionGraphs), function(sampName){
     df_predictions <- igraph::as_data_frame(predictionGraphs[[sampName]])
-    node_names <- paste(make.names(df_predictions$from), make.names(df_predictions$to),
+    edge_names <- paste(make.names(df_predictions$from), make.names(df_predictions$to),
                         sep = "__")
-    df_predictions_new <- data.frame(Node = node_names, Weight = df_predictions$weight)
+    df_predictions_new <- data.frame(Edge = edge_names, Weight = df_predictions$weight)
     return(df_predictions_new)
   })
-  names(predictions_by_node) <- names(predictionGraphs)
-  predicted_weights_only <- lapply(predictions_by_node, function(pred){
+  names(predictions_by_edge) <- names(predictionGraphs)
+  predicted_weights_only <- lapply(predictions_by_edge, function(pred){
     return(pred$Weight)
   })
   predictions_flattened <- t(data.frame(predicted_weights_only))
-  colnames(predictions_flattened) <- predictions_by_node[[1]]$Node
-  
-  # Convert co-regulation graph into a line graph. Return the adjacency matrix.
-  # If edges were not connected by nodes in the original graph, they may be
-  # removed from the line graph. Remove these from the predictions_by_node df.
-  A <- CreateLineGraph(predictionsByEdge = predictions_by_node[[1]],
-                       graphWithPredictions = predictionGraphs[[1]],
-                       edgeTypeList = edgeTypeList)
-  predictions_flattened <- predictions_flattened[,colnames(A)]
-  predictions_flattened_orig <- predictions_flattened
-  
-  # Add self-loops.
-  A_tilde <- as.matrix(A)
-  diag(A_tilde) <- 1
-  
-  # Extract the diagonal (in degree) and raise to the negative half power.
-  diags1 <- colSums(A_tilde)
-  diags_neg_half <- 1 / sqrt(diags1)
-  D_tilde_neg_half1 <- t(matrix(rep(diags_neg_half,length(diags_neg_half)),
-                                nrow = length(diags_neg_half)))
-  A_hat1 <- D_tilde_neg_half1 * A_tilde
-  rm(D_tilde_neg_half1)
-  
-  # Extract the diagonal (out degree) and raise to the negative half power.
-  diags2 <- rowSums(A_tilde)
-  rm(A_tilde)
-  diags_neg_half <- 1 / sqrt(diags2)
-  D_tilde_neg_half2 <- t(matrix(rep(diags_neg_half,length(diags_neg_half)),
-                                nrow = length(diags_neg_half)))
-  
-  # Obtain the final matrix. Note that we modify the matrix multiplication
-  # problem to obtain an elementwise multiplication problem
-  # because it speeds up computation.
-  A_hat <- A_hat1 * D_tilde_neg_half2
+  colnames(predictions_flattened) <- predictions_by_edge[[1]]$Edge
   
   # Obtain the predictions.
   Y <- inputData@sampleMetaData[,stype]
   if(stype.class == "factor"){
     Y <- as.numeric(Y)-1
   }
-  names(Y) <- names(predictions_by_node)
+  names(Y) <- names(predictions_by_edge)
   
   # Create a ModelInput object and return it.
-  newModelInput <- methods::new("ModelInput", A.hat=A_hat, node.wise.prediction=predictions_flattened,
+  newModelInput <- methods::new("ModelInput", edge.wise.prediction=predictions_flattened,
                                 true.phenotypes=Y, coregulation.graph=igraph::get.adjacency(coregulationGraph, sparse = FALSE), 
-                                line.graph=as.matrix(A), input.data = inputData, model.properties = modelProperties,
+                                input.data = inputData, model.properties = modelProperties,
                                 metaFeatures = metaFeatures, stype = stype, covariates = covariates, stype.class = stype.class,
                                 outcome = outcome, independent.var.type = independent.var.type)
   return(newModelInput)
@@ -230,7 +197,7 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
                                   nodeType2){
   # Convert predictions to data frame.
   graph_df <- igraph::as_data_frame(graphWithPredictions)
-  
+
   # Find shared nodes.
   nodes <- unique(graph_df[,nodeType1])
   to_shared <- lapply(1:length(nodes), function(i){
@@ -249,9 +216,10 @@ FindEdgesSharingNodes <- function(predictionsByEdge, graphWithPredictions, nodeT
     colnames(combs) <- c("to", "from")
     return(combs)
   })
-  
+
   # Concatenate all shared nodes.
   line_graph_df <- do.call(rbind, to_shared)
+  str(line_graph_df)
   
   return(line_graph_df)
 }

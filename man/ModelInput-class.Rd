@@ -10,17 +10,12 @@ ModelInput class
 \section{Slots}{
 
 \describe{
-\item{\code{A.hat}}{The Laplacian of a line graph built from the co-regulation graphs, where 
-each node corresponds to a pair of analytes.}
-
-\item{\code{node.wise.prediction}}{graph of co-regulation results from IntLIM}
+\item{\code{edge.wise.prediction}}{graph of co-regulation results from IntLIM}
 
 \item{\code{true.phenotypes}}{data frame of true phenotypes given analyte pairs
 and clinical covariates}
 
 \item{\code{coregulation.graph}}{the original co-regulation graph for the input data.}
-
-\item{\code{line.graph}}{the line graph of the input data.}
 
 \item{\code{metaFeatures}}{A list of calculated meta-feature data frames for each sample}
 
