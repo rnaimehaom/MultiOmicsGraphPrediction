@@ -134,54 +134,37 @@ Predict <- function(pairs, inputData, metafeatures, model, minCutoff, maxCutoff,
   weights <- ComputeMetaFeatureWeights(modelResults = model,
                                        metaFeatures = metafeatures)
   
+  # Get vectors to use.
+  targets <- unlist(data.frame(strsplit(pairs, "__"))[2,])
+  sources <- unlist(data.frame(strsplit(pairs, "__"))[1,])
+  
   # Analyte 1
-  weighted_a1 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_a1 <- weighted_a1 + weights[,pair] * analyteTgtVals[strsplit(pair, "__")[[1]][2],]
-  }
-  
+  weighted_a1 <- rowSums(weights[,pairs] * t(analyteTgtVals[targets,]))
+
   # beta0
-  weighted_sum_b0 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b0 <- weighted_sum_b0 + weights[,pair] * rep(covariates[pair,"(Intercept)"], nrow(weights))
-  }
-  
+  weighted_sum_b0 <- rowSums(weights[,pairs] * t(matrix(rep(covariates[pairs,"(Intercept)"], nrow(weights)), ncol = nrow(weights))))
+
   # beta1
-  weighted_sum_b1 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b1 <- weighted_sum_b1 + weights[,pair] * rep(covariates[pair, "a"], nrow(weights)) * 
-      analyteSrcVals[strsplit(pair, "__")[[1]][1],]
-  }
-  
+  weighted_sum_b1 <- rowSums(weights[,pairs] * t(matrix(rep(covariates[pairs,"a"], nrow(weights)), ncol = nrow(weights))))
+
   # beta2
-  weighted_sum_b2 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b2 <- weighted_sum_b2 + weights[,pair] * rep(covariates[pair, "type"], nrow(weights))
-  }
-  
+  weighted_sum_b2 <- rowSums(weights[,pairs] * t(matrix(rep(covariates[pairs,"type"], nrow(weights)), ncol = nrow(weights))))
+
   # beta3
-  weighted_sum_b3 <- rep(0, nrow(weights))
-  for(i in 1:length(pairs)){
-    pair <- pairs[[i]]
-    weighted_sum_b3 <- weighted_sum_b3 + weights[,pair] * rep(covariates[pair, "a:type"], nrow(weights))* 
-      analyteSrcVals[strsplit(pair, "__")[[1]][1],]
+  interactionTerm <- t(matrix(rep(covariates[pairs,"a:type"], nrow(weights)), ncol = nrow(weights)))
+  src <- t(analyteSrcVals[sources,])
+  if(ncol(src) == nrow(interactionTerm) && nrow(src) == ncol(interactionTerm)){
+    src <- analyteSrcVals[sources,]
   }
+  weighted_sum_b3 <- rowSums(weights[,pairs] * interactionTerm * src)
   
   # covariates
+  # NOTE: This needs to be tested.
   weighted_sum_covars <- rep(0, nrow(weights))
   if(length(covar) > 0){
     weighted_sum_each <- lapply(covar, function(c){
-      weighted_sum <- rep(0, nrow(weights))
-      for(i in 1:length(pairs)){
-        pair <- pairs[[i]]
-        weighted_sum <- weighted_sum + weights[,pair] * rep(covariates[pair, c], nrow(weights)) *
-          covariateVals[,c]
-      }
-      return(weighted_sum)
+      weighted_sum <- rowSums(weights[,pairs] * t(matrix(rep(covariates[pairs,c], nrow(weights)), ncol = nrow(weights)))
+                                 * covariateVals[,c])
     })
     weighted_sum_covars <- Reduce('+', weighted_sum_each)
   }
