@@ -15,7 +15,8 @@ PrunePredictors(
   modelRetention = "stringent",
   minCutoff,
   maxCutoff,
-  useCutoff = FALSE
+  useCutoff = FALSE,
+  weights
 )
 }
 \arguments{
@@ -42,6 +43,8 @@ neither improve nor reduce the prediction score.}
 \item{maxCutoff}{Maximum cutoff for the prediction.}
 
 \item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
+
+\item{weights}{The weights for each predictor, calculated using ComputeMetaFeatureWeights()}
 }
 \value{
 A list of sets, where each set is a neighborhood of nodes.

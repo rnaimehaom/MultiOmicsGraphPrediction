@@ -7,7 +7,7 @@
 Predict(
   pairs,
   inputData,
-  metafeatures,
+  weights,
   model,
   minCutoff,
   maxCutoff,
@@ -23,7 +23,7 @@ Predict(
 \item{inputData}{The input testing data, which should be of an 
 IntLimData class type.}
 
-\item{metafeatures}{The metafeatures calculated using GetTestMetaFeatures()}
+\item{weights}{The weights of each model, computed using ComputeMetaFeatureWeights()}
 
 \item{model}{The learned model, an object of the modelResults class.}
 

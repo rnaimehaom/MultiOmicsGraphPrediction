@@ -1,0 +1,416 @@
+
+---
+title: "NCI-60 5-FU Demo"
+author: "Tara Eicher"
+date: "4/01/2022"
+output: rmarkdown::html_document
+vignette: >
+  %\VignetteIndexEntry{MultiOmicsGraphPrediction NCI60 5FU}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+# Set up.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+result_dir <- "~\\Ensemble_5fu_vignette_results"
+dir.create(result_dir)
+```
+
+# Install the packages.
+```{r eval = FALSE}
+if(!require("devtools")){
+  install.packages("devtools")
+}
+library("devtools")
+if(!require("MultiOmicsGraphPrediction")){
+  install_github("ncats/MultiOmicsGraphPrediction")
+}
+library(MultiOmicsGraphPrediction)
+if(!require("IntLIM")){
+  install_github("ncats/IntLIM")
+}
+library(IntLIM)
+```
+
+# Import data files.
+Read in the full data set.
+```{r}
+#dir <- system.file("extdata", package="MultiOmicsGraphPrediction", mustWork=TRUE)
+dir <- "/Volumes/eichertd$/Ensemble_prediction/inst/extdata"
+# Import training data.
+csvfile <- file.path(dir, "nci60_5FU.full.csv")
+inputData <- IntLIM::ReadData(csvfile, class.feat = list(drugscore = "numeric",
+                                                                   cancertype = "factor",
+                                                                   drug5FU = "numeric"))
+```
+
+# Run IntLIM
+We observe that R^2 values range between 0.3 and 0.8 and that p-values are generally
+high. In this case, we will use only the R^2 value to filter the data. This is
+because pairs may be important to prediction even if their association is not
+phenotype-dependent.
+```{r}
+myres <- IntLIM::RunIntLim(inputData = inputData,stype="drug5FU",
+                                 save.covar.pvals = TRUE, 
+                                 outcome = 2, suppressWarnings = TRUE,
+                                 independent.var.type = 1, 
+                                 continuous = TRUE, covar = "cancertype")
+IntLIM::DistPvalues(myres, adjusted = FALSE)
+IntLIM::DistRSquared(myres)
+IntLIM::InteractionCoefficientGraph(inputResults = myres,
+                                    interactionCoeffPercentile = 0.9,
+                                    percentageToPlot = 1)
+IntLIM::pvalCoefVolcano(inputResults = myres, inputData = inputData,
+                        pvalcutoff = 0.99)
+plot(density(myres@interaction.pvalues), xlab = "Interaction Term Unadjusted p-value", main = "")
+plot(density(myres@interaction.adj.pvalues), xlab = "Interaction Term Adjusted p-value", main = "")
+plot(density(myres@interaction.coefficients), xlab = "Interaction Term Coefficient", main = "")
+plot(density(myres@model.rsquared), xlab = "Model R-squared", main = "")
+saveRDS(myres, "/Volumes/eichertd$/Ensemble_prediction/vignettes/myres_NCI60_full.RDS")
+```
+
+# Filter Results and Create Co-Regulation Graph
+After filtering by the R^2 value at the peak of the distribution (0.38), we obtain
+2,076,567 pairs that pass the threshold. This is out of an original 5,018,373 possible pairs.
+
+However, we note that only cysteine and succinate are involved in pairs that pass the
+R^2 threshold. We would also like to consider the role of dUTP, citric acid, and malic acid.
+For this reason, we proceed using all pairs rather than only those filtered using R^2.
+```{r}
+myres.all <- IntLIM::ProcessResults(inputResults = myres, inputData = inputData, 
+                                       pvalcutoff = 1, rsquaredCutoff = 0, interactionCoeffPercentile = 0)
+myres.r2.density <- density(myres.all$rsquared)
+peak.r2 <- myres.r2.density$x[which.max(myres.r2.density$y)]
+print(peak.r2)
+myres.r2 <- IntLIM::ProcessResults(inputResults = myres, inputData = inputData, 
+                                       pvalcutoff = 1, rsquaredCutoff = peak.r2)
+# Build graph.
+coreg.r2 <- MultiOmicsGraphPrediction::BuildCoRegulationGraph(myres.r2)
+
+# Check whether metabolites and genes of interest are present.
+truePositiveMetabolites <- unlist(read.table("/Volumes/eichertd$/Ensemble_prediction/inst/extdata/truePositiveMetabolites.txt",
+            sep = "\n", header = FALSE)$V1)
+truePositiveGenes <- unlist(read.table("/Volumes/eichertd$/Ensemble_prediction/inst/extdata/truePositiveGenes.txt",
+            sep = "\n", header = FALSE)$V1)
+trueNegativeGenes <- unlist(read.table("/Volumes/eichertd$/Ensemble_prediction/inst/extdata/trueNegativeGenes.txt",
+            sep = "\n", header = FALSE)$V1)
+print(paste(length(intersect(as.character(myres.r2$Analyte2), truePositiveMetabolites)), length(truePositiveMetabolites)))
+print(paste(length(intersect(as.character(myres.r2$Analyte1), truePositiveGenes)), length(truePositiveGenes)))
+print(paste(length(intersect(as.character(myres.r2$Analyte1), trueNegativeGenes)), length(trueNegativeGenes)))
+saveRDS(myres.r2, "/Volumes/eichertd$/Ensemble_prediction/vignettes/myres_NCI60_full_r2.RDS")
+saveRDS(coreg.r2, "/Volumes/eichertd$/Ensemble_prediction/vignettes/coreg_NCI60_full_r2.RDS")
+```
+
+# Perform One-Hot Encoding on Categorical Variables.
+
+We perform one-hot encoding on the categorical variables.
+```{r}
+covar = "cancertype"
+encoding <- MultiOmicsGraphPrediction::OneHotEncoding(covar = "cancertype", inputData = inputData)
+covar = encoding$covar
+inputData@sampleMetaData <- encoding$sampleMetaData
+saveRDS(inputData, "/Volumes/eichertd$/Ensemble_prediction/vignettes/inputData_NCI60_full_r2.RDS")
+```
+
+# Run Pairwise Prediction.
+
+Next, we predict the outcomes. As we can observe from the histogram plots, predictions
+from each pair are not necessarily centered around their true values. We therefore
+anticipate that the PDF feature will be relatively unimportant to the final predictions.
+```{r}
+myres.r2 <- readRDS("/Volumes/eichertd$/Ensemble_prediction/vignettes/myres_NCI60_full_r2.RDS")
+# Run pairwise prediction.
+pred <- MultiOmicsGraphPrediction::RunPairwisePrediction(inputResults = myres.r2, 
+                                                         inputData = inputData,
+                                                         stype = "drug5FU",
+                                                         covar = covar,
+                                                         independentVarType = 1,
+                                                         outcomeType = 2)
+saveRDS(pred,file="/Volumes/eichertd$/Ensemble_prediction/vignettes/nci60_5FUPairPredictions.full.RDS")
+for(samp in rownames(pred)){
+  hist(pred[samp,], main = paste(samp, inputData@sampleMetaData[samp,"drug5FU"]), xlim = c(0,10), breaks = 1000000)
+}
+```
+
+## Project Predictions
+```{r plot graph}
+#pred <- readRDS(file="/Volumes/eichertd$/Ensemble_prediction/vignettes/nci60_5FUPairPredictions.full.RDS")
+coreg.r2 <- readRDS("/Volumes/eichertd$/Ensemble_prediction/vignettes/coreg_NCI60_full_r2.RDS")
+# Project graph.
+projectedGraph <- MultiOmicsGraphPrediction::ProjectPredictionsOntoGraph(coRegulationGraph = coreg.r2,
+                                                                         predictions = pred)
+saveRDS(projectedGraph, "/Volumes/eichertd$/Ensemble_prediction/vignettes/projectedGraph_NCI60_full_r2.RDS")
+```
+
+## Compute Metafeatures.
+We assume RaMP has already been installed and that a MySQL version of the RaMP package exists on the user's machine.
+__colIdInd__ and __colIdOut__ denote the columns of the analyte metadata that contain the source ID's to input to RaMP.
+
+For most of the metafeatures, the distribution of values is fairly uniform. The exception to this is the interaction p-value
+metafeature, which peaks at a p-value of 0.4 (not particularly significant). None of the pairs evaluated here share a
+reaction in RaMP, although many do share a pathway.
+
+Because clusters are not apparent within the subspace clustering heatmap, it is expected that the local error of each
+predictor will mirror the global error.
+```{r importance}
+MultiOmicsGraphPrediction::PlotSubspaceClusteringDendrogram(inputData = inputData, eigStep = 1)
+MultiOmicsGraphPrediction::PlotSubspaceClusteringHeatmap(inputData = inputData, eigStep = 1)
+mysql_password <- unlist(unname(read.csv("mysql_pw.txt", header = FALSE)))
+pkg.globals <- RaMP::setConnectionToRaMP(dbname = "ramp", username = "root", conpass = mysql_password,
+                                     host = "localhost")
+metaFeatures <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred,
+                                                                 stype = "drug5FU",
+                                                                 inputData = inputData,
+                                                                 metaFeatureList = c("pdf", "interactionpval", "interactioncoef", "pathway", "reaction", "analytecoef", "localerr"),
+                                                                 k = 2, eigStep = 1,
+                                                                 modelStats = myres.r2,
+                                                                 colIdInd = "databaseId",
+                                                                 colIdOut = "databaseId")
+# metaFeatures <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred,
+#                                                                  stype = "drug5FU",
+#                                                                  inputData = inputData,
+#                                                                  metaFeatureList = c("pdf", "pathway", "reaction", "localerr"),
+#                                                                  k = 2, eigStep = 1,
+#                                                                  modelStats = myres.r2,
+#                                                                  colIdInd = "databaseId",
+#                                                                  colIdOut = "databaseId")
+# metaFeaturesX <- MultiOmicsGraphPrediction::GetMetaFeatures(predictions = pred,
+#                                                                  stype = "drug5FU",
+#                                                                  inputData = inputData,
+#                                                                  metaFeatureList = c("interactionpval", "interactioncoef", "analytecoef"),
+#                                                                  k = 2, eigStep = 1,
+#                                                                  modelStats = myres.r2,
+#                                                                  colIdInd = "databaseId",
+#                                                                  colIdOut = "databaseId")
+# metaFeatures$interactionpval <- metaFeaturesX$interactionpval
+# metaFeatures$interactioncoef <- metaFeaturesX$interactioncoef
+# metaFeatures$analytecoef <- metaFeaturesX$analytecoef
+hist(metaFeatures$pdf)
+hist(metaFeatures$localerr)
+hist(metaFeatures$pathway)
+hist(metaFeatures$reaction)
+hist(metaFeatures$interactionpval)
+hist(metaFeatures$interactioncoef)
+hist(metaFeatures$analytecoef)
+saveRDS(metaFeatures, "/Volumes/eichertd$/Ensemble_prediction/vignettes/metaFeatures_NCI60_full_r2.RDS")
+```
+
+## Run a single Significance Propagation with the initial weights.
+The pairs that we expect to find in the significance model include the following:
+- For dUTP: FURIN, UMPS, UPP1, UPP2, UCK1, RRM2, TYMS
+- For citric acid: CNDP1, APRT, SLCO2B1, CLYBL, BHMT, PDE5A, IL4I1, HS3ST3A1, HS3ST3B1, and OR10H3
+- For malic acid: MDH2, FH, ME2, ME1, ME3, and MDH1
+- For succinate: TMLHE, ALKBH2, PHYH, P4HA2, P4HA1, BBOX1, PLOD1, PLOD2, PLOD3, and P3H1
+
+The pairs learned using only a single propagation are as follows:
+- For malic acid: FH, CLYBL, HS3ST3A1, MDH1, PLOD2, UPP1, and CNDP1
+- For cysteine: CNDP1
+- For succinate: CNDP1
+- For citric acid: CNDP1
+
+Only two of these pairs overlap with the expected pairs. Furthermore, the t-scores
+are negative. This indicates that the overall error is greater than if the mean
+value is used for prediction. Finally, the predictions are far from the actual
+true values.
+```{r model input}
+metaFeatures <- readRDS("/Volumes/eichertd$/Ensemble_prediction/vignettes/metaFeatures_NCI60_full_r2.RDS")
+projectedGraph <- readRDS("/Volumes/eichertd$/Ensemble_prediction/vignettes/projectedGraph_NCI60_full_r2.RDS")
+
+modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+                                                     coregulationGraph = coreg.r2,
+                                                     inputData = inputData, 
+                                                     stype.class = "numeric",
+                                                     stype = "drug5FU",
+                                                     edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
+                                                     metaFeatures = metaFeatures,
+                                                     modelProperties = myres.r2,
+                                                     outcome = 2,
+                                                     independent.var.type = 1)
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2)
+pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input)
+saveRDS(pairsPredAll, "/Volumes/eichertd$/Ensemble_prediction/vignettes/pairsPredAll_NCI60_full_r2.RDS")
+propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                               verbose = TRUE, modelRetention = "stringent")
+print(propagatedGraph)
+print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
+```
+
+## Run a single Significance Propagation with prediction cutoffs.
+The pairs that we expect to find in the significance model include the following:
+- For dUTP: FURIN, UMPS, UPP1, UPP2, UCK1, RRM2, TYMS
+- For citric acid: CNDP1, APRT, SLCO2B1, CLYBL, BHMT, PDE5A, IL4I1, HS3ST3A1, HS3ST3B1, and OR10H3
+- For malic acid: MDH2, FH, ME2, ME1, ME3, and MDH1
+- For succinate: TMLHE, ALKBH2, PHYH, P4HA2, P4HA1, BBOX1, PLOD1, PLOD2, PLOD3, and P3H1
+
+The pairs learned using only a single propagation include the dUTP pairs.
+
+Two of these pairs overlap with the expected pairs (dUTP, FURIN), and (dUTP, RRM2).
+Notably, none of the other dUTP pairs passed the R^2 threshold, so these were not
+considered. 
+```{r model input}
+modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projectedGraph, 
+                                                     coregulationGraph = coreg.r2,
+                                                     inputData = inputDataTrain, 
+                                                     stype.class = "numeric",
+                                                     stype = "drug5FU",
+                                                     edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
+                                                     metaFeatures = metaFeatures,
+                                                     modelProperties = myres.r2,
+                                                     outcome = 2,
+                                                     independent.var.type = 1)
+modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2, iterations = 100)
+pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input, percentOverlapCutoff = 50)
+
+maxCutoff <- 1.1 * max(modelInput@input.data@sampleMetaData[,"drug5FU"])
+minCutoff <- 0.9 * min(modelInput@input.data@sampleMetaData[,"drug5FU"])
+propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
+                                               verbose = TRUE, modelRetention = "stringent", minCutoff = minCutoff, maxCutoff = maxCutoff, useCutoff = TRUE)
+predictions <- MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]], minCutoff = minCutoff,
+                                                     maxCutoff = maxCutoff, useCutoff = TRUE)
+true <- modelInput@input.data@sampleMetaData[,"drug5FU"]
+print(propagatedGraph)
+plot(predictions, true, xlab = "Predicted", ylab = "True")
+print(ComputeRMSE(predictions, true))
+```
+
+# Learn Metafeature Weights.
+
+In this case, errors are very high during model tuning, making convergence impractical.
+This is likely because many of the predictions fall outside of the true range of the data.
+Capping the predictions given the training data may help to mitigate this issue.
+```{r}
+# Initialize parameters.
+metaFeatureList <- c("pdf", "interactionpval", "interactioncoef", "pathway", "reaction", "analytecoef", "localerr")
+stype <- "drug5FU"
+outcomeType <- 2
+independentVarType <- 1
+
+# Run prediction.
+modelResults <- MultiOmicsGraphPrediction::DoModelSetup(inputData = inputDataTrain,
+                                stype = stype,
+                                rsquaredCutoff = 0,
+                                outcomeType = outcomeType,
+                                independentVarType = independentVarType,
+                                continuous = TRUE,
+                                metaFeatureList = metaFeatureList,
+                                learningRate = 0.01,
+                                maxIterations = 100)
+optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults, verbose = TRUE)
+
+# Predict testing values.
+predictions <- DoTestSetupAndPrediction(inputDataTest = inputDataTest, 
+                                        model = optimalModel)
+print(optimalModel@pairs)
+print(predictions)
+print(inputDataTest@sampleMetaData$drug5FU)
+print(MultiOmicsGraphPrediction::ComputeRMSE(true.Y = inputDataTest@sampleMetaData$drug5FU,
+                                             pred.Y = predictions))
+plot(predictions, inputDataTest@sampleMetaData$drug5FU, xlab = "Predicted 5-FU Drug Score", ylab = "True 5-FU Drug Score")
+```
+
+# Learn Metafeature Weights with Prediction Cutoffs.
+```{r}
+# Initialize parameters.
+metaFeatureList <- c("pdf", "interactionpval", "interactioncoef", "pathway", "reaction", "analytecoef", "localerr")
+stype <- "drug5FU"
+outcomeType <- 2
+independentVarType <- 1
+
+# Run prediction.
+modelResults <- DoModelSetup(inputData = inputDataTrain,
+                                stype = stype,
+                                outcomeType = outcomeType,
+                                independentVarType = independentVarType,
+                                continuous = TRUE,
+                                metaFeatureList = metaFeatureList,
+                             rsquaredCutoff = 0,
+                             maxIterations = 100,
+                                learningRate = 0.01)
+optimalModel <- MultiOmicsGraphPrediction::OptimizeMetaFeatureCombo(modelResults = modelResults, useCutoff = TRUE)
+
+# Predict testing values.
+predictions <- DoTestSetupAndPrediction(inputDataTest = inputDataTest, 
+                                        model = optimalModel, 
+                                        useCutoff = TRUE)
+print(optimalModel@pairs)
+print(predictions)
+print(inputDataTest@sampleMetaData$drug5FU)
+print(MultiOmicsGraphPrediction::ComputeRMSE(true.Y = inputDataTest@sampleMetaData$drug5FU,
+                                             pred.Y = predictions))
+plot(predictions, inputDataTest@sampleMetaData$drug5FU, xlab = "Predicted 5-FU Drug Score", ylab = "True 5-FU Drug Score")
+```
+
+# Random Forest
+```{r}
+# Install packages.
+if(!require("caret")){
+  install.packages("caret")
+}
+if(!require("randomForest")){
+  install.packages("randomForest", dependencies = TRUE)
+}
+library(randomForest)
+set.seed(1234)
+```
+
+```{r}
+# Set up Data.
+train.X.all <- as.matrix(cbind(t(inputDataTrain@analyteType1),t(inputDataTrain@analyteType2)))
+test.X.all <- as.matrix(cbind(t(inputDataTest@analyteType1),t(inputDataTest@analyteType2)))
+train.Y.all <- inputDataTrain@sampleMetaData[, "drug5FU"]
+test.Y.all <- inputDataTest@sampleMetaData[, "drug5FU"]
+
+# Run Random Forest
+control <- caret::trainControl(method='none')
+mtry <- sqrt(ncol(train.X.all))
+tunegrid <- expand.grid(.mtry=mtry)
+rf_fit <- caret::train(x = train.X.all, y = c(train.Y.all),
+                method='rf',
+                metric='RMSE',
+                tuneGrid=tunegrid,
+                trControl=control)
+rf_models <- rf_fit[which(names(rf_fit) != "trainingData")]
+rf_importance <- caret::varImp(rf_fit, scale = FALSE)
+rf_test_predict <- predict(rf_fit, test.X.all)
+rf_test_true <- test.Y.all
+rf_rmse <- ComputeRMSE(test.Y.all, rf_test_predict)
+print(rownames(rf_importance$importance)[order(-1 * rf_importance$importance$Overall)])
+print(paste(sample, rf_test_predict, rf_test_true))
+print(rf_rmse)
+plot(rf_test_predict, rf_test_true, xlab = "Predicted 5-FU Drug Score", ylab = "True 5-FU Drug Score")
+```
+
+
+# LASSO
+```{r}
+# Install packages.
+if(!require("glmnet")){
+  install.packages("glmnet", dependencies = TRUE)
+}
+```
+
+```{r}
+# Set up Data.
+train.X.all <- as.matrix(cbind(t(inputDataTrain@analyteType1),t(inputDataTrain@analyteType2)))
+test.X.all <- as.matrix(cbind(t(inputDataTest@analyteType1),t(inputDataTest@analyteType2)))
+train.Y.all <- inputDataTrain@sampleMetaData[, "drug5FU"]
+test.Y.all <- inputDataTest@sampleMetaData[, "drug5FU"]
+
+# Run LASSO
+control <- caret::trainControl(method='none')
+tunegrid <- expand.grid(alpha = 1, lambda = 0)
+lasso_fit <- caret::train(x = train.X.all, y = c(train.Y.all),
+                   method='glmnet',
+                   metric='RMSE',
+                   tuneGrid=tunegrid,
+                   trControl=control)
+lasso_models <- lasso_fit[which(names(lasso_fit) != "trainingData")]
+lasso_importance <- coef(lasso_fit$finalModel)
+lasso_test_predict <- predict(lasso_fit, test.X.all)
+lasso_test_true <- test.Y.all
+lasso_rmse <- ComputeRMSE(test.Y.all, lasso_test_predict)
+gplots::heatmap.2(as.matrix(lasso_importance), trace = "none", scale = "none")
+print(paste(sample, lasso_test_predict, lasso_test_true))
+print(lasso_rmse)
+plot(lasso_test_predict, lasso_test_true, xlab = "Predicted 5-FU Drug Score", ylab = "True 5-FU Drug Score")
+```

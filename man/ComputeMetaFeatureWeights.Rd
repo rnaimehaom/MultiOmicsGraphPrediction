@@ -10,7 +10,7 @@ ComputeMetaFeatureWeights(metaFeatures, modelResults)
 \arguments{
 \item{metaFeatures}{A set of metafeatures, such as that found within ModelResults}
 
-\item{modelResults}{A ModelResults object.}
+\item{currentWeights}{The weights for each metafeature}
 }
 \value{
 A weight matrix for each sample and each predictor.

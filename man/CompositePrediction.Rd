@@ -9,7 +9,8 @@ CompositePrediction(
   modelResults,
   minCutoff,
   maxCutoff,
-  useCutoff = FALSE
+  useCutoff = FALSE,
+  weights
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ CompositePrediction(
 \item{maxCutoff}{Maximum cutoff for the prediction.}
 
 \item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
+
+\item{weights}{The weight for each predictor, calculated using ComputeMetaFeatureWeights()}
 }
 \value{
 A final predicted value for each sample in the input data

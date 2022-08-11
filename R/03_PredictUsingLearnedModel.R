@@ -55,9 +55,11 @@ DoTestSetupAndPrediction <- function(inputDataTest, model,
                                                                      colIdOut = colIdOut)
   
   # Predict testing values.
+  weights <- ComputeMetaFeatureWeights(modelResults = model,
+                                       metaFeatures = metafeaturesTest)
   predictions <- Predict(pairs = model@pairs,
                          inputData = inputDataTest, 
-                         metafeatures = metafeaturesTest, 
+                         weights = weights, 
                          model = model,
                                 useCutoff = useCutoff,
                                 minCutoff = predictionCutoffs$min,
@@ -105,7 +107,7 @@ SplitTrainingAndTesting <- function(inputData, testingSamples){
 #' @param pairs A list of pairs to include in the composite model.
 #' @param inputData The input testing data, which should be of an 
 #' IntLimData class type.
-#' @param metafeatures The metafeatures calculated using GetTestMetaFeatures()
+#' @param weights The weights of each model, computed using ComputeMetaFeatureWeights()
 #' @param model The learned model, an object of the modelResults class.
 #' @param minCutoff Mininum cutoff for the prediction.
 #' @param maxCutoff Maximum cutoff for the prediction.
@@ -116,7 +118,7 @@ SplitTrainingAndTesting <- function(inputData, testingSamples){
 #' @param outcomeType The outcome type (1 or 2)
 #' @return A vector of predictions
 #' @export
-Predict <- function(pairs, inputData, metafeatures, model, minCutoff, maxCutoff, useCutoff = FALSE,
+Predict <- function(pairs, inputData, weights, model, minCutoff, maxCutoff, useCutoff = FALSE,
                     useActivation = TRUE, independentVarType, outcomeType){
   
   # Set variables for further analysis.
@@ -131,8 +133,6 @@ Predict <- function(pairs, inputData, metafeatures, model, minCutoff, maxCutoff,
     analyteSrcVals <- inputData@analyteType1
   }
   covariateVals <- inputData@sampleMetaData
-  weights <- ComputeMetaFeatureWeights(modelResults = model,
-                                       metaFeatures = metafeatures)
   
   # Get vectors to use.
   targets <- unlist(data.frame(strsplit(pairs, "__"))[2,])

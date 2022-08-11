@@ -13,7 +13,11 @@
 #' @export
 DoSignificancePropagation <- function(pairs, modelResults, covar = c(), verbose = FALSE,
                                       pruningMethod = "error.t.test", modelRetention = "stringent",
-                                      minCutoff, maxCutoff, useCutoff = FALSE){
+                                      minCutoff, maxCutoff, useCutoff = FALSE){                       	
+                              	
+  # Compute weights for each predictor.
+  weights <- ComputeMetaFeatureWeights(modelResults = modelResults,
+                                       metaFeatures = modelResults@model.input@metaFeatures)
   # Initialize consolidated pairs.
   consolidated <- list(compositeModels = pairs, expandedCompositeModels = pairs, 
                        mapping = data.frame(from = 1:length(unlist(pairs)),
@@ -30,7 +34,8 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = c(), verbose 
                                                               modelRetention = modelRetention,
                                                               minCutoff = minCutoff,
                                                               maxCutoff = maxCutoff,
-                                                              useCutoff = useCutoff)
+                                                              useCutoff = useCutoff,
+                                                              weights = weights)
 
     consolidated <- MultiOmicsGraphPrediction::ObtainCompositeModels(pairsInEachPredictor = consolidated$expandedCompositeModels, 
                                                                      importantModels = prunedPairs)
@@ -50,7 +55,8 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = c(), verbose 
                                                               modelRetention = modelRetention,
                                                               minCutoff = minCutoff,
                                                               maxCutoff = maxCutoff,
-                                                              useCutoff = useCutoff)
+                                                              useCutoff = useCutoff,
+                                                              weights = weights)
   }
   
   # Return consolidated pairs.
@@ -63,14 +69,15 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = c(), verbose 
 #' @param minCutoff Mininum cutoff for the prediction.
 #' @param maxCutoff Maximum cutoff for the prediction.
 #' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+#' @param weights The weight for each predictor, calculated using ComputeMetaFeatureWeights()
 #' @return A final predicted value for each sample in the input data
 #' @export
-CompositePrediction <- function(pairs, modelResults, minCutoff, maxCutoff, useCutoff = FALSE){
+CompositePrediction <- function(pairs, modelResults, minCutoff, maxCutoff, useCutoff = FALSE, weights){
 
   # Run prediction for training data.
   final_val <- Predict(pairs = pairs,
     inputData = modelResults@model.input@input.data, 
-                       metafeatures = modelResults@model.input@metaFeatures, 
+                       weights = weights, 
                        model = modelResults, 
                        minCutoff = minCutoff, 
                        maxCutoff = maxCutoff, 
@@ -273,11 +280,12 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
 #' @param minCutoff Mininum cutoff for the prediction.
 #' @param maxCutoff Maximum cutoff for the prediction.
 #' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
+#' @param weights The weights for each predictor, calculated using ComputeMetaFeatureWeights()
 #' @return A list of sets, where each set is a neighborhood of nodes.
 #' @export
 PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE,
                             pruningMethod = "error.t.test", tolerance = 1e-5,
-                            modelRetention = "stringent", minCutoff, maxCutoff, useCutoff = FALSE){
+                            modelRetention = "stringent", minCutoff, maxCutoff, useCutoff = FALSE, weights){
   
   # Extract relevant information.
   pairs <- compositeSubgraphs$compositeModels
@@ -300,12 +308,11 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
                                                                      modelResults = modelResults,
                                                                      minCutoff = minCutoff,
                                                                      maxCutoff = maxCutoff,
-                                                                     useCutoff = useCutoff)
-    str(compositeModel)
+                                                                     useCutoff = useCutoff,
+                                                                     weights = weights)
     significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel), 
                                                                    trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
                                                                    pruningMethod = pruningMethod)
-    str(significance)
     if(verbose == TRUE){
       print(paste(list("Original", pruningMethod, "is", significance), collapse = " "))
     }
@@ -320,6 +327,7 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     importantPairs <- previousModels[previousModelsMapped]
 
     # Sort the models in order of their individual performance.
+    startTime <- Sys.time()
     individualPerformance <- unlist(lapply(1:length(previousModelsMapped), function(m){
       model <- importantModels[m]
       modelPairs <- unlist(importantPairs[m])
@@ -328,10 +336,14 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
                                                                        modelResults = modelResults,
                                                                        minCutoff = minCutoff,
                                                                        maxCutoff = maxCutoff,
-                                                                       useCutoff = useCutoff)
+                                                                       useCutoff = useCutoff,
+                                                                       weights = weights)
       significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
                                                                      trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
                                                                      pruningMethod = pruningMethod)
+      if(m %% (length(previousModelsMapped) / 100)== 0){
+        print(paste(m / (length(previousModelsMapped) / 100), "% done; time elapsed is", Sys.time() - startTime))
+      }
       return(significance)
     }))
     modelRemovalOrder <- order(individualPerformance)
@@ -353,7 +365,8 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
                                                                          modelResults = modelResults,
                                                                          minCutoff = minCutoff,
                                                                          maxCutoff = maxCutoff,
-                                                                         useCutoff = useCutoff)
+                                                                         useCutoff = useCutoff,
+                                                                         weights = weights)
         significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
                                                                        trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
                                                                        pruningMethod = pruningMethod)
@@ -407,12 +420,12 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
 
 #' Compute the weight of each predictor given the weights of different
 #' metafeatures.
-#' @param modelResults A ModelResults object.
+#' @param currentWeights The weights for each metafeature
 #' @param metaFeatures A set of metafeatures, such as that found within ModelResults
 #' @return A weight matrix for each sample and each predictor.
 #' @export
 ComputeMetaFeatureWeights <- function(metaFeatures, modelResults){
-  weights <- lapply(1:length(modelResults@model.input@metaFeatures), function(i){
+  weights <- lapply(1:length(metaFeatures), function(i){
     imp <- metaFeatures[[i]] * modelResults@current.metaFeature.weights[i]
     return(as.matrix(imp))
   })
