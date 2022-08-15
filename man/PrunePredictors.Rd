@@ -16,7 +16,8 @@ PrunePredictors(
   minCutoff,
   maxCutoff,
   useCutoff = FALSE,
-  weights
+  weights,
+  individualPerformance
 )
 }
 \arguments{
@@ -45,6 +46,8 @@ neither improve nor reduce the prediction score.}
 \item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
 
 \item{weights}{The weights for each predictor, calculated using ComputeMetaFeatureWeights()}
+
+\item{individualPerformance}{The score (using the pruning method) for each individual component of the model.}
 }
 \value{
 A list of sets, where each set is a neighborhood of nodes.

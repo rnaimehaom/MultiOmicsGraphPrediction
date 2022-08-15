@@ -24,6 +24,11 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = c(), verbose 
                                             to = unlist(lapply(1:length(pairs), function(i){rep(i, length(pairs[[i]]))}))))
   prevModels <- unlist(pairs)
   
+  # Compute individual performance of each predictor.
+  individualPerformance <- ComputeIndividualPerformance(modelResults = modelResults,
+                                                        trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
+                                                        pruningMethod = pruningMethod)
+
   # If this is the first iteration or if the mapping has not changed, stop.
   while(length(unique(consolidated$mapping$from)) != length(unique(consolidated$mapping$to))){
     prunedPairs <- MultiOmicsGraphPrediction::PrunePredictors(compositeSubgraphs = consolidated,
@@ -35,7 +40,8 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = c(), verbose 
                                                               minCutoff = minCutoff,
                                                               maxCutoff = maxCutoff,
                                                               useCutoff = useCutoff,
-                                                              weights = weights)
+                                                              weights = weights,
+                                                              individualPerformance = individualPerformance)
 
     consolidated <- MultiOmicsGraphPrediction::ObtainCompositeModels(pairsInEachPredictor = consolidated$expandedCompositeModels, 
                                                                      importantModels = prunedPairs)
@@ -56,7 +62,8 @@ DoSignificancePropagation <- function(pairs, modelResults, covar = c(), verbose 
                                                               minCutoff = minCutoff,
                                                               maxCutoff = maxCutoff,
                                                               useCutoff = useCutoff,
-                                                              weights = weights)
+                                                              weights = weights,
+                                                              individualPerformance = individualPerformance)
   }
   
   # Return consolidated pairs.
@@ -281,11 +288,13 @@ ObtainCompositeModels <- function(pairsInEachPredictor, importantModels){
 #' @param maxCutoff Maximum cutoff for the prediction.
 #' @param useCutoff Whether or not to use the cutoff for prediction. Default is FALSE.
 #' @param weights The weights for each predictor, calculated using ComputeMetaFeatureWeights()
+#' @param individualPerformance The score (using the pruning method) for each individual component of the model.
 #' @return A list of sets, where each set is a neighborhood of nodes.
 #' @export
 PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, verbose = FALSE, makePlots = FALSE,
                             pruningMethod = "error.t.test", tolerance = 1e-5,
-                            modelRetention = "stringent", minCutoff, maxCutoff, useCutoff = FALSE, weights){
+                            modelRetention = "stringent", minCutoff, maxCutoff, useCutoff = FALSE, weights,
+                            individualPerformance){
   
   # Extract relevant information.
   pairs <- compositeSubgraphs$compositeModels
@@ -327,27 +336,8 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
     importantPairs <- previousModels[previousModelsMapped]
 
     # Sort the models in order of their individual performance.
-    startTime <- Sys.time()
-    individualPerformance <- unlist(lapply(1:length(previousModelsMapped), function(m){
-      model <- importantModels[m]
-      modelPairs <- unlist(importantPairs[m])
-      
-      compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = modelPairs,
-                                                                       modelResults = modelResults,
-                                                                       minCutoff = minCutoff,
-                                                                       maxCutoff = maxCutoff,
-                                                                       useCutoff = useCutoff,
-                                                                       weights = weights)
-      significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
-                                                                     trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
-                                                                     pruningMethod = pruningMethod)
-      if(m %% (length(previousModelsMapped) / 100)== 0){
-        print(paste(m / (length(previousModelsMapped) / 100), "% done; time elapsed is", Sys.time() - startTime))
-      }
-      return(significance)
-    }))
-    modelRemovalOrder <- order(individualPerformance)
-    
+    modelRemovalOrder <- order(individualPerformance[which(names(individualPerformance) %in% pairs[[i]])])
+
     # Sequentially test removal of each model.
     for(m in modelRemovalOrder){
       
@@ -416,6 +406,40 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
   lengths <- unlist(lapply(prunedSubgraphs, function(g){return(length(g))}))
   prunedSubgraphs <- prunedSubgraphs[which(lengths > 0)]
   return(prunedSubgraphs)
+}
+
+#' Obtain a prediction from a composite model, given the pairs to include in the model.
+#' @param modelResults A ModelResults object.
+#' @param trueVal The true values (predictions or outcomes) of the input data.
+#' @param useActivation Whether or not to apply an activation function.
+#' @return A vector of significance values named by model.
+#' 
+#' @export
+ComputeIndividualPerformance <- function(modelResults, trueVal, pruningMethod, useActivation = FALSE){
+  
+  pred <- modelResults@model.input@edge.wise.prediction
+  
+  trueVal <- matrix(rep(trueVal, ncol(pred)), ncol = ncol(pred))
+  tScore <- -1000
+
+  # Compute the absolute error values.
+  meanTrue <- matrix(rep(mean(trueVal), length(pred)), ncol = ncol(pred))
+  meanAbsError <- abs(trueVal - meanTrue)
+  predAbsError <- abs(trueVal - pred)
+  
+  # Compute Welch's t-test.
+  n <- nrow(meanAbsError)
+  meanMeanAbsError <- colMeans(meanAbsError)
+  meanPredAbsError <- colMeans(predAbsError)
+  meanMeanAbsErrorMat <- t(matrix(rep(meanMeanAbsError, n), ncol = n))
+  meanPredAbsErrorMat <- t(matrix(rep(meanPredAbsError, n), ncol = n))
+  stdevMeanAbsError <- sqrt(colSums((meanTrue - meanMeanAbsErrorMat) ^ 2) / n)
+  stdevPredAbsError <- sqrt(colSums((pred - meanPredAbsErrorMat) ^ 2) / n)
+  stdevMeanAbsErrorBar <- stdevMeanAbsError / sqrt(n)
+  stdevPredAbsErrorBar <- stdevPredAbsError / sqrt(n)
+  tScore <- (meanMeanAbsError - meanPredAbsError) / sqrt((stdevMeanAbsErrorBar ^ 2) + (stdevPredAbsErrorBar ^ 2))
+
+  return(tScore)
 }
 
 #' Compute the weight of each predictor given the weights of different
