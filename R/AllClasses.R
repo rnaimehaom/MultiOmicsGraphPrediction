@@ -23,7 +23,7 @@ methods::setClass(
                  metaFeatures="list",
                  model.properties = "data.frame",
                  input.data = "IntLimData",
-                 covariates = "list",
+                 covariates = "character",
                  stype = "character",
                  stype.class = "character",
                  outcome = "numeric",

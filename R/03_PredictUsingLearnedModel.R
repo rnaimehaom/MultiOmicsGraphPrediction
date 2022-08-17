@@ -159,12 +159,11 @@ Predict <- function(pairs, inputData, weights, model, minCutoff, maxCutoff, useC
   weighted_sum_b3 <- rowSums(weights[,pairs] * interactionTerm * src)
   
   # covariates
-  # NOTE: This needs to be tested.
   weighted_sum_covars <- rep(0, nrow(weights))
   if(length(covar) > 0){
     weighted_sum_each <- lapply(covar, function(c){
       weighted_sum <- rowSums(weights[,pairs] * t(matrix(rep(covariates[pairs,c], nrow(weights)), ncol = nrow(weights)))
-                                 * covariateVals[,c])
+                                 * matrix(rep(covariateVals[,c], length(pairs)), ncol = length(pairs)))
     })
     weighted_sum_covars <- Reduce('+', weighted_sum_each)
   }

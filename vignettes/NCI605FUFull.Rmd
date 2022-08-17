@@ -224,6 +224,7 @@ modelInput <- MultiOmicsGraphPrediction::FormatInput(predictionGraphs = projecte
                                                      edgeTypeList = c("shared.outcome.analyte", "shared.independent.analyte"),
                                                      metaFeatures = metaFeatures,
                                                      modelProperties = myres.r2,
+                                                     covariates = covar,
                                                      outcome = 2,
                                                      independent.var.type = 1)
 modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInput = modelInput, learningRate = 0.2)
