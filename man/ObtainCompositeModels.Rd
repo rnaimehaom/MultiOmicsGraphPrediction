@@ -2,15 +2,25 @@
 % Please edit documentation in R/compositemodelfunctions.R
 \name{ObtainCompositeModels}
 \alias{ObtainCompositeModels}
-\title{Obtain the list of pairs in a composite model. Do this by merging the two
-composite models with the most overlap. Use the full models so that we
+\title{Obtain the list of pairs in a composite model. Do this by merging all composite
+models with overlap. Use the full models so that we
 consider the original overlap before pruning. This uses only the structure
 of the graph and requires no dependencies on previous layers.}
 \usage{
-ObtainCompositeModels(pairsInEachPredictor, importantModels)
+ObtainCompositeModels(
+  graph,
+  pairsInEachPredictor,
+  targetsInEachPredictor,
+  sourcesInEachPredictor,
+  importantModels
+)
 }
 \arguments{
+\item{graph}{The full graph of predictors.}
+
 \item{pairsInEachPredictor}{A list of pairs contained within each predictor.}
+
+\item{sourcesInEachPredictor}{A list of targets for pairs contained within each predictor.}
 
 \item{importantModels}{A list of all pairs that were found to be important in the
 previous layer.}
@@ -21,8 +31,8 @@ models, a list of sets comprising the untrimmed models, and a mapping from
 the predictors in the previous stage to the current stage.
 }
 \description{
-Obtain the list of pairs in a composite model. Do this by merging the two
-composite models with the most overlap. Use the full models so that we
+Obtain the list of pairs in a composite model. Do this by merging all composite
+models with overlap. Use the full models so that we
 consider the original overlap before pruning. This uses only the structure
 of the graph and requires no dependencies on previous layers.
 }

@@ -105,6 +105,8 @@ SplitTrainingAndTesting <- function(inputData, testingSamples){
 
 #' Run a prediction on new data using the graph learning model.
 #' @param pairs A list of pairs to include in the composite model.
+#' @param targets Target analytes for all pairs
+#' @param sources Source analytes for all pairs
 #' @param inputData The input testing data, which should be of an 
 #' IntLimData class type.
 #' @param weights The weights of each model, computed using ComputeMetaFeatureWeights()
@@ -118,7 +120,7 @@ SplitTrainingAndTesting <- function(inputData, testingSamples){
 #' @param outcomeType The outcome type (1 or 2)
 #' @return A vector of predictions
 #' @export
-Predict <- function(pairs, inputData, weights, model, minCutoff, maxCutoff, useCutoff = FALSE,
+Predict <- function(pairs, targets, sources, inputData, weights, model, minCutoff, maxCutoff, useCutoff = FALSE,
                     useActivation = TRUE, independentVarType, outcomeType){
   
   # Set variables for further analysis.
@@ -133,41 +135,45 @@ Predict <- function(pairs, inputData, weights, model, minCutoff, maxCutoff, useC
     analyteSrcVals <- inputData@analyteType1
   }
   covariateVals <- inputData@sampleMetaData
+  wt <- weights[,pairs]
+  covariatePairs <- covariates[pairs,]
   
-  # Get vectors to use.
-  targets <- unlist(data.frame(strsplit(pairs, "__"))[2,])
-  sources <- unlist(data.frame(strsplit(pairs, "__"))[1,])
-  
+  # The combination of these takes almost 2 seconds - why?
   # Analyte 1
-  weighted_a1 <- rowSums(weights[,pairs] * t(analyteTgtVals[targets,]))
+  tgt <- t(analyteTgtVals[targets,])
+  if(ncol(tgt) == nrow(wt) && nrow(tgt) == ncol(wt)){
+    tgt <- analyteTgtVals[targets,]
+  }
+  weighted_a1 <- rowSums(wt * tgt)
 
   # beta0
-  weighted_sum_b0 <- rowSums(weights[,pairs] * t(matrix(rep(covariates[pairs,"(Intercept)"], nrow(weights)), ncol = nrow(weights))))
+  weighted_sum_b0 <- rowSums(wt * t(matrix(rep(covariatePairs[,"(Intercept)"], nrow(weights)), ncol = nrow(weights))))
 
   # beta1
-  weighted_sum_b1 <- rowSums(weights[,pairs] * t(matrix(rep(covariates[pairs,"a"], nrow(weights)), ncol = nrow(weights))))
+  weighted_sum_b1 <- rowSums(wt * t(matrix(rep(covariatePairs[,"a"], nrow(weights)), ncol = nrow(weights))))
 
   # beta2
-  weighted_sum_b2 <- rowSums(weights[,pairs] * t(matrix(rep(covariates[pairs,"type"], nrow(weights)), ncol = nrow(weights))))
+  weighted_sum_b2 <- rowSums(wt * t(matrix(rep(covariatePairs[,"type"], nrow(weights)), ncol = nrow(weights))))
 
   # beta3
-  interactionTerm <- t(matrix(rep(covariates[pairs,"a:type"], nrow(weights)), ncol = nrow(weights)))
-  src <- t(analyteSrcVals[sources,])
+  interactionTerm <- t(matrix(rep(covariatePairs[,"a:type"], nrow(weights)), ncol = nrow(weights)))
+  src <- analyteSrcVals[sources,]
   if(ncol(src) == nrow(interactionTerm) && nrow(src) == ncol(interactionTerm)){
-    src <- analyteSrcVals[sources,]
+    src <- t(analyteSrcVals[sources,])
   }
-  weighted_sum_b3 <- rowSums(weights[,pairs] * interactionTerm * src)
-  
+  weighted_sum_b3 <- rowSums(wt * interactionTerm * src)
+
   # covariates
   weighted_sum_covars <- rep(0, nrow(weights))
   if(length(covar) > 0){
     weighted_sum_each <- lapply(covar, function(c){
-      weighted_sum <- rowSums(weights[,pairs] * t(matrix(rep(covariates[pairs,c], nrow(weights)), ncol = nrow(weights)))
+      weighted_sum <- rowSums(wt * t(matrix(rep(covariatePairs[,c], nrow(weights)), ncol = nrow(weights)))
                                  * matrix(rep(covariateVals[,c], length(pairs)), ncol = length(pairs)))
+      return(weighted_sum)
     })
     weighted_sum_covars <- Reduce('+', weighted_sum_each)
   }
-  
+
   # Final value.
   denom <- weighted_sum_b2 + weighted_sum_b3
   denom[which(denom == 0)] <- 0.0001

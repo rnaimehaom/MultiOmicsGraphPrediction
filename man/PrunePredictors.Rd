@@ -48,6 +48,10 @@ neither improve nor reduce the prediction score.}
 \item{weights}{The weights for each predictor, calculated using ComputeMetaFeatureWeights()}
 
 \item{individualPerformance}{The score (using the pruning method) for each individual component of the model.}
+
+\item{previousModelsTarget}{A list of the targets in the previous models that were consolidated.}
+
+\item{previousModelsSource}{A list of the sources in the previous models that were consolidated.}
 }
 \value{
 A list of sets, where each set is a neighborhood of nodes.

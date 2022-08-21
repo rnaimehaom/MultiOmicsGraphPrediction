@@ -6,6 +6,8 @@
 \usage{
 Predict(
   pairs,
+  targets,
+  sources,
   inputData,
   weights,
   model,
@@ -19,6 +21,10 @@ Predict(
 }
 \arguments{
 \item{pairs}{A list of pairs to include in the composite model.}
+
+\item{targets}{Target analytes for all pairs}
+
+\item{sources}{Source analytes for all pairs}
 
 \item{inputData}{The input testing data, which should be of an 
 IntLimData class type.}
