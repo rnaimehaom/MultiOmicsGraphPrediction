@@ -376,10 +376,10 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
   targets <- compositeSubgraphs$compositeModelTargets
   sources <- compositeSubgraphs$compositeModelSource
   mapping <- compositeSubgraphs$mapping
-
+  tstart <- Sys.time()
   prunedSubgraphs <- lapply(1:length(pairs), function(i){
     # Prune by weight.
-    whichWeights <- which(weights[pairs[[i]]] > weightCutoff)
+    whichWeights <- which(apply(weights[,pairs[[i]]], 2, function(x) max(x)) > weightCutoff)
     localPairs <- pairs[[i]][whichWeights]
     localTargets <- targets[[i]][whichWeights]
     localSources <- sources[[i]][whichWeights]
@@ -393,122 +393,136 @@ PrunePredictors <- function(compositeSubgraphs, previousModels, modelResults, ve
       }else{
         print(paste("subgraph", i, ":", paste(sort(unlist(localPairs[1:maxToPrint])), collapse = ", ")))
       }
-      
     }
     
-    # Initialize the predictor to include all pairs in the composite subgraph.
-    compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = localPairs, 
-                                                                     targets = localTargets,
-                                                                     sources = localSources,
-                                                                     modelResults = modelResults,
-                                                                     minCutoff = minCutoff,
-                                                                     maxCutoff = maxCutoff,
-                                                                     useCutoff = useCutoff,
-                                                                     weights = weights)
-    significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel), 
-                                                                   trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
-                                                                   pruningMethod = pruningMethod)
+    # Make sure there is at least one model remaining.
+    if(length(localPairs) > 1){
+      # Initialize the predictor to include all pairs in the composite subgraph.
+      compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = localPairs, 
+                                                                       targets = localTargets,
+                                                                       sources = localSources,
+                                                                       modelResults = modelResults,
+                                                                       minCutoff = minCutoff,
+                                                                       maxCutoff = maxCutoff,
+                                                                       useCutoff = useCutoff,
+                                                                       weights = weights)
+      significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel), 
+                                                                     trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
+                                                                     pruningMethod = pruningMethod)
+      if(verbose == TRUE){
+        print(paste(list("Original", pruningMethod, "is", significance), collapse = " "))
+      }
+      
+    #   removedLastTime <- FALSE
+    #   compositeModelFull <- compositeModel
+    #   significanceFull <- significance
+    #   
+    #   # Figure out which of the previous models mapped to this one.
+    #   previousModelsMapped <- mapping$from[which(mapping$to == i)]
+    #   importantModels <- previousModelsMapped
+    #   importantPairs <- previousModels$pairs[previousModelsMapped]
+    #   importantTargets <- previousModels$targets[previousModelsMapped]
+    #   importantSources <- previousModels$sources[previousModelsMapped]
+    #   
+    #   # Filter the important models.
+    #   whichWeightsImportant <- which(apply(weights[,unlist(importantPairs)], 2, function(x) max(x)) > weightCutoff)
+    #   importantPairs <- importantPairs[whichWeightsImportant]
+    #   importantTargets <- importantTargets[whichWeightsImportant]
+    #   importantSources <- importantSources[whichWeightsImportant]
+    #   
+    #   # Sort the models in order of their individual performance.
+    #   whichPair <- which(names(individualPerformance) %in% localPairs)
+    #   modelRemovalOrder <- order(individualPerformance[whichPair])
+    #   
+    #   # Sequentially test removal of each model.
+    #   for(m in modelRemovalOrder){
+    #     
+    #     # Save the information gain for the full model.
+    #     if(removedLastTime == TRUE){
+    #       compositeModelFull <- compositeModel
+    #       significanceFull <- significance
+    #     }
+    #     
+    #     # Compute the significance for the new model.
+    #     modelsToInclude <- setdiff(importantModels, previousModelsMapped[m])
+    #     whichToInclude <- which(unlist(importantPairs) %in% unlist(previousModels$pairs[modelsToInclude]))
+    #     pairsToInclude <- unlist(importantPairs)[whichToInclude]
+    #     targetsToInclude <- unlist(importantTargets)[whichToInclude]
+    #     sourcesToInclude <- unlist(importantSources)[whichToInclude]
+    #     if(length(pairsToInclude) > 0){
+    #       compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsToInclude,
+    #                                                                        targets = targetsToInclude,
+    #                                                                        sources = sourcesToInclude,
+    #                                                                        modelResults = modelResults,
+    #                                                                        minCutoff = minCutoff,
+    #                                                                        maxCutoff = maxCutoff,
+    #                                                                        useCutoff = useCutoff,
+    #                                                                        weights = weights)
+    #       significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
+    #                                                                      trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
+    #                                                                      pruningMethod = pruningMethod)
+    #     }
+    #     
+    #     # If the significance of the new model is greater than or equal to the full model, remove the pair.
+    #     # If only one analyte pair remains and it has not improved over the full model, keep the pair.
+    #     # If only one analyte pair remains and the value is 0, remove the pair.
+    #     # If the significance of the new model is less than the full model, remove the pair.
+    #     significance <- round(significance, 2)
+    #     significanceFull <- round(significanceFull, 2)
+    #     model <- unlist(importantPairs)[which(unlist(importantPairs) %in% unlist(previousModels$pairs[previousModelsMapped[m]]))]
+    #     removedLastTime <- FALSE
+    #     meetsCutoffForRemoval <- significance >= significanceFull - tolerance
+    #     if(modelRetention == "lenient"){
+    #       meetsCutoffForRemoval <- significance > significanceFull
+    #     }
+    #     if(meetsCutoffForRemoval == TRUE && length(pairsToInclude) > 0){
+    #       # Print the increase in significance.
+    #       if(verbose == TRUE){
+    #         print(paste(list("Removed model.", pruningMethod, "after removing", paste(model, collapse = ","), "is", 
+    #                          format(significance, nsmall = 2), ", as compared to",
+    #                          format(significanceFull, nsmall = 2)), collapse = " "))
+    #       }
+    #       
+    #       importantPairs <- pairsToInclude
+    #       importantTargets <- targetsToInclude
+    #       importantSources <- sourcesToInclude
+    #       importantModels <- modelsToInclude
+    #       removedLastTime <- TRUE
+    #     }else if (length(pairsToInclude) == 0){
+    #       if(verbose == TRUE){
+    #         print(paste(list("Kept", paste(model, collapse = ","), "because it is the last remaining model"), collapse = " "))
+    #       }
+    #     }else{
+    #       # Print the decrease in information gain.
+    #       if(verbose == TRUE){
+    #         print(paste(list("Kept model.", pruningMethod, "after removing", paste(model, collapse = ","), "is", 
+    #                          format(significance, nsmall = 2), ", as compared to",
+    #                          format(significanceFull, nsmall = 2)), collapse = " "))
+    #       }
+    #     }
+    #   }
+      importantPairs <- localPairs
+      importantTargets <- localTargets
+      importantSources <- localSources
+    }else{
+      importantPairs <- localPairs
+      importantTargets <- localTargets
+      importantSources <- localSources
+    }
+
+    # Print results.
     if(verbose == TRUE){
-      print(paste(list("Original", pruningMethod, "is", significance), collapse = " "))
-    }
-    
-    removedLastTime <- FALSE
-    compositeModelFull <- compositeModel
-    significanceFull <- significance
-    
-    # Figure out which of the previous models mapped to this one.
-    previousModelsMappedAll <- mapping$from[which(mapping$to == i)]
-    importantModels <- previousModelsMapped
-    importantPairs <- previousModels$pairs[previousModelsMapped]
-    importantTargets <- previousModels$targets[previousModelsMapped]
-    importantSources <- previousModels$sources[previousModelsMapped]
-    
-    # Filter the important models.
-    whichWeightsImportant <- which(weights[unlist(importantPairs)] > weightCutoff)
-    importantPairs <- importantPairs[whichWeightsImportant]
-    importantTargets <- importantTargets[whichWeightsImportant]
-    importantSources <- importantSources[whichWeightsImportant]
-
-    # Sort the models in order of their individual performance.
-    whichPair <- which(names(individualPerformance) %in% localPairs)
-    modelRemovalOrder <- order(individualPerformance[whichPair])
-
-    # Sequentially test removal of each model.
-    for(m in modelRemovalOrder){
-      tstart <- Sys.time()
-      
-      # Save the information gain for the full model.
-      if(removedLastTime == TRUE){
-        compositeModelFull <- compositeModel
-        significanceFull <- significance
-      }
-      
-      # Compute the significance for the new model.
-      modelsToInclude <- setdiff(importantModels, previousModelsMapped[m])
-      whichToInclude <- which(unlist(importantPairs) %in% unlist(previousModels$pairs[modelsToInclude]))
-      pairsToInclude <- unlist(importantPairs)[whichToInclude]
-      targetsToInclude <- unlist(importantTargets)[whichToInclude]
-      sourcesToInclude <- unlist(importantSources)[whichToInclude]
-      if(length(pairsToInclude) > 0){
-        compositeModel <- MultiOmicsGraphPrediction::CompositePrediction(pairs = pairsToInclude,
-                                                                         targets = targetsToInclude,
-                                                                         sources = sourcesToInclude,
-                                                                         modelResults = modelResults,
-                                                                         minCutoff = minCutoff,
-                                                                         maxCutoff = maxCutoff,
-                                                                         useCutoff = useCutoff,
-                                                                         weights = weights)
-        significance <- MultiOmicsGraphPrediction::ComputeSignificance(pred = unlist(compositeModel),
-                                                                       trueVal = modelResults@model.input@input.data@sampleMetaData[,modelResults@model.input@stype],
-                                                                       pruningMethod = pruningMethod)
-        print(Sys.time() - tstart)
-      }
-      
-      # If the significance of the new model is greater than or equal to the full model, remove the pair.
-      # If only one analyte pair remains and it has not improved over the full model, keep the pair.
-      # If only one analyte pair remains and the value is 0, remove the pair.
-      # If the significance of the new model is less than the full model, remove the pair.
-      significance <- round(significance, 2)
-      significanceFull <- round(significanceFull, 2)
-      model <- unlist(importantPairs)[which(unlist(importantPairs) %in% unlist(previousModels$pairs[previousModelsMapped[m]]))]
-      removedLastTime <- FALSE
-      meetsCutoffForRemoval <- significance >= significanceFull - tolerance
-      if(modelRetention == "lenient"){
-        meetsCutoffForRemoval <- significance > significanceFull
-      }
-      if(meetsCutoffForRemoval == TRUE && length(pairsToInclude) > 0){
-        # Print the increase in significance.
-        if(verbose == TRUE){
-          print(paste(list("Removed model.", pruningMethod, "after removing", paste(model, collapse = ","), "is", 
-                           format(significance, nsmall = 2), ", as compared to",
-                           format(significanceFull, nsmall = 2)), collapse = " "))
-        }
-        
-        importantPairs <- pairsToInclude
-        importantTargets <- targetsToInclude
-        importantSources <- sourcesToInclude
-        importantModels <- modelsToInclude
-        removedLastTime <- TRUE
-      }else if (length(pairsToInclude) == 0){
-        if(verbose == TRUE){
-          print(paste(list("Kept", paste(model, collapse = ","), "because it is the last remaining model"), collapse = " "))
-        }
+      if(length(localPairs) < maxToPrint){
+        print(paste("The pruned set of pairs is:", paste(sort(unlist(importantPairs)), collapse = ",")))
       }else{
-        # Print the decrease in information gain.
-        if(verbose == TRUE){
-          print(paste(list("Kept model.", pruningMethod, "after removing", paste(model, collapse = ","), "is", 
-                           format(significance, nsmall = 2), ", as compared to",
-                           format(significanceFull, nsmall = 2)), collapse = " "))
-        }
+        print(paste("The pruned set of pairs is:", paste(sort(unlist(importantPairs))[1:maxToPrint], collapse = ",")))
       }
-    }
-    if(verbose == TRUE){
-      print(paste("The pruned set of pairs is:", paste(unlist(importantPairs), collapse = ",")))
     }
     return(list(pairs = unlist(importantPairs), targets = unlist(importantTargets), sources = unlist(importantSources)))
   })
   lengths <- unlist(lapply(prunedSubgraphs, function(g){return(length(g$pairs))}))
   prunedSubgraphs <- prunedSubgraphs[which(lengths > 0)]
+  print(Sys.time() - tstart)
   return(prunedSubgraphs)
 }
 

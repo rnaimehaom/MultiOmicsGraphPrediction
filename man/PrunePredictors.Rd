@@ -17,7 +17,8 @@ PrunePredictors(
   maxCutoff,
   useCutoff = FALSE,
   weights,
-  individualPerformance
+  individualPerformance,
+  weightCutoff
 )
 }
 \arguments{
@@ -48,6 +49,8 @@ neither improve nor reduce the prediction score.}
 \item{weights}{The weights for each predictor, calculated using ComputeMetaFeatureWeights()}
 
 \item{individualPerformance}{The score (using the pruning method) for each individual component of the model.}
+
+\item{weightCutoff}{Only consider pairs with weight above this cutoff.}
 
 \item{previousModelsTarget}{A list of the targets in the previous models that were consolidated.}
 

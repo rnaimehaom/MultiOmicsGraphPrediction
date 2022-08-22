@@ -13,7 +13,8 @@ DoSignificancePropagation(
   modelRetention = "stringent",
   minCutoff,
   maxCutoff,
-  useCutoff = FALSE
+  useCutoff = FALSE,
+  weightCutoff = 0
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ neither improve nor reduce the prediction score.}
 \item{maxCutoff}{Maximum cutoff for the prediction.}
 
 \item{useCutoff}{Whether or not to use the cutoff for prediction. Default is FALSE.}
+
+\item{weightCutoff}{Only consider pairs with weight above this cutoff.}
 }
 \value{
 A final predicted value for each sample in the input data

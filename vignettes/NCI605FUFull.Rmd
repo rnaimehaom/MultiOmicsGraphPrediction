@@ -231,7 +231,7 @@ modelResults <- MultiOmicsGraphPrediction::InitializeGraphLearningModel(modelInp
 pairsPredAll <- MultiOmicsGraphPrediction::ObtainSubgraphNeighborhoods(modelInput = modelResults@model.input)
 saveRDS(pairsPredAll, "/Volumes/eichertd$/Ensemble_prediction/vignettes/pairsPredAll_NCI60_full_r2.RDS")
 propagatedGraph <- MultiOmicsGraphPrediction::DoSignificancePropagation(pairs = pairsPredAll, modelResults = modelResults,
-                                               verbose = TRUE, modelRetention = "stringent")
+                                               verbose = TRUE, modelRetention = "stringent", weightCutoff = 0.5)
 print(propagatedGraph)
 print(MultiOmicsGraphPrediction::CompositePrediction(modelResults = modelResults, pairs = propagatedGraph[[1]]))
 ```
